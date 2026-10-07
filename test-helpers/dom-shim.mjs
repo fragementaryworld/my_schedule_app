@@ -85,6 +85,7 @@ export class Element {
   focus() {}
   click() {
     this.dispatchEvent('click');
+    if (typeof this.onclick === 'function') this.onclick({ target: this, stopPropagation() {} });
   }
 }
 

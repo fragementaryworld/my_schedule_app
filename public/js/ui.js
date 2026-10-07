@@ -55,7 +55,8 @@ export function openModal({ title, fields = [], submitText = '保存', onSubmit 
   return new Promise((resolve) => {
     const backdrop = h('div', { class: 'modal-backdrop' });
     const modal = h('div', { class: 'modal' });
-    const form = h('form', { class: 'modal-form' });
+    const formId = 'modal-form-' + Math.random().toString(36).slice(2, 10);
+    const form = h('form', { class: 'modal-form', id: formId });
     const controls = {};
 
     const addField = (f) => {
@@ -91,7 +92,7 @@ export function openModal({ title, fields = [], submitText = '保存', onSubmit 
 
     const foot = h('div', { class: 'modal-foot' });
     const cancel = h('button', { type: 'button', class: 'btn' }, '取消');
-    const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, submitText);
+    const submit = h('button', { type: 'submit', class: 'btn btn-primary', form: formId }, submitText);
     foot.append(cancel, submit);
     modal.append(h('div', { class: 'modal-title' }, title), h('div', { class: 'modal-body' }, form), foot);
     backdrop.append(modal);
