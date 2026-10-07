@@ -224,6 +224,7 @@ function buildIdeaCard(s) {
 
 export async function render(container) {
   el = container;
+  container.innerHTML = '';
   const today = todayStr();
   const [prefs, tasks, memos, projects, books, workouts, ideas] = await Promise.all([
     api.get('/api/preferences'),
