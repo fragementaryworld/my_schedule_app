@@ -1,0 +1,11 @@
+{
+  "name": "my-schedule-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "个人工作生活管理 App（本地运行，无登录无联网）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

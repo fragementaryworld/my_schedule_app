@@ -1,0 +1,14 @@
+# 运行时个人数据（不提交）
+data/
+
+# 依赖
+node_modules/
+
+# 数据文件临时/备份/损坏副本
+*.tmp
+*.bak
+*.corrupt-*
+
+# 系统文件
+.DS_Store
+Thumbs.db

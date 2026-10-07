@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工作生活专属 App</title>
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/shell.css" />
+  <link rel="stylesheet" href="/css/modules.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="brand">🗓 工作生活</div>
+      <nav id="nav">
+        <a href="#/home" data-route="home">🏠 首页总览</a>
+        <a href="#/today" data-route="today">📋 今日计划</a>
+        <a href="#/projects" data-route="projects">📁 工作项目</a>
+        <a href="#/reading" data-route="reading">📚 阅读计划</a>
+        <a href="#/fitness" data-route="fitness">💪 健身计划</a>
+        <a href="#/ideas" data-route="ideas">💡 待实施灵感</a>
+      </nav>
+      <div class="sidebar-foot">
+        <a href="#/settings" data-route="settings">⚙️ 数据与设置</a>
+      </div>
+    </aside>
+    <main id="main">
+      <div id="topbar"><h1 id="pageTitle">首页总览</h1></div>
+      <div id="content"></div>
+    </main>
+  </div>
+  <button id="fab" title="快速添加">＋</button>
+  <div id="toast"></div>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
