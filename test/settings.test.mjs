@@ -49,3 +49,11 @@ test('meta 返回数据文件信息', async () => {
   assert.ok(meta.filePath.endsWith('data.json'));
   assert.equal(typeof meta.sizeBytes, 'number');
 });
+
+test('POST /api/save 手动保存', async () => {
+  const res = await fetch(base + '/api/save', { method: 'POST' });
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.ok, true);
+  assert.equal(typeof json.sizeBytes, 'number');
+});

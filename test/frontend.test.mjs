@@ -43,6 +43,7 @@ test('首页 HTML 包含 7 个模块导航、路由与容器', async () => {
   }
   assert.ok(text.includes('id="content"'));
   assert.ok(text.includes('id="fab"'));
+  assert.ok(text.includes('id="saveBtn"'), '缺少手动保存按钮');
 });
 
 test('所有前端资源可访问', async () => {
@@ -57,6 +58,7 @@ test('app.js 可导入且 7 个视图都导出 render/add', async () => {
   const app = await import(appUrl);
   assert.equal(app.titles.home, '首页');
   assert.equal(app.titles.ideas, '灵感');
+  assert.equal(typeof app.saveNow, 'function', 'app 缺少 saveNow');
   const viewNames = Object.keys(app.views);
   assert.equal(viewNames.length, 7);
   for (const name of ['home', 'today', 'projects', 'reading', 'fitness', 'ideas', 'settings']) {

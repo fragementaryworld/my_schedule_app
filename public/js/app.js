@@ -1,5 +1,6 @@
 'use strict';
 import { api } from './api.js';
+import { toast } from './ui.js';
 import * as home from './views/home.js';
 import * as today from './views/today.js';
 import * as projects from './views/projects.js';
@@ -19,6 +20,10 @@ export const titles = {
   ideas: '灵感',
   settings: '数据与设置'
 };
+
+export async function saveNow() {
+  await api.post('/api/save');
+}
 
 let currentView = null;
 let currentParams = {};
@@ -48,6 +53,14 @@ function init() {
   window.addEventListener('hashchange', navigate);
   document.getElementById('fab').addEventListener('click', () => {
     if (currentView && typeof currentView.add === 'function') currentView.add(currentParams);
+  });
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    try {
+      await saveNow();
+      toast('已保存');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   });
   (async () => {
     try {
