@@ -210,7 +210,7 @@ function buildFitnessCard(s) {
 
 function buildIdeaCard(s) {
   const card = h('div', { class: 'card home-card', onclick: () => (location.hash = '#/ideas') });
-  card.append(h('div', { class: 'card-title' }, '💡 待实施灵感', h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, `${s.ideasOpen} 个未完成`)));
+  card.append(h('div', { class: 'card-title' }, '💡 灵感', h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, `${s.ideasOpen} 个未完成`)));
   if (s.latestIdeas.length) {
     for (const i of s.latestIdeas) {
       card.append(h('div', { class: 'memo-line' }, h('span', { class: 'text', title: i.title }, escapeHtml(i.title))));

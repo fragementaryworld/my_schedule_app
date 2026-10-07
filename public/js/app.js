@@ -11,12 +11,12 @@ import * as settings from './views/settings.js';
 export const views = { home, today, projects, reading, fitness, ideas, settings };
 
 export const titles = {
-  home: '首页总览',
+  home: '首页',
   today: '今日计划',
   projects: '工作项目进展',
   reading: '阅读计划',
   fitness: '健身计划',
-  ideas: '待实施的灵感',
+  ideas: '灵感',
   settings: '数据与设置'
 };
 

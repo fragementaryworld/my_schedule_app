@@ -5,12 +5,12 @@ import { h, toast, confirmDialog } from '../ui.js';
 let el = null;
 
 const HOME_OPTIONS = [
-  ['home', '首页总览'],
+  ['home', '首页'],
   ['today', '今日计划'],
   ['projects', '工作项目'],
   ['reading', '阅读计划'],
   ['fitness', '健身计划'],
-  ['ideas', '待实施灵感']
+  ['ideas', '灵感']
 ];
 
 export async function render(container) {

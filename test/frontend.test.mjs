@@ -24,7 +24,7 @@ after(async () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-const NAV_LABELS = ['首页总览', '今日计划', '工作项目', '阅读计划', '健身计划', '待实施灵感', '数据与设置'];
+const NAV_LABELS = ['首页', '今日计划', '工作项目', '阅读计划', '健身计划', '灵感', '数据与设置'];
 const ASSETS = [
   '/css/base.css', '/css/shell.css', '/css/modules.css',
   '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js',
@@ -36,6 +36,8 @@ test('首页 HTML 包含 7 个模块导航、路由与容器', async () => {
   const res = await fetch(base + '/');
   const text = await res.text();
   for (const label of NAV_LABELS) assert.ok(text.includes(label), `缺少导航：${label}`);
+  assert.ok(!text.includes('首页总览'), '导航不应再包含「首页总览」');
+  assert.ok(!text.includes('待实施灵感'), '导航不应再包含「待实施灵感」');
   for (const route of ['home', 'today', 'projects', 'reading', 'fitness', 'ideas', 'settings']) {
     assert.ok(text.includes(`#/${route}`), `缺少路由：#/${route}`);
   }
@@ -53,6 +55,8 @@ test('所有前端资源可访问', async () => {
 test('app.js 可导入且 7 个视图都导出 render/add', async () => {
   const appUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'app.js')).href;
   const app = await import(appUrl);
+  assert.equal(app.titles.home, '首页');
+  assert.equal(app.titles.ideas, '灵感');
   const viewNames = Object.keys(app.views);
   assert.equal(viewNames.length, 7);
   for (const name of ['home', 'today', 'projects', 'reading', 'fitness', 'ideas', 'settings']) {
