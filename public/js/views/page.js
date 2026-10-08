@@ -6,6 +6,7 @@ import { buildProjectTasksSection, collectOwners, blockedByOptions } from './pro
 
 let el = null;
 let pageId = null;
+const blockEls = new Map();
 
 // 祖先页面（从根到父）
 export function pageAncestors(projects, id) {
@@ -53,6 +54,7 @@ export async function render(container, params = {}) {
 
 async function paint() {
   if (!el) return;
+  blockEls.clear();
   el.innerHTML = '';
   const projects = await api.get('/api/projects');
   const page = projects.find((x) => x.id === pageId);
@@ -64,7 +66,7 @@ async function paint() {
   el.append(buildIconTitle(page));
   el.append(buildProperties(projects, page));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
-  el.append(buildBlocksArea(page));
+  el.append(buildBlocksEditor(page));
   el.append(h('div', { class: 'page-section' }, '📄 子页面'));
   el.append(buildSubpages(projects, page));
   el.append(h('div', { class: 'page-section' }, '✅ 任务'));
@@ -159,19 +161,85 @@ function buildProperties(projects, page) {
   return card;
 }
 
-function buildBlocksArea(page) {
+// 内容块编辑器：就地编辑 / 回车新建 / 空块退格删除 / 失焦自动保存
+export function buildBlocksEditor(page) {
+  const wrap = h('div', { class: 'page-blocks editor' });
   const blocks = page.blocks || [];
-  const wrap = h('div', { class: 'page-blocks' });
+
   if (!blocks.length) {
-    wrap.classList.add('empty-hint');
-    wrap.append(h('span', {}, '内容块编辑器将在下一步实现（正文 / 待办 / 列表 / 引用…）'));
+    const add = h('div', { class: 'block-add-hint' }, '＋ 点击添加内容');
+    add.onclick = async () => {
+      const created = await api.post(`/api/projects/${page.id}/blocks`, { type: 'text', text: '' });
+      await paint();
+      focusBlock(created && created.id);
+    };
+    wrap.append(add);
     return wrap;
   }
-  for (const b of blocks) {
-    if (b.type === 'divider') { wrap.append(h('div', { class: 'block block-divider' })); continue; }
-    wrap.append(h('div', { class: `block block-${b.type}` }, b.text || ''));
-  }
+
+  for (let i = 0; i < blocks.length; i++) wrap.append(buildBlockEl(page, blocks[i], i, blocks));
   return wrap;
+}
+
+function blockMarker(block, index) {
+  if (block.type === 'todo') return block.checked ? '☑' : '☐';
+  if (block.type === 'bullet') return '•';
+  if (block.type === 'number') return `${index + 1}.`;
+  return null;
+}
+
+function buildBlockEl(page, block, index, blocks) {
+  const row = h('div', { class: `block-row block-row-${block.type}`, dataset: { blockId: block.id } });
+
+  if (block.type === 'divider') {
+    row.append(h('div', { class: 'block-divider' }));
+    return row;
+  }
+
+  const marker = blockMarker(block, index);
+  if (marker) row.append(h('span', { class: 'block-marker' }, marker));
+
+  const editable = h('div', { class: `block block-${block.type}`, contenteditable: 'true', spellcheck: 'false' });
+  editable.textContent = block.text || '';
+  blockEls.set(block.id, editable);
+
+  editable.addEventListener('blur', async () => {
+    const next = editable.textContent;
+    if (next !== (block.text || '')) {
+      await api.put(`/api/projects/${page.id}/blocks/${block.id}`, { text: next });
+      block.text = next;
+      toast('已保存');
+    }
+  });
+
+  editable.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && block.type !== 'quote') {
+      e.preventDefault();
+      const sameType = ['todo', 'bullet', 'number'].includes(block.type);
+      const created = await api.post(`/api/projects/${page.id}/blocks`, {
+        type: sameType ? block.type : 'text',
+        text: '',
+        afterId: block.id
+      });
+      await paint();
+      focusBlock(created && created.id);
+    } else if (e.key === 'Backspace' && !editable.textContent && blocks.length > 1) {
+      e.preventDefault();
+      await api.del(`/api/projects/${page.id}/blocks/${block.id}`);
+      const prev = blocks[index - 1];
+      await paint();
+      if (prev) focusBlock(prev.id);
+    }
+  });
+
+  row.append(editable);
+  return row;
+}
+
+function focusBlock(id) {
+  if (!id) return;
+  const node = blockEls.get(id);
+  if (node && node.focus) node.focus();
 }
 
 function buildSubpages(projects, page) {
