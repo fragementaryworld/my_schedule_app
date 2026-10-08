@@ -399,6 +399,8 @@ function buildProjectFeed(projects) {
   return feed;
 }
 
+export { buildProjectFeed };
+
 function buildFeedPost(p) {
   const d = projectRowData(p);
   const post = h('div', { class: 'feed-post card' });
@@ -408,6 +410,7 @@ function buildFeedPost(p) {
   head.append(h('span', { class: 'small muted' }, `${d.owner || '我的'} · ${String(p.createdAt || '').slice(0, 10)}`));
   head.append(h('span', { class: 'spacer' }));
   head.append(h('span', { class: `badge ${d.statusCls}` }, d.statusLabel));
+  head.append(h('button', { class: 'btn btn-sm', onclick: () => projectModal(p, paintList) }, '✏️ 编辑'));
   post.append(head);
 
   const title = h('h3', { class: 'feed-title' }, escapeHtml(d.name));
@@ -436,23 +439,49 @@ function buildFeedPost(p) {
 
   post.append(h('h4', { class: 'feed-sec' }, 'Project tasks'));
   post.append(buildFeedTasks(p));
+
+  const addRow = h('div', { class: 'row', style: 'margin-top:8px' });
+  const addInput = h('input', { class: 'input', placeholder: '添加任务，回车确认' });
+  const dueInput = h('input', { type: 'date', class: 'input', style: 'width:auto', title: '任务时间' });
+  addInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter' && addInput.value.trim()) {
+      await api.post(`/api/projects/${p.id}/tasks`, { title: addInput.value.trim(), dueDate: dueInput.value || null });
+      toast('已添加任务');
+      paintList();
+    }
+  });
+  addRow.append(addInput, dueInput);
+  post.append(addRow);
   return post;
 }
 
 function buildFeedTasks(p) {
   const { pending, done } = groupTasksByDone(p.tasks || []);
   const board = h('div', { class: 'kanban' });
-  board.append(feedTaskCol('未完成', pending));
-  board.append(feedTaskCol('已完成', done));
+  board.append(feedTaskCol('未完成', pending, p, false));
+  board.append(feedTaskCol('已完成', done, p, true));
   return board;
 }
 
-function feedTaskCol(title, tasks) {
+// 任务看板列：可拖动卡片改完成状态
+function feedTaskCol(title, tasks, p, doneFlag) {
   const col = h('div', { class: 'kanban-col' });
+  col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
+  col.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    col.classList.remove('drop-hover');
+    const tid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    if (!tid) return;
+    await api.put(`/api/projects/${p.id}/tasks/${tid}`, { done: doneFlag });
+    toast('任务已更新');
+    paintList();
+  });
   col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(tasks.length))));
   if (!tasks.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
   for (const t of tasks) {
-    const card = h('div', { class: 'kanban-card' });
+    const card = h('div', { class: 'kanban-card', draggable: 'true' });
+    card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
     card.append(h('div', { class: 'title' }, escapeHtml(t.title)));
     if (t.dueDate) card.append(h('div', { class: 'small muted' }, `📅 ${t.dueDate}`));
     const subs = t.subtasks || [];
@@ -774,7 +803,7 @@ export function projectFields(p) {
   ];
 }
 
-function projectModal(p) {
+function projectModal(p, onDone) {
   openModal({
     title: p ? '编辑项目' : '新增项目',
     fields: projectFields(p),
@@ -792,7 +821,8 @@ function projectModal(p) {
       if (p) await api.put(`/api/projects/${p.id}`, payload);
       else await api.post('/api/projects', payload);
       toast(p ? '已保存' : '已创建');
-      if (p) paintDetail(p.id);
+      if (onDone) onDone();
+      else if (p) paintDetail(p.id);
       else paintList();
     }
   });

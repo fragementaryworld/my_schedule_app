@@ -139,3 +139,11 @@ export function findAllByClass(root, cls) {
   walk(root);
   return out;
 }
+
+export function textOf(node) {
+  if (!node) return '';
+  if (node.nodeType === 3) return node.text || '';
+  let s = '';
+  for (const c of node.children || []) s += textOf(c);
+  return s;
+}
