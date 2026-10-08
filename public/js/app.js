@@ -8,8 +8,9 @@ import * as reading from './views/reading.js';
 import * as fitness from './views/fitness.js';
 import * as ideas from './views/ideas.js';
 import * as settings from './views/settings.js';
+import * as page from './views/page.js';
 
-export const views = { home, today, projects, reading, fitness, ideas, settings };
+export const views = { home, today, projects, reading, fitness, ideas, settings, page };
 
 export const titles = {
   home: '首页',
@@ -18,7 +19,8 @@ export const titles = {
   reading: '阅读计划',
   fitness: '健身计划',
   ideas: '灵感',
-  settings: '数据与设置'
+  settings: '数据与设置',
+  page: '项目页面'
 };
 
 export async function saveNow() {
@@ -39,8 +41,9 @@ export async function navigate() {
   const view = views[route] || views.home;
   currentView = view;
   currentParams = { id };
+  const navRoute = route === 'page' ? 'projects' : route;
   document.querySelectorAll('#nav a, .sidebar-foot a').forEach((a) => {
-    a.classList.toggle('active', a.dataset.route === route);
+    a.classList.toggle('active', a.dataset.route === navRoute);
   });
   document.getElementById('pageTitle').textContent = titles[route] || titles.home;
   const content = document.getElementById('content');

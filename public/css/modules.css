@@ -180,6 +180,39 @@
 .feed-post:hover { box-shadow: var(--shadow-lg); }
 .feed-sec { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 
+/* ===== Notion 式页面 ===== */
+.breadcrumb { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+.breadcrumb .crumb { color: var(--muted); }
+.breadcrumb .crumb:hover { color: var(--text); }
+.breadcrumb .crumb.current { color: var(--text); font-weight: 500; }
+.crumb-sep { color: var(--border); }
+
+.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.page-icon-input { width: 56px; height: 56px; font-size: 28px; text-align: center; padding: 0; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); }
+.page-icon-input:hover { border-color: var(--border); background: var(--panel-2); }
+.page-title { flex: 1; min-width: 0; font-size: 30px; font-weight: 700; outline: none; padding: 4px 8px; border-radius: 8px; cursor: text; }
+.page-title:hover { background: var(--panel-2); }
+.page-title:focus { background: var(--panel-2); box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.25); }
+
+.page-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px 18px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow); }
+.prop-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.prop-label { width: 56px; flex-shrink: 0; color: var(--muted); font-size: 12px; }
+.inline-input { width: auto; padding: 3px 8px; font-size: 12px; }
+
+.page-section { margin: 22px 0 8px; font-weight: 600; color: var(--muted); font-size: 14px; }
+.page-blocks { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; box-shadow: var(--shadow); }
+.page-blocks.empty-hint { color: var(--muted); }
+.block { padding: 4px 0; white-space: pre-wrap; }
+.block-h1 { font-size: 22px; font-weight: 700; }
+.block-h2 { font-size: 18px; font-weight: 600; }
+.block-h3 { font-size: 16px; font-weight: 600; }
+.block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
+.block-divider { border-top: 1px solid var(--border); height: 0; padding: 0; }
+
+.subpages { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; box-shadow: var(--shadow); }
+.subpage-item { padding: 6px 8px; border-radius: 8px; }
+.subpage-item:hover { background: var(--panel-2); }
+
 .gantt-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .gantt-track { flex: 1; height: 16px; background: var(--border); border-radius: 999px; overflow: hidden; }

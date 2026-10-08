@@ -230,8 +230,8 @@ export function ganttBarPct(dueDate, start, end) {
 export async function render(container, params = {}) {
   el = container;
   currentParams = params;
-  if (params.id) await paintDetail(params.id);
-  else await paintList();
+  if (params.id) { location.hash = `#/page/${params.id}`; return; }
+  await paintList();
 }
 
 async function paintList() {
@@ -304,7 +304,7 @@ function buildBoardCard(p) {
   const d = projectRowData(p);
   const card = h('div', { class: 'kanban-card', draggable: 'true', style: 'cursor:pointer' });
   card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); });
-  card.onclick = () => { location.hash = `#/projects/${p.id}`; };
+  card.onclick = () => { location.hash = `#/page/${p.id}`; };
   card.append(h('div', { class: 'title', style: 'font-weight:600;margin-bottom:6px' }, escapeHtml(d.name)));
   card.append(h('div', { class: 'small muted' }, d.dates));
   const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
@@ -363,7 +363,7 @@ function buildProjectTimeline(projects) {
       const bar = timelineBar(p, start, end);
       const row = h('div', { class: 'timeline-row' });
       const label = h('span', { class: 'timeline-label', title: `${p.name}（拖到分组标题可改状态）`, draggable: 'true' }, escapeHtml(p.name));
-      label.onclick = () => { location.hash = `#/projects/${p.id}`; };
+      label.onclick = () => { location.hash = `#/page/${p.id}`; };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); };
       row.append(label);
 
@@ -374,7 +374,7 @@ function buildProjectTimeline(projects) {
         style: `left:${bar.left}%;width:${bar.width}%`,
         title: `${p.name}（${formatProjectDates(p)}）`
       }, h('span', { class: 'timeline-bar-label' }, formatProjectDates(p)));
-      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = `#/projects/${p.id}`; };
+      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = `#/page/${p.id}`; };
       attachBarDrag(barEl, track, p, totalDays);
 
       const leftH = h('div', { class: 'timeline-handle left', title: '拖动调整开始时间' });
@@ -638,7 +638,7 @@ function buildProjectTable(projects) {
 function buildProjectRow(p) {
   const d = projectRowData(p);
   const tr = h('tr', { style: 'cursor:pointer' });
-  tr.onclick = () => { location.hash = `#/projects/${p.id}`; };
+  tr.onclick = () => { location.hash = `#/page/${p.id}`; };
   tr.append(h('td', {}, h('span', { class: 'proj-name' }, escapeHtml(d.name))));
   tr.append(h('td', {}, h('span', { class: `badge ${d.statusCls}` }, d.statusLabel)));
   tr.append(h('td', {}, d.owner
@@ -653,71 +653,16 @@ function buildProjectRow(p) {
   return tr;
 }
 
-async function paintDetail(id) {
-  const projects = await api.get('/api/projects');
-  cachedProjects = projects;
-  const p = projects.find((x) => x.id === id);
-  if (!p) {
-    el.innerHTML = '<div class="empty"><p>项目不存在或已删除。</p></div>';
-    return;
-  }
-  el.innerHTML = '';
-  el.append(buildDetailHead(p));
-  el.append(buildOverview(p));
-  el.append(h('h3', { style: 'margin:20px 0 8px' }, '✅ 任务'));
-  el.append(buildProjectTasks(p));
+// 任务区刷新回调（由页面视图注入）
+let refreshFn = null;
+function refreshTasks() {
+  if (refreshFn) refreshFn();
 }
 
-function buildDetailHead(p) {
-  const head = h('div', { class: 'detail-head' });
-  const back = h('button', { class: 'btn btn-sm' }, '← 返回');
-  back.onclick = () => { location.hash = '#/projects'; };
-  head.append(back);
-  head.append(h('h2', {}, escapeHtml(p.name)));
-  const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.active;
-  head.append(h('span', { class: `badge ${st.cls}` }, st.label));
-
-  const sel = h('select', { class: 'input', style: 'width:auto' });
-  for (const [k, v] of Object.entries(PROJECT_STATUS)) sel.append(h('option', { value: k }, v.label));
-  sel.value = p.status;
-  sel.onchange = async () => {
-    await api.put(`/api/projects/${p.id}`, { status: sel.value });
-    toast('状态已更新');
-    paintDetail(p.id);
-  };
-  head.append(sel);
-
-  const edit = h('button', { class: 'btn btn-sm' }, '✏️ 编辑');
-  edit.onclick = () => projectModal(p);
-  const del = h('button', { class: 'btn btn-sm btn-danger' }, '删除');
-  del.onclick = async () => {
-    if (await confirmDialog(`确认删除项目「${p.name}」？此操作不可恢复。`, { danger: true })) {
-      await api.del(`/api/projects/${p.id}`);
-      toast('已删除');
-      location.hash = '#/projects';
-    }
-  };
-  head.append(edit, del);
-  return head;
-}
-
-function buildOverview(p) {
-  const card = h('div', { class: 'card', style: 'padding:16px' });
-  if (p.goal) card.append(h('p', { class: 'muted', style: 'margin:0 0 8px' }, escapeHtml(p.goal)));
-  const meta = h('div', { class: 'small muted row' });
-  meta.append(h('span', {}, `开始 ${fmtDate(p.startDate)}`));
-  if (p.dueDate) meta.append(h('span', {}, `· 截止 ${fmtDate(p.dueDate)}`));
-  card.append(meta);
-
-  const total = (p.tasks || []).length;
-  const doneCount = (p.tasks || []).filter((t) => t.done).length;
-  const pct = p.progress || 0;
-  card.append(h('div', { class: 'row', style: 'margin-top:10px' },
-    h('span', { class: 'small muted' }, '完成度'),
-    h('div', { class: 'progress', style: 'flex:1' }, h('i', { style: `width:${pct}%` })),
-    h('span', { class: 'small muted' }, `${pct}%（${doneCount}/${total}）`)
-  ));
-  return card;
+// 供页面视图复用：项目任务区（表格 / 甘特图 / 看板）
+export function buildProjectTasksSection(p, refresh) {
+  refreshFn = refresh;
+  return buildProjectTasks(p);
 }
 
 function buildProjectTasks(p) {
@@ -726,7 +671,7 @@ function buildProjectTasks(p) {
   const switcher = h('div', { class: 'tabbar', style: 'margin-bottom:12px' });
   for (const [k, label] of [['table', '表格'], ['gantt', '甘特图'], ['kanban', '看板']]) {
     const b = h('button', { class: 'tab' + (taskView === k ? ' active' : '') }, label);
-    b.onclick = () => { taskView = k; paintDetail(p.id); };
+    b.onclick = () => { taskView = k; refreshTasks(); };
     switcher.append(b);
   }
   wrap.append(switcher);
@@ -743,7 +688,7 @@ function buildProjectTasks(p) {
       await api.post(`/api/projects/${p.id}/tasks`, { title: addInput.value.trim(), dueDate: dueInput.value || null });
       addInput.value = '';
       dueInput.value = '';
-      paintDetail(p.id);
+      refreshTasks();
     }
   });
   addRow.append(addInput, dueInput);
@@ -763,7 +708,7 @@ function buildTaskTable(p) {
     const tdCb = h('td', {});
     const cb = h('input', { type: 'checkbox', class: 'task-check' });
     cb.checked = !!t.done;
-    cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); paintDetail(p.id); };
+    cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
     tdCb.append(cb);
     const tdTitle = h('td', {}, h('span', { class: t.done ? 'muted' : '' }, escapeHtml(t.title)));
     const tdDate = h('td', {}, t.dueDate || '—');
@@ -776,7 +721,7 @@ function buildTaskTable(p) {
     del.onclick = async () => {
       if (await confirmDialog('删除这个任务及其子任务？', { danger: true })) {
         await api.del(`/api/projects/${p.id}/tasks/${t.id}`);
-        paintDetail(p.id);
+        refreshTasks();
       }
     };
     tdOps.append(edit, del);
@@ -831,7 +776,7 @@ function kanbanCol(title, tasks, p) {
     const head = h('div', { class: 'row' });
     const cb = h('input', { type: 'checkbox', class: 'task-check' });
     cb.checked = !!t.done;
-    cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); paintDetail(p.id); };
+    cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
     head.append(cb);
     const titleEl = h('span', { class: 'title', style: 'flex:1' }, escapeHtml(t.title));
     titleEl.onclick = () => taskModal(p, t);
@@ -915,7 +860,7 @@ function taskModal(p, t) {
     await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { title: titleInput.value.trim(), dueDate: dueInput.value || null });
     toast('已保存');
     close();
-    paintDetail(p.id);
+    refreshTasks();
   };
 }
 
@@ -943,6 +888,7 @@ function projectModal(p, onDone) {
     onSubmit: async (v) => {
       const payload = {
         name: v.name.trim(),
+        icon: v.icon,
         goal: v.goal,
         status: v.status,
         startDate: v.startDate,
@@ -955,7 +901,6 @@ function projectModal(p, onDone) {
       else await api.post('/api/projects', payload);
       toast(p ? '已保存' : '已创建');
       if (onDone) onDone();
-      else if (p) paintDetail(p.id);
       else paintList();
     }
   });

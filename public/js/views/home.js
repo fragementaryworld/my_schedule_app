@@ -167,7 +167,7 @@ function buildProjectCard(s) {
   if (s.activeProjects.length) {
     for (const p of s.activeProjects.slice(0, 2)) {
       const row = h('div', { style: 'padding:6px 0;cursor:pointer' });
-      row.onclick = (e) => { e.stopPropagation(); location.hash = `#/projects/${p.id}`; };
+      row.onclick = (e) => { e.stopPropagation(); location.hash = `#/page/${p.id}`; };
       row.append(h('div', { class: 'row' }, h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(p.name)), h('span', { class: 'small muted' }, `${p.progress || 0}%`)));
       row.append(h('div', { class: 'progress' }, h('i', { style: `width:${p.progress || 0}%` })));
       card.append(row);
