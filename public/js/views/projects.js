@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, openModal, confirmDialog } from '../ui.js';
+import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays } from '../utils.js';
 
 let el = null;
@@ -8,7 +8,6 @@ let currentParams = {};
 let currentFilter = 'all';
 let listView = 'table';
 let taskView = 'table';
-let cachedProjects = [];
 
 const FILTERS = [
   { value: 'all', label: '全部' },
@@ -248,7 +247,6 @@ async function paintList() {
   if (!el) return;
   el.innerHTML = '';
   const projects = await api.get('/api/projects');
-  cachedProjects = projects;
   el.append(buildViewBar());
   const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
   if (!shown.length) {
@@ -663,7 +661,7 @@ function buildProjectRow(p) {
 
   const tdOps = h('td', {});
   const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
-  edit.onclick = (e) => { e.stopPropagation(); projectModal(p); };
+  edit.onclick = (e) => { e.stopPropagation(); location.hash = `#/page/${p.id}`; };
   const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
   del.onclick = async (e) => {
     e.stopPropagation();
@@ -887,48 +885,6 @@ function taskModal(p, t) {
     close();
     refreshTasks();
   };
-}
-
-export function projectFields(p) {
-  return [
-    { name: 'name', label: '项目名称', required: true, value: p ? p.name : '' },
-    { name: 'icon', label: '图标（emoji，可选）', value: p ? (p.icon || '📁') : '📁' },
-    { name: 'goal', label: '目标说明', type: 'textarea', value: p ? (p.goal || '') : '' },
-    { name: 'status', label: '状态', type: 'select', value: p ? (p.status || 'active') : 'active',
-      options: Object.entries(PROJECT_STATUS).map(([k, v]) => ({ value: k, label: v.label })) },
-    { name: 'startDate', label: '开始日期', type: 'date', value: p ? (p.startDate || todayStr()) : todayStr() },
-    { name: 'dueDate', label: '截止日期（可选）', type: 'date', value: p ? (p.dueDate || '') : '' },
-    { name: 'priority', label: '优先级', type: 'select', value: p ? (p.priority || 'medium') : 'medium',
-      options: [{ value: 'high', label: '高' }, { value: 'medium', label: '中' }, { value: 'low', label: '低' }] },
-    { name: 'owner', label: '负责人（可选择或输入）', type: 'datalist', value: p ? (p.owner || '') : '', options: collectOwners(cachedProjects) },
-    { name: 'blockedBy', label: '阻塞（可选）', type: 'select', value: p ? (p.blockedBy || '') : '',
-      options: blockedByOptions(cachedProjects, p ? (p.blockedBy || '') : '', p ? p.id : null) }
-  ];
-}
-
-function projectModal(p, onDone) {
-  openModal({
-    title: p ? '编辑项目' : '新增项目',
-    fields: projectFields(p),
-    onSubmit: async (v) => {
-      const payload = {
-        name: v.name.trim(),
-        icon: v.icon,
-        goal: v.goal,
-        status: v.status,
-        startDate: v.startDate,
-        dueDate: v.dueDate || null,
-        priority: v.priority,
-        owner: v.owner,
-        blockedBy: v.blockedBy
-      };
-      if (p) await api.put(`/api/projects/${p.id}`, payload);
-      else await api.post('/api/projects', payload);
-      toast(p ? '已保存' : '已创建');
-      if (onDone) onDone();
-      else paintList();
-    }
-  });
 }
 
 export function add() {
