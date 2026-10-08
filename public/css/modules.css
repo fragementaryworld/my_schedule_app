@@ -134,11 +134,17 @@
 /* 项目列表：信息流视图 */
 .feed { display: flex; flex-direction: column; gap: 16px; max-width: 920px; }
 .feed-post { padding: 16px 20px; }
-.feed-title { margin: 4px 0 12px; cursor: pointer; }
-.feed-title:hover { color: var(--primary); }
+.feed-title { margin: 4px 0 12px; outline: none; padding: 2px 6px; border-radius: 6px; cursor: text; }
+.feed-title:hover { background: var(--panel-2); }
+.feed-title:focus { background: var(--panel-2); box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.25); }
 .feed-sec { margin: 14px 0 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .feed-list { margin: 0; padding-left: 20px; }
 .feed-list li { margin: 3px 0; }
+.feed-goal { min-height: 26px; padding: 6px 8px; border-radius: 6px; white-space: pre-wrap; outline: none; cursor: text; border: 1px dashed transparent; }
+.feed-goal:hover { border-color: var(--border); }
+.feed-goal:focus { border-color: var(--primary); background: var(--panel-2); }
+.feed-goal:empty::before { content: attr(data-placeholder); color: var(--muted); }
+.inline-select { width: auto; padding: 3px 8px; font-size: 12px; }
 
 .gantt-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

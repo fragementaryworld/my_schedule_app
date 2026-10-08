@@ -83,6 +83,9 @@ export class Element {
     this.parentNode = null;
   }
   focus() {}
+  blur() {
+    this.dispatchEvent('blur');
+  }
   click() {
     this.dispatchEvent('click');
     if (typeof this.onclick === 'function') this.onclick({ target: this, stopPropagation() {} });

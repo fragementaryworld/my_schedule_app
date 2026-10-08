@@ -477,26 +477,61 @@ function buildFeedPost(p) {
   head.append(h('span', { class: 'avatar' }, escapeHtml((d.owner || '我').slice(0, 1))));
   head.append(h('span', { class: 'small muted' }, `${d.owner || '我的'} · ${String(p.createdAt || '').slice(0, 10)}`));
   head.append(h('span', { class: 'spacer' }));
-  head.append(h('span', { class: `badge ${d.statusCls}` }, d.statusLabel));
-  head.append(h('button', { class: 'btn btn-sm', onclick: () => projectModal(p, paintList) }, '✏️ 编辑'));
+
+  // 状态：就地下拉
+  const statusSel = h('select', { class: 'input inline-select' });
+  for (const [k, v] of Object.entries(PROJECT_STATUS)) statusSel.append(h('option', { value: k }, v.label));
+  statusSel.value = PROJECT_STATUS[p.status] ? p.status : 'active';
+  statusSel.onchange = async () => {
+    await api.put(`/api/projects/${p.id}`, { status: statusSel.value });
+    toast('状态已更新');
+    paintList();
+  };
+  head.append(statusSel);
   post.append(head);
 
-  const title = h('h3', { class: 'feed-title' }, escapeHtml(d.name));
-  title.onclick = () => { location.hash = `#/projects/${p.id}`; };
+  // 标题：直接就地编辑
+  const title = h('h3', { class: 'feed-title', contenteditable: 'true', spellcheck: 'false', title: '点击直接编辑标题' });
+  title.textContent = p.name;
+  title.addEventListener('blur', async () => {
+    const next = title.textContent.trim();
+    if (!next) { title.textContent = p.name; return; }
+    if (next !== p.name) {
+      await api.put(`/api/projects/${p.id}`, { name: next });
+      toast('已保存');
+      paintList();
+    }
+  });
+  title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); } });
   post.append(title);
 
   post.append(h('h4', { class: 'feed-sec' }, 'About this project'));
-  const lines = feedGoalLines(p.goal);
-  if (lines.length) {
-    const ul = h('ul', { class: 'feed-list' });
-    for (const line of lines) ul.append(h('li', {}, escapeHtml(line)));
-    post.append(ul);
-  } else {
-    post.append(h('p', { class: 'muted' }, '暂无描述'));
-  }
+  // 描述：直接就地编辑（像 markdown 文本）
+  const goalEl = h('div', { class: 'feed-goal', contenteditable: 'true', 'data-placeholder': '点击这里直接编辑描述…' });
+  goalEl.textContent = p.goal || '';
+  goalEl.addEventListener('blur', async () => {
+    const next = goalEl.textContent.trim();
+    if (next !== (p.goal || '')) {
+      await api.put(`/api/projects/${p.id}`, { goal: next });
+      toast('已保存');
+      paintList();
+    }
+  });
+  post.append(goalEl);
 
   const metaRow = h('div', { class: 'row', style: 'margin:10px 0;flex-wrap:wrap' });
-  metaRow.append(h('span', { class: `badge ${d.priorityCls}` }, `优先级 ${d.priorityLabel}`));
+  // 优先级：就地下拉
+  const prioSel = h('select', { class: 'input inline-select' });
+  for (const [k, v] of [['high', '高'], ['medium', '中'], ['low', '低']]) {
+    prioSel.append(h('option', { value: k }, `优先级 ${v}`));
+  }
+  prioSel.value = p.priority || 'medium';
+  prioSel.onchange = async () => {
+    await api.put(`/api/projects/${p.id}`, { priority: prioSel.value });
+    toast('已保存');
+    paintList();
+  };
+  metaRow.append(prioSel);
   metaRow.append(h('span', { class: 'small muted' }, `📅 ${d.dates}`));
   if (d.blockedBy) metaRow.append(h('span', { class: 'badge blocked' }, `🚫 ${d.blockedBy}`));
   post.append(metaRow);
