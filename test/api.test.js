@@ -372,6 +372,21 @@ test('页面删除：连同子页面一起删除', async () => {
   assert.ok(all.some((p) => p.id === keep.json.id), '无关页面应保留');
 });
 
+test('任务支持开始/截止时间区间', async () => {
+  const p = await api('POST', '/api/projects', { name: '时间区间项目' });
+  const pid = p.json.id;
+  const t = await api('POST', `/api/projects/${pid}/tasks`, { title: '区间任务', startDate: '2024-05-01', dueDate: '2024-05-10' });
+  assert.equal(t.json.startDate, '2024-05-01');
+  assert.equal(t.json.dueDate, '2024-05-10');
+
+  const upd = await api('PUT', `/api/projects/${pid}/tasks/${t.json.id}`, { startDate: '2024-05-03' });
+  assert.equal(upd.json.startDate, '2024-05-03');
+
+  const task = (await api('GET', '/api/projects')).json.find((x) => x.id === pid).tasks.find((x) => x.id === t.json.id);
+  assert.equal(task.startDate, '2024-05-03');
+  assert.equal(task.dueDate, '2024-05-10');
+});
+
 test('任务内容块：增删改与排序', async () => {
   const p = await api('POST', '/api/projects', { name: '块任务项目' });
   const pid = p.json.id;

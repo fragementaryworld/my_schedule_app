@@ -9,6 +9,17 @@ let currentParams = {};
 let currentFilter = 'all';
 let listView = 'table';
 let taskView = 'table';
+const expandedTasks = new Set();
+
+// 任务时间区间展示
+export function formatTaskDates(task) {
+  const start = (task && task.startDate) || '';
+  const due = (task && task.dueDate) || '';
+  if (start && due) return `${start} → ${due}`;
+  if (due) return due;
+  if (start) return start;
+  return '—';
+}
 
 const FILTERS = [
   { value: 'all', label: '全部' },
@@ -266,6 +277,7 @@ export function ganttRange(tasks, project) {
   let start = p.startDate || todayStr();
   let end = p.dueDate || todayStr();
   for (const t of tasks || []) {
+    if (t.startDate && t.startDate < start) start = t.startDate;
     if (t.dueDate) {
       if (t.dueDate < start) start = t.dueDate;
       if (t.dueDate > end) end = t.dueDate;
@@ -776,25 +788,44 @@ export function buildTaskTable(p) {
   const today = todayStr();
   const table = h('table', { class: 'task-table' });
   table.append(h('thead', {}, h('tr', {},
-    h('th', {}, '完成'), h('th', {}, '任务'), h('th', {}, '时间'), h('th', {}, '状态'), h('th', {}, '子任务'), h('th', {}, '')
+    h('th', { style: 'width:28px' }, ''), h('th', {}, '完成'), h('th', {}, '任务'),
+    h('th', {}, '时间'), h('th', {}, '状态'), h('th', {}, '子任务'), h('th', {}, '')
   )));
   const tbody = h('tbody', {});
   for (const t of p.tasks) {
+    const subs = t.subtasks || [];
+    const isOpen = expandedTasks.has(t.id);
+
     const tr = h('tr', {});
+    const tdToggle = h('td', {});
+    const toggle = h('button', {
+      class: 'icon-btn',
+      title: subs.length ? '展开/收起子任务' : '无子任务'
+    }, subs.length ? (isOpen ? '▾' : '▸') : '·');
+    toggle.onclick = (e) => {
+      e.stopPropagation();
+      if (!subs.length) return;
+      if (expandedTasks.has(t.id)) expandedTasks.delete(t.id);
+      else expandedTasks.add(t.id);
+      refreshTasks();
+    };
+    tdToggle.append(toggle);
+    tr.append(tdToggle);
+
     const tdCb = h('td', {});
     const cb = h('input', { type: 'checkbox', class: 'task-check' });
     cb.checked = !!t.done;
     cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
     tdCb.append(cb);
+    tr.append(tdCb);
 
     const titleSpan = h('span', { class: 'row-link' + (t.done ? ' muted' : '') }, escapeHtml(t.title));
     titleSpan.onclick = () => { location.hash = taskHref(p, t); };
-    const tdTitle = h('td', {}, titleSpan);
+    tr.append(h('td', {}, titleSpan));
 
-    const tdDate = h('td', { class: 'small muted' }, t.dueDate || '—');
-    const tdStatus = h('td', {}, taskStatusBadge(t, today));
-    const subs = t.subtasks || [];
-    const tdSub = h('td', { class: 'small muted' }, `${subs.filter((s) => s.done).length}/${subs.length}`);
+    tr.append(h('td', { class: 'small muted' }, formatTaskDates(t)));
+    tr.append(h('td', {}, taskStatusBadge(t, today)));
+    tr.append(h('td', { class: 'small muted' }, `${subs.filter((s) => s.done).length}/${subs.length}`));
 
     const tdOps = h('td', {});
     const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
@@ -807,8 +838,20 @@ export function buildTaskTable(p) {
       }
     };
     tdOps.append(edit, del);
-    tr.append(tdCb, tdTitle, tdDate, tdStatus, tdSub, tdOps);
+    tr.append(tdOps);
     tbody.append(tr);
+
+    if (isOpen && subs.length) {
+      const list = h('div', { class: 'subtask-list' });
+      for (const st of subs) {
+        list.append(h('div', { class: 'row', style: 'padding:2px 0' },
+          h('span', { class: 'small muted' }, st.done ? '☑' : '☐'),
+          h('span', { style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title)),
+          h('span', { class: 'small muted' }, st.dueDate || '')
+        ));
+      }
+      tbody.append(h('tr', { class: 'subtask-row' }, h('td', { colspan: '7' }, list)));
+    }
   }
   table.append(tbody);
   return table;
@@ -844,7 +887,7 @@ export function buildTaskTimeline(p) {
   const tp = todayPct(start, end);
   const box = h('div', { class: 'timeline-groupbox' });
   for (const t of dated) {
-    const bar = timelineBar({ startDate: start, dueDate: t.dueDate }, start, end);
+    const bar = timelineBar({ startDate: t.startDate || start, dueDate: t.dueDate }, start, end);
     const row = h('div', { class: 'timeline-row' });
     const label = h('span', { class: 'timeline-label row-link', title: t.title }, escapeHtml(t.title));
     label.onclick = () => { location.hash = taskHref(p, t); };

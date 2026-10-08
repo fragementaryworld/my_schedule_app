@@ -88,6 +88,8 @@
 .row-link { cursor: pointer; }
 .row-link:hover { color: var(--primary); }
 .done-title { text-decoration: line-through; color: var(--muted); }
+.subtask-row > td { background: var(--panel-2); padding: 8px 14px; }
+.subtask-list { display: flex; flex-direction: column; gap: 2px; }
 
 /* 项目列表：表格视图（Notion 风格） */
 .project-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }

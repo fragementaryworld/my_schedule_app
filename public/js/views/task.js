@@ -116,6 +116,13 @@ function buildProperties(project, task) {
     await paint();
   };
 
+  const startInput = h('input', { type: 'date', class: 'input inline-input', value: task.startDate || '' });
+  startInput.onchange = async () => {
+    await api.put(`/api/projects/${project.id}/tasks/${task.id}`, { startDate: startInput.value || null });
+    toast('已保存');
+    await paint();
+  };
+
   const dueInput = h('input', { type: 'date', class: 'input inline-input', value: task.dueDate || '' });
   dueInput.onchange = async () => {
     await api.put(`/api/projects/${project.id}/tasks/${task.id}`, { dueDate: dueInput.value || null });
@@ -126,7 +133,8 @@ function buildProperties(project, task) {
   const subs = task.subtasks || [];
   card.append(
     row('状态', doneSel),
-    row('时间', dueInput),
+    row('开始', startInput),
+    row('截止', dueInput),
     row('子任务', h('span', { class: 'small muted' }, `${subs.filter((s) => s.done).length}/${subs.length} 已完成`))
   );
   return card;
