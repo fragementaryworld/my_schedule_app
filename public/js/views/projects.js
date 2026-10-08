@@ -1,11 +1,12 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
-import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr } from '../utils.js';
+import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel } from '../utils.js';
 
 let el = null;
 let currentParams = {};
 let currentFilter = 'all';
+let listView = 'table';
 let taskView = 'table';
 
 const FILTERS = [
@@ -15,12 +16,44 @@ const FILTERS = [
   { value: 'done', label: '完成' }
 ];
 
+const LIST_VIEWS = [
+  { value: 'table', label: '表格' },
+  { value: 'timeline', label: '时间线' },
+  { value: 'board', label: '看板' },
+  { value: 'feed', label: '信息流' }
+];
+
 export function projectSummary(p) {
   const tasks = p.tasks || [];
   return {
     total: tasks.length,
     done: tasks.filter((t) => t.done).length,
     nextActions: tasks.filter((t) => !t.done).length
+  };
+}
+
+export function formatProjectDates(p) {
+  const start = (p && p.startDate) || '';
+  const due = (p && p.dueDate) || '';
+  if (start && due) return `${start} → ${due}`;
+  if (due) return due;
+  if (start) return start;
+  return '—';
+}
+
+// 表格/看板等视图所需的展示数据
+export function projectRowData(p) {
+  const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.active;
+  return {
+    name: p.name,
+    statusLabel: st.label,
+    statusCls: st.cls,
+    owner: p.owner || '',
+    dates: formatProjectDates(p),
+    priorityLabel: priorityLabel(p.priority || 'medium'),
+    priorityCls: priorityClass(p.priority || 'medium'),
+    completion: p.progress || 0,
+    blockedBy: p.blockedBy || ''
   };
 }
 
@@ -71,43 +104,84 @@ export async function render(container, params = {}) {
 async function paintList() {
   el.innerHTML = '';
   const projects = await api.get('/api/projects');
-  el.append(buildFilterBar());
+  el.append(buildViewBar());
   const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
   if (!shown.length) {
-    el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点击右下角「＋」新增。')));
-  } else {
-    el.append(h('div', { class: 'list' }, ...shown.map(buildProjectItem)));
+    el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点右上角「＋ 新增项目」。')));
+    return;
   }
+  el.append(renderProjectView(shown));
 }
 
-function buildFilterBar() {
+function buildViewBar() {
   const bar = h('div', { class: 'toolbar' });
-  for (const f of FILTERS) {
-    const b = h('button', { class: 'btn btn-sm' + (currentFilter === f.value ? ' btn-primary' : '') }, f.label);
-    b.onclick = () => { currentFilter = f.value; paintList(); };
-    bar.append(b);
+  const tabs = h('div', { class: 'tabbar', style: 'margin:0;border:none;flex-wrap:wrap' });
+  for (const v of LIST_VIEWS) {
+    const b = h('button', { class: 'tab' + (listView === v.value ? ' active' : '') }, v.label);
+    b.onclick = () => { listView = v.value; paintList(); };
+    tabs.append(b);
   }
-  bar.append(h('span', { class: 'spacer' }));
+  bar.append(tabs, h('span', { class: 'spacer' }));
+  const sel = h('select', { class: 'input', style: 'width:auto' });
+  for (const f of FILTERS) sel.append(h('option', { value: f.value }, f.label));
+  sel.value = currentFilter;
+  sel.onchange = () => { currentFilter = sel.value; paintList(); };
+  bar.append(sel);
   bar.append(h('button', { class: 'btn btn-primary btn-sm', onclick: () => projectModal() }, '＋ 新增项目'));
   return bar;
 }
 
-function buildProjectItem(p) {
-  const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.active;
-  const s = projectSummary(p);
-  const item = h('div', { class: 'list-item', style: 'cursor:pointer' });
-  item.onclick = () => { location.hash = `#/projects/${p.id}`; };
-  item.append(h('div', { class: 'row' },
-    h('span', { style: 'font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(p.name)),
-    h('span', { class: `badge ${st.cls}` }, st.label),
-    h('span', { class: 'small muted' }, `${p.progress || 0}%`)
-  ));
-  item.append(h('div', { class: 'progress', style: 'margin:6px 0' }, h('i', { style: `width:${p.progress || 0}%` })));
-  const meta = [];
-  meta.push(s.total ? `${s.done}/${s.total} 任务` : '0 任务');
-  if (p.dueDate) meta.push(`截止 ${fmtDate(p.dueDate)}`);
-  item.append(h('div', { class: 'small muted' }, meta.join(' · ')));
-  return item;
+function renderProjectView(projects) {
+  if (listView === 'table') return buildProjectTable(projects);
+  if (listView === 'board') return buildProjectBoard(projects);
+  if (listView === 'timeline') return buildProjectTimeline(projects);
+  return buildProjectFeed(projects);
+}
+
+function placeholderView(name) {
+  return h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '🚧'), h('p', {}, `${name}视图将在后续步骤实现`));
+}
+
+function buildProjectBoard() {
+  return placeholderView('看板');
+}
+
+function buildProjectTimeline() {
+  return placeholderView('时间线');
+}
+
+function buildProjectFeed() {
+  return placeholderView('信息流');
+}
+
+function buildProjectTable(projects) {
+  const table = h('table', { class: 'project-table' });
+  table.append(h('thead', {}, h('tr', {},
+    h('th', {}, '项目名称'), h('th', {}, '状态'), h('th', {}, '负责人'),
+    h('th', {}, '日期'), h('th', {}, '优先级'), h('th', {}, '完成度'), h('th', {}, '阻塞')
+  )));
+  const tbody = h('tbody', {});
+  for (const p of projects) tbody.append(buildProjectRow(p));
+  table.append(tbody);
+  return table;
+}
+
+function buildProjectRow(p) {
+  const d = projectRowData(p);
+  const tr = h('tr', { style: 'cursor:pointer' });
+  tr.onclick = () => { location.hash = `#/projects/${p.id}`; };
+  tr.append(h('td', {}, h('span', { class: 'proj-name' }, escapeHtml(d.name))));
+  tr.append(h('td', {}, h('span', { class: `badge ${d.statusCls}` }, d.statusLabel)));
+  tr.append(h('td', {}, d.owner
+    ? h('span', { class: 'row' }, h('span', { class: 'avatar' }, escapeHtml(d.owner.slice(0, 1))), d.owner)
+    : h('span', { class: 'muted' }, '—')));
+  tr.append(h('td', { class: 'small muted' }, d.dates));
+  tr.append(h('td', {}, h('span', { class: `badge ${d.priorityCls}` }, d.priorityLabel)));
+  tr.append(h('td', {}, h('div', { class: 'row' },
+    h('div', { class: 'progress', style: 'width:70px' }, h('i', { style: `width:${d.completion}%` })),
+    h('span', { class: 'small muted' }, `${d.completion}%`))));
+  tr.append(h('td', {}, d.blockedBy ? h('span', { class: 'badge blocked' }, escapeHtml(d.blockedBy)) : ''));
+  return tr;
 }
 
 async function paintDetail(id) {
