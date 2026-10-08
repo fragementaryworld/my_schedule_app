@@ -331,6 +331,22 @@ test('projects 里程碑接口已移除', async () => {
   assert.equal(r.status, 405, '里程碑接口应已移除');
 });
 
+test('projects 支持优先级/负责人/阻塞字段', async () => {
+  const c = await api('POST', '/api/projects', { name: '字段项目', priority: 'high', owner: 'jun', blockedBy: '等待审批' });
+  assert.equal(c.status, 201);
+  assert.equal(c.json.priority, 'high');
+  assert.equal(c.json.owner, 'jun');
+  assert.equal(c.json.blockedBy, '等待审批');
+
+  const upd = await api('PUT', `/api/projects/${c.json.id}`, { priority: 'low', blockedBy: '' });
+  assert.equal(upd.json.priority, 'low');
+  assert.equal(upd.json.blockedBy, '');
+
+  const p = (await api('GET', '/api/projects')).json.find((x) => x.id === c.json.id);
+  assert.equal(p.priority, 'low');
+  assert.equal(p.owner, 'jun');
+});
+
 test('books 笔记可独立编辑与删除', async () => {
   const c = await api('POST', '/api/books', { title: '笔记独立书' });
   const bid = c.json.id;

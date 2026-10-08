@@ -382,7 +382,11 @@ export function projectFields(p) {
     { name: 'status', label: '状态', type: 'select', value: p ? (p.status || 'active') : 'active',
       options: Object.entries(PROJECT_STATUS).map(([k, v]) => ({ value: k, label: v.label })) },
     { name: 'startDate', label: '开始日期', type: 'date', value: p ? (p.startDate || todayStr()) : todayStr() },
-    { name: 'dueDate', label: '截止日期（可选）', type: 'date', value: p ? (p.dueDate || '') : '' }
+    { name: 'dueDate', label: '截止日期（可选）', type: 'date', value: p ? (p.dueDate || '') : '' },
+    { name: 'priority', label: '优先级', type: 'select', value: p ? (p.priority || 'medium') : 'medium',
+      options: [{ value: 'high', label: '高' }, { value: 'medium', label: '中' }, { value: 'low', label: '低' }] },
+    { name: 'owner', label: '负责人', value: p ? (p.owner || '') : '' },
+    { name: 'blockedBy', label: '阻塞（可选）', value: p ? (p.blockedBy || '') : '' }
   ];
 }
 
@@ -396,7 +400,10 @@ function projectModal(p) {
         goal: v.goal,
         status: v.status,
         startDate: v.startDate,
-        dueDate: v.dueDate || null
+        dueDate: v.dueDate || null,
+        priority: v.priority,
+        owner: v.owner,
+        blockedBy: v.blockedBy
       };
       if (p) await api.put(`/api/projects/${p.id}`, payload);
       else await api.post('/api/projects', payload);
