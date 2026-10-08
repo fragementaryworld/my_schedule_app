@@ -2,11 +2,18 @@
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
-import { buildProjectTasksSection, collectOwners, blockedByOptions } from './projects.js';
+import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME } from './projects.js';
 
 let el = null;
 let pageId = null;
+let titleEl = null;
 const blockEls = new Map();
+
+// 新建后尚未填写内容的页面
+export function isFreshPage(page) {
+  if (!page) return false;
+  return page.name === DEFAULT_PAGE_NAME && !(page.blocks || []).length && !String(page.goal || '').trim();
+}
 
 // 祖先页面（从根到父）
 export function pageAncestors(projects, id) {
@@ -55,6 +62,7 @@ export async function render(container, params = {}) {
 async function paint() {
   if (!el) return;
   blockEls.clear();
+  titleEl = null;
   el.innerHTML = '';
   const projects = await api.get('/api/projects');
   const page = projects.find((x) => x.id === pageId);
@@ -72,6 +80,24 @@ async function paint() {
   el.append(buildSubpages(projects, page));
   el.append(h('div', { class: 'page-section' }, '✅ 任务'));
   el.append(buildProjectTasksSection(page, paint));
+
+  if (isFreshPage(page)) focusTitle();
+}
+
+// 新建页面时自动聚焦标题，方便直接输入
+function focusTitle() {
+  if (!titleEl || !titleEl.focus) return;
+  titleEl.focus();
+  try {
+    if (typeof window === 'undefined' || !window.getSelection || !document.createRange) return;
+    const range = document.createRange();
+    range.selectNodeContents(titleEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (e) {
+    /* 选区失败不影响输入 */
+  }
 }
 
 function buildBreadcrumb(page) {
@@ -182,6 +208,7 @@ export function buildIconTitle(page) {
   });
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); } });
   wrap.append(title);
+  titleEl = title;
   return wrap;
 }
 

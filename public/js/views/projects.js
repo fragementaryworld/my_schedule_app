@@ -190,6 +190,16 @@ export function sortFeedProjects(projects) {
   return (projects || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 
+export const DEFAULT_PAGE_NAME = '未命名页面';
+
+// 直接新建页面并跳转（不弹窗，由页面内就地填写信息）
+export async function createProject() {
+  const created = await api.post('/api/projects', { name: DEFAULT_PAGE_NAME });
+  toast('已新建页面');
+  location.hash = `#/page/${created.id}`;
+  return created;
+}
+
 function daysBetween(a, b) {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
@@ -262,7 +272,7 @@ function buildViewBar() {
   sel.value = currentFilter;
   sel.onchange = () => { currentFilter = sel.value; paintList(); };
   bar.append(sel);
-  bar.append(h('button', { class: 'btn btn-primary btn-sm', onclick: () => projectModal() }, '＋ 新增项目'));
+  bar.append(h('button', { class: 'btn btn-primary btn-sm', onclick: () => createProject() }, '＋ 新增项目'));
   return bar;
 }
 
@@ -294,7 +304,7 @@ export function buildProjectBoard(projects) {
       h('span', { class: 'small muted' }, String(col.items.length))));
     if (!col.items.length) colEl.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无项目'));
     for (const p of col.items) colEl.append(buildBoardCard(p));
-    colEl.append(h('div', { class: 'board-new', onclick: () => projectModal() }, '＋ 新建项目'));
+    colEl.append(h('div', { class: 'board-new', onclick: () => createProject() }, '＋ 新建项目'));
     board.append(colEl);
   }
   return board;
@@ -922,5 +932,5 @@ function projectModal(p, onDone) {
 }
 
 export function add() {
-  projectModal();
+  createProject();
 }
