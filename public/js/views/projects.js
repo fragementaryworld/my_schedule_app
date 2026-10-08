@@ -153,6 +153,22 @@ export function shiftDates(project, deltaDays) {
   };
 }
 
+// 只调整开始时间（不超过结束时间）
+export function resizeStart(project, deltaDays) {
+  const base = project.startDate || project.dueDate || todayStr();
+  let next = addDays(base, deltaDays);
+  if (project.dueDate && next > project.dueDate) next = project.dueDate;
+  return { startDate: next };
+}
+
+// 只调整结束时间（不早于开始时间）
+export function resizeEnd(project, deltaDays) {
+  const base = project.dueDate || project.startDate || todayStr();
+  let next = addDays(base, deltaDays);
+  if (project.startDate && next < project.startDate) next = project.startDate;
+  return { dueDate: next };
+}
+
 export function feedGoalLines(goal) {
   if (!goal) return [];
   return String(goal).split(/\n|；|;/).map((s) => s.trim()).filter(Boolean);
@@ -345,9 +361,18 @@ function buildProjectTimeline(projects) {
         class: `timeline-bar bar-${col.cls}`,
         style: `left:${bar.left}%;width:${bar.width}%`,
         title: `${p.name}（${formatProjectDates(p)}）`
-      }, h('span', {}, formatProjectDates(p)));
+      }, h('span', { class: 'timeline-bar-label' }, formatProjectDates(p)));
       barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = `#/projects/${p.id}`; };
       attachBarDrag(barEl, track, p, totalDays);
+
+      const leftH = h('div', { class: 'timeline-handle left', title: '拖动调整开始时间' });
+      const rightH = h('div', { class: 'timeline-handle right', title: '拖动调整结束时间' });
+      leftH.addEventListener('click', (e) => e.stopPropagation());
+      rightH.addEventListener('click', (e) => e.stopPropagation());
+      barEl.append(leftH, rightH);
+      attachHandleDrag(leftH, barEl, track, p, totalDays, 'left');
+      attachHandleDrag(rightH, barEl, track, p, totalDays, 'right');
+
       track.append(barEl);
       row.append(track);
       box.append(row);
@@ -385,6 +410,49 @@ function attachBarDrag(barEl, track, project, totalDays) {
       setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
       if (deltaDays === 0) return;
       await api.put(`/api/projects/${project.id}`, shiftDates(project, deltaDays));
+      toast('时间已更新');
+      paintList();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// 拖动时间条左右两端的把手 → 单独调整开始 / 结束时间
+function attachHandleDrag(handleEl, barEl, track, project, totalDays, side) {
+  handleEl.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const width = (track.getBoundingClientRect && track.getBoundingClientRect().width) || 1;
+    const startX = e.clientX || 0;
+    let deltaDays = 0;
+    let moved = false;
+
+    const onMove = (ev) => {
+      const dx = (ev.clientX || 0) - startX;
+      if (Math.abs(dx) > 2) moved = true;
+      deltaDays = pxToDays(dx, width, totalDays);
+      const shiftPct = (deltaDays / Math.max(1, totalDays)) * 100;
+      const curLeft = parseFloat(barEl.style.left) || 0;
+      const curWidth = parseFloat(barEl.style.width) || 0;
+      if (side === 'left') {
+        const newLeft = Math.max(0, Math.min(curLeft + curWidth - 3, curLeft + shiftPct));
+        barEl.style.left = `${newLeft}%`;
+        barEl.style.width = `${Math.max(3, curLeft + curWidth - newLeft)}%`;
+      } else {
+        const newWidth = Math.max(3, Math.min(100 - curLeft, curWidth + shiftPct));
+        barEl.style.width = `${newWidth}%`;
+      }
+    };
+    const onUp = async () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      if (barEl.dataset) barEl.dataset.dragged = '1';
+      setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
+      if (deltaDays === 0) return;
+      const patch = side === 'left' ? resizeStart(project, deltaDays) : resizeEnd(project, deltaDays);
+      await api.put(`/api/projects/${project.id}`, patch);
       toast('时间已更新');
       paintList();
     };

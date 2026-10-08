@@ -119,6 +119,14 @@
 .timeline-track { position: relative; flex: 1; height: 22px; background: var(--panel-2); border-radius: 6px; }
 .timeline-bar { position: absolute; top: 2px; bottom: 2px; border-radius: 6px; display: flex; align-items: center; padding: 0 6px; font-size: 11px; color: #fff; overflow: hidden; white-space: nowrap; cursor: grab; user-select: none; }
 .timeline-today { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--danger); opacity: .85; z-index: 2; pointer-events: none; }
+.timeline-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.timeline-handle { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; z-index: 3; border-radius: 3px; }
+.timeline-handle.left { left: 0; }
+.timeline-handle.right { right: 0; }
+.timeline-handle::after { content: ''; position: absolute; top: 5px; bottom: 5px; width: 2px; background: rgba(255, 255, 255, .85); border-radius: 2px; }
+.timeline-handle.left::after { left: 3px; }
+.timeline-handle.right::after { right: 3px; }
+.timeline-handle:hover { background: rgba(255, 255, 255, .25); }
 .bar-active { background: var(--warning); }
 .bar-paused { background: #8b5cf6; }
 .bar-done { background: var(--success); }
