@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml } from '../utils.js';
 import { createTask } from './projects.js';
+import { buildBlocksEditor } from './page.js';
 
 let el = null;
 let projectId = null;
@@ -38,6 +39,8 @@ async function paint() {
   el.append(buildBreadcrumb(project, task));
   el.append(buildTaskHead(project, task));
   el.append(buildProperties(project, task));
+  el.append(h('div', { class: 'page-section' }, '📝 内容'));
+  el.append(buildBlocksEditor(task, `/api/projects/${projectId}/tasks/${taskId}`, paint));
   el.append(h('div', { class: 'page-section' }, '📄 子任务'));
   el.append(buildSubtasks(project, task));
   if (isFreshTask(task)) focusTitle();

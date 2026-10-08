@@ -372,6 +372,36 @@ test('页面删除：连同子页面一起删除', async () => {
   assert.ok(all.some((p) => p.id === keep.json.id), '无关页面应保留');
 });
 
+test('任务内容块：增删改与排序', async () => {
+  const p = await api('POST', '/api/projects', { name: '块任务项目' });
+  const pid = p.json.id;
+  const t = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务' });
+  const tid = t.json.id;
+  assert.deepEqual(t.json.blocks, [], '任务应带空的 blocks');
+
+  const base = `/api/projects/${pid}/tasks/${tid}/blocks`;
+  const b1 = await api('POST', base, { type: 'h1', text: '标题' });
+  assert.equal(b1.status, 201);
+  const b2 = await api('POST', base, { type: 'text', text: '正文', afterId: b1.json.id });
+
+  let task = (await api('GET', '/api/projects')).json.find((x) => x.id === pid).tasks.find((x) => x.id === tid);
+  assert.deepEqual(task.blocks.map((x) => x.id), [b1.json.id, b2.json.id]);
+
+  const upd = await api('PUT', `${base}/${b2.json.id}`, { text: '改' });
+  assert.equal(upd.json.text, '改');
+
+  const reorder = await api('PUT', base, { order: [b2.json.id, b1.json.id] });
+  assert.deepEqual(reorder.json.map((x) => x.id), [b2.json.id, b1.json.id]);
+
+  const del = await api('DELETE', `${base}/${b1.json.id}`);
+  assert.equal(del.status, 200);
+  task = (await api('GET', '/api/projects')).json.find((x) => x.id === pid).tasks.find((x) => x.id === tid);
+  assert.deepEqual(task.blocks.map((x) => x.id), [b2.json.id]);
+
+  const missing = await api('POST', `/api/projects/${pid}/tasks/nope/blocks`, { type: 'text' });
+  assert.equal(missing.status, 404, '任务不存在应报 404');
+});
+
 test('页面封面：创建与更新', async () => {  const c = await api('POST', '/api/projects', { name: '封面页', cover: 'blue' });
   assert.equal(c.json.cover, 'blue');
   const upd = await api('PUT', `/api/projects/${c.json.id}`, { cover: 'green' });

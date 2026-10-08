@@ -37,7 +37,7 @@ async function paint() {
   el.append(buildIconTitle(page));
   el.append(buildProperties(projects, page));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
-  el.append(buildBlocksEditor(page));
+  el.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
   el.append(h('div', { class: 'page-section' }, '✅ 任务'));
   el.append(buildProjectTasksSection(page, paint));
 
@@ -174,22 +174,25 @@ function buildProperties(projects, page) {
 }
 
 // 内容块编辑器：就地编辑 / 回车新建 / 空块退格删除 / 失焦自动保存
-export function buildBlocksEditor(page) {
+// owner：持有 blocks 的对象（页面或任务）；basePath：其 API 基础路径；onRefresh：保存后刷新
+export function buildBlocksEditor(owner, basePath, onRefresh) {
+  const base = basePath || `/api/projects/${owner.id}`;
+  const refresh = typeof onRefresh === 'function' ? onRefresh : paint;
   const wrap = h('div', { class: 'page-blocks editor' });
-  const blocks = page.blocks || [];
+  const blocks = owner.blocks || [];
 
   if (!blocks.length) {
     const add = h('div', { class: 'block-add-hint' }, '＋ 点击添加内容');
     add.onclick = async () => {
-      const created = await api.post(`/api/projects/${page.id}/blocks`, { type: 'text', text: '' });
-      await paint();
+      const created = await api.post(`${base}/blocks`, { type: 'text', text: '' });
+      await refresh();
       focusBlock(created && created.id);
     };
     wrap.append(add);
     return wrap;
   }
 
-  for (let i = 0; i < blocks.length; i++) wrap.append(buildBlockEl(page, blocks[i], i, blocks));
+  for (let i = 0; i < blocks.length; i++) wrap.append(buildBlockEl(owner, blocks[i], i, blocks, base, refresh));
   return wrap;
 }
 
@@ -225,18 +228,18 @@ function rowRect(node) {
   return r || { top: 0, height: 0 };
 }
 
-function buildTypeSelect(page, block) {
+function buildTypeSelect(base, refresh, block) {
   const sel = h('select', { class: 'block-type-select', title: '转换类型' });
   for (const [v, label] of BLOCK_TYPE_OPTIONS) sel.append(h('option', { value: v }, label));
   sel.value = block.type;
   sel.onchange = async () => {
-    await api.put(`/api/projects/${page.id}/blocks/${block.id}`, { type: sel.value });
-    await paint();
+    await api.put(`${base}/blocks/${block.id}`, { type: sel.value });
+    await refresh();
   };
   return sel;
 }
 
-function buildBlockEl(page, block, index, blocks) {
+function buildBlockEl(owner, block, index, blocks, base, refresh) {
   const row = h('div', { class: `block-row block-row-${block.type}`, dataset: { blockId: block.id }, draggable: 'true' });
 
   row.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', block.id); });
@@ -250,13 +253,13 @@ function buildBlockEl(page, block, index, blocks) {
     const rect = rowRect(row);
     const before = dropPosition(e.clientY || 0, rect.top, rect.height) === 'before';
     const order = reorderIds(blocks.map((b) => b.id), dragId, block.id, before);
-    await api.put(`/api/projects/${page.id}/blocks`, { order });
-    await paint();
+    await api.put(`${base}/blocks`, { order });
+    await refresh();
   });
 
   if (block.type === 'divider') {
     row.append(h('div', { class: 'block-divider' }));
-    row.append(buildTypeSelect(page, block));
+    row.append(buildTypeSelect(base, refresh, block));
     return row;
   }
 
@@ -266,9 +269,9 @@ function buildBlockEl(page, block, index, blocks) {
     const m = h('span', { class: 'block-marker' + (isTodo ? ' clickable' : '') }, marker);
     if (isTodo) {
       m.onclick = async () => {
-        await api.put(`/api/projects/${page.id}/blocks/${block.id}`, { checked: !block.checked });
+        await api.put(`${base}/blocks/${block.id}`, { checked: !block.checked });
         block.checked = !block.checked;
-        await paint();
+        await refresh();
       };
     }
     row.append(m);
@@ -296,7 +299,7 @@ function buildBlockEl(page, block, index, blocks) {
   editable.addEventListener('blur', async () => {
     const next = editable.textContent;
     if (next !== (block.text || '')) {
-      await api.put(`/api/projects/${page.id}/blocks/${block.id}`, { text: next });
+      await api.put(`${base}/blocks/${block.id}`, { text: next });
       block.text = next;
       toast('已保存');
     }
@@ -309,23 +312,23 @@ function buildBlockEl(page, block, index, blocks) {
     if (e.key === 'Enter' && !e.shiftKey && block.type !== 'quote') {
       e.preventDefault();
       const sameType = ['todo', 'bullet', 'number'].includes(block.type);
-      const created = await api.post(`/api/projects/${page.id}/blocks`, {
+      const created = await api.post(`${base}/blocks`, {
         type: sameType ? block.type : 'text',
         text: '',
         afterId: block.id
       });
-      await paint();
+      await refresh();
       focusBlock(created && created.id);
     } else if (e.key === 'Backspace' && !editable.textContent && blocks.length > 1) {
       e.preventDefault();
-      await api.del(`/api/projects/${page.id}/blocks/${block.id}`);
+      await api.del(`${base}/blocks/${block.id}`);
       const prev = blocks[index - 1];
-      await paint();
+      await refresh();
       if (prev) focusBlock(prev.id);
     }
   });
 
-  row.append(display, editable, buildTypeSelect(page, block));
+  row.append(display, editable, buildTypeSelect(base, refresh, block));
   return row;
 }
 
