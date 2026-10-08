@@ -139,9 +139,21 @@ export function todayPct(start, end, today = todayStr()) {
   return (d / total) * 100;
 }
 
+// 连续位移百分比（画面 1:1 跟随鼠标，不做整天取整，避免跳格）
+export function dragDeltaPct(dxPx, trackWidthPx) {
+  if (!trackWidthPx) return 0;
+  return (dxPx / trackWidthPx) * 100;
+}
+
+// 松手时把位移百分比吸附成整天
+export function pctToDays(pct, totalDays) {
+  if (!totalDays) return 0;
+  return Math.round((pct / 100) * totalDays);
+}
+
 export function pxToDays(dxPx, trackWidthPx, totalDays) {
   if (!trackWidthPx) return 0;
-  return Math.round((dxPx / trackWidthPx) * totalDays);
+  return pctToDays(dragDeltaPct(dxPx, trackWidthPx), totalDays);
 }
 
 export function shiftDates(project, deltaDays) {
@@ -382,33 +394,46 @@ function buildProjectTimeline(projects) {
   return wrap;
 }
 
-// 按住时间条左右拖动 → 平移项目起止日期
+function trackWidthPx(track) {
+  const rect = track.getBoundingClientRect ? track.getBoundingClientRect() : null;
+  const w = (rect && rect.width) || track.offsetWidth || 0;
+  return w > 0 ? w : 0;
+}
+
+function markDragged(barEl) {
+  if (barEl.dataset) barEl.dataset.dragged = '1';
+  setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
+}
+
+// 按住时间条左右拖动 → 平移项目起止日期（画面跟着鼠标走，松手才按天吸附）
 function attachBarDrag(barEl, track, project, totalDays) {
   barEl.addEventListener('mousedown', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const width = (track.getBoundingClientRect && track.getBoundingClientRect().width) || 1;
+    const width = trackWidthPx(track);
+    if (!width) return;
     const originLeft = parseFloat(barEl.style.left) || 0;
     const originWidth = parseFloat(barEl.style.width) || 0;
+    const maxLeft = Math.max(0, 100 - originWidth);
     const startX = e.clientX || 0;
-    let deltaDays = 0;
+    let appliedPct = 0;
     let moved = false;
 
     const onMove = (ev) => {
       const dx = (ev.clientX || 0) - startX;
-      if (Math.abs(dx) > 2) moved = true;
-      deltaDays = pxToDays(dx, width, totalDays);
-      const shiftPct = (deltaDays / Math.max(1, totalDays)) * 100;
-      const newLeft = Math.max(0, Math.min(Math.max(0, 100 - originWidth), originLeft + shiftPct));
+      if (!moved && Math.abs(dx) < 3) return; // 抖动阈值，避免误触
+      moved = true;
+      const newLeft = Math.max(0, Math.min(maxLeft, originLeft + dragDeltaPct(dx, width)));
+      appliedPct = newLeft - originLeft;
       barEl.style.left = `${newLeft}%`;
     };
     const onUp = async () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (!moved) return;
-      if (barEl.dataset) barEl.dataset.dragged = '1';
-      setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
-      if (deltaDays === 0) return;
+      markDragged(barEl);
+      const deltaDays = pctToDays(appliedPct, totalDays);
+      if (deltaDays === 0) { paintList(); return; }
       await api.put(`/api/projects/${project.id}`, shiftDates(project, deltaDays));
       toast('时间已更新');
       paintList();
@@ -423,24 +448,28 @@ function attachHandleDrag(handleEl, barEl, track, project, totalDays, side) {
   handleEl.addEventListener('mousedown', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const width = (track.getBoundingClientRect && track.getBoundingClientRect().width) || 1;
+    const width = trackWidthPx(track);
+    if (!width) return;
     const startX = e.clientX || 0;
-    let deltaDays = 0;
+    const originLeft = parseFloat(barEl.style.left) || 0;
+    const originWidth = parseFloat(barEl.style.width) || 0;
+    const rightEdge = originLeft + originWidth;
+    let appliedPct = 0;
     let moved = false;
 
     const onMove = (ev) => {
       const dx = (ev.clientX || 0) - startX;
-      if (Math.abs(dx) > 2) moved = true;
-      deltaDays = pxToDays(dx, width, totalDays);
-      const shiftPct = (deltaDays / Math.max(1, totalDays)) * 100;
-      const curLeft = parseFloat(barEl.style.left) || 0;
-      const curWidth = parseFloat(barEl.style.width) || 0;
+      if (!moved && Math.abs(dx) < 3) return;
+      moved = true;
+      const dPct = dragDeltaPct(dx, width);
       if (side === 'left') {
-        const newLeft = Math.max(0, Math.min(curLeft + curWidth - 3, curLeft + shiftPct));
+        const newLeft = Math.max(0, Math.min(rightEdge - 3, originLeft + dPct));
+        appliedPct = newLeft - originLeft;
         barEl.style.left = `${newLeft}%`;
-        barEl.style.width = `${Math.max(3, curLeft + curWidth - newLeft)}%`;
+        barEl.style.width = `${rightEdge - newLeft}%`;
       } else {
-        const newWidth = Math.max(3, Math.min(100 - curLeft, curWidth + shiftPct));
+        const newWidth = Math.max(3, Math.min(100 - originLeft, originWidth + dPct));
+        appliedPct = newWidth - originWidth;
         barEl.style.width = `${newWidth}%`;
       }
     };
@@ -448,9 +477,9 @@ function attachHandleDrag(handleEl, barEl, track, project, totalDays, side) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (!moved) return;
-      if (barEl.dataset) barEl.dataset.dragged = '1';
-      setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
-      if (deltaDays === 0) return;
+      markDragged(barEl);
+      const deltaDays = pctToDays(appliedPct, totalDays);
+      if (deltaDays === 0) { paintList(); return; }
       const patch = side === 'left' ? resizeStart(project, deltaDays) : resizeEnd(project, deltaDays);
       await api.put(`/api/projects/${project.id}`, patch);
       toast('时间已更新');
