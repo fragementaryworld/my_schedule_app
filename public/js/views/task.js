@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml } from '../utils.js';
-import { createTask } from './projects.js';
+import { createTask, createSubtask, subtaskHref } from './projects.js';
 import { buildBlocksEditor } from './page.js';
 
 let el = null;
@@ -140,7 +140,7 @@ function buildProperties(project, task) {
   return card;
 }
 
-function buildSubtasks(project, task) {
+export function buildSubtasks(project, task) {
   const wrap = h('div', { class: 'card', style: 'padding:12px 16px' });
   const list = h('div', {});
 
@@ -158,7 +158,12 @@ function buildSubtasks(project, task) {
         renderList();
       };
       row.append(cb);
-      row.append(h('span', { style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title)));
+      const link = h('span', {
+        class: 'row-link',
+        style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}`
+      }, escapeHtml(st.title));
+      link.onclick = () => { location.hash = subtaskHref(project, task, st); };
+      row.append(link);
       const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
       del.onclick = async () => {
         if (await confirmDialog('删除这个子任务？', { danger: true })) {
@@ -173,18 +178,11 @@ function buildSubtasks(project, task) {
   };
   renderList();
   wrap.append(list);
-
-  const addInput = h('input', { class: 'input', placeholder: '添加子任务，回车确认', style: 'margin-top:8px' });
-  addInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && addInput.value.trim()) {
-      const st = await api.post(`/api/projects/${project.id}/tasks/${task.id}/subtasks`, { title: addInput.value.trim() });
-      task.subtasks = task.subtasks || [];
-      task.subtasks.push(st);
-      addInput.value = '';
-      renderList();
-    }
-  });
-  wrap.append(addInput);
+  wrap.append(h('button', {
+    class: 'btn btn-primary btn-sm',
+    style: 'margin-top:8px',
+    onclick: () => createSubtask(project.id, task.id)
+  }, '＋ 新增子任务'));
   return wrap;
 }
 

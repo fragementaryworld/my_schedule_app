@@ -372,6 +372,35 @@ test('页面删除：连同子页面一起删除', async () => {
   assert.ok(all.some((p) => p.id === keep.json.id), '无关页面应保留');
 });
 
+test('子任务支持时间区间与内容块', async () => {
+  const p = await api('POST', '/api/projects', { name: '子任务项目' });
+  const pid = p.json.id;
+  const t = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务' });
+  const tid = t.json.id;
+  const st = await api('POST', `/api/projects/${pid}/tasks/${tid}/subtasks`, { title: '子任务' });
+  const sid = st.json.id;
+  assert.deepEqual(st.json.blocks, [], '子任务应带空的 blocks');
+  assert.equal(st.json.startDate, null);
+
+  const upd = await api('PUT', `/api/projects/${pid}/tasks/${tid}/subtasks/${sid}`, { startDate: '2024-05-01', dueDate: '2024-05-05' });
+  assert.equal(upd.json.startDate, '2024-05-01');
+  assert.equal(upd.json.dueDate, '2024-05-05');
+
+  const base = `/api/projects/${pid}/tasks/${tid}/subtasks/${sid}/blocks`;
+  const created = await api('POST', base, { type: 'text', text: '子任务内容' });
+  assert.equal(created.status, 201);
+  const changed = await api('PUT', `${base}/${created.json.id}`, { text: '改' });
+  assert.equal(changed.json.text, '改');
+
+  const sub = (await api('GET', '/api/projects')).json.find((x) => x.id === pid)
+    .tasks.find((x) => x.id === tid).subtasks.find((x) => x.id === sid);
+  assert.equal(sub.blocks.length, 1);
+  assert.equal(sub.startDate, '2024-05-01');
+
+  const gone = await api('DELETE', `${base}/${created.json.id}`);
+  assert.equal(gone.status, 200);
+});
+
 test('任务支持描述字段', async () => {
   const p = await api('POST', '/api/projects', { name: '描述项目' });
   const pid = p.json.id;

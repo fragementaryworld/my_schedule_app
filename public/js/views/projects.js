@@ -225,6 +225,20 @@ export function taskHref(project, task) {
   return `#/task/${project.id}/${task.id}`;
 }
 
+export const DEFAULT_SUBTASK_NAME = '新子任务';
+
+// 直接新建子任务并跳转到子任务页面
+export async function createSubtask(projectId, taskId) {
+  const created = await api.post(`/api/projects/${projectId}/tasks/${taskId}/subtasks`, { title: DEFAULT_SUBTASK_NAME });
+  toast('已新建子任务');
+  location.hash = `#/subtask/${projectId}/${taskId}/${created.id}`;
+  return created;
+}
+
+export function subtaskHref(project, task, subtask) {
+  return `#/subtask/${project.id}/${task.id}/${subtask.id}`;
+}
+
 function daysBetween(a, b) {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
