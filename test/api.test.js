@@ -163,7 +163,7 @@ test('tasks 删除重复模板连带删除实例', async () => {
   assert.ok(!list.some((t) => t.id === c.json.id || t.repeatOf === c.json.id));
 });
 
-test('projects 增删改、里程碑与项目任务', async () => {
+test('projects 增删改与任务（含时间、子任务）', async () => {
   const c = await api('POST', '/api/projects', { name: '项目X', goal: '目标', status: 'active' });
   assert.equal(c.status, 201);
   const pid = c.json.id;
@@ -171,15 +171,18 @@ test('projects 增删改、里程碑与项目任务', async () => {
   const upd = await api('PUT', `/api/projects/${pid}`, { status: 'paused' });
   assert.equal(upd.json.status, 'paused');
 
-  const m = await api('POST', `/api/projects/${pid}/milestones`, { name: '阶段一' });
-  assert.equal(m.status, 201);
-  const mUpd = await api('PUT', `/api/projects/${pid}/milestones/${m.json.id}`, { status: 'done' });
-  assert.equal(mUpd.json.status, 'done');
-
-  const pt = await api('POST', `/api/projects/${pid}/tasks`, { title: '子任务' });
+  const pt = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务A', dueDate: '2024-05-01' });
   assert.equal(pt.status, 201);
-  const ptUpd = await api('PUT', `/api/projects/${pid}/tasks/${pt.json.id}`, { done: true });
+  assert.equal(pt.json.dueDate, '2024-05-01');
+
+  const ptUpd = await api('PUT', `/api/projects/${pid}/tasks/${pt.json.id}`, { done: true, dueDate: '2024-05-02' });
   assert.equal(ptUpd.json.done, true);
+  assert.equal(ptUpd.json.dueDate, '2024-05-02');
+
+  const st = await api('POST', `/api/projects/${pid}/tasks/${pt.json.id}/subtasks`, { title: '子任务' });
+  assert.equal(st.status, 201);
+  const stUpd = await api('PUT', `/api/projects/${pid}/tasks/${pt.json.id}/subtasks/${st.json.id}`, { done: true });
+  assert.equal(stUpd.json.done, true);
 
   const filtered = await api('GET', '/api/projects?status=paused');
   assert.ok(filtered.json.some((p) => p.id === pid));
@@ -306,21 +309,26 @@ test('tasks 只完成本次不波及整个系列', async () => {
   assert.equal(tmpl.done, false, '模板/其他实例不应被标记完成');
 });
 
-test('projects 里程碑与子任务可独立删除', async () => {
+test('projects 任务与子任务可独立删除', async () => {
   const c = await api('POST', '/api/projects', { name: '独立删除项目' });
   const pid = c.json.id;
-  const m = await api('POST', `/api/projects/${pid}/milestones`, { name: '里程碑A' });
   const t = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务A' });
+  const st = await api('POST', `/api/projects/${pid}/tasks/${t.json.id}/subtasks`, { title: '子任务A' });
 
+  const delSub = await api('DELETE', `/api/projects/${pid}/tasks/${t.json.id}/subtasks/${st.json.id}`);
+  assert.equal(delSub.status, 200);
   const delTask = await api('DELETE', `/api/projects/${pid}/tasks/${t.json.id}`);
   assert.equal(delTask.status, 200);
-  const delMil = await api('DELETE', `/api/projects/${pid}/milestones/${m.json.id}`);
-  assert.equal(delMil.status, 200);
 
   const p = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
   assert.ok(p, '项目本体不应被误删');
   assert.equal(p.tasks.length, 0);
-  assert.equal(p.milestones.length, 0);
+});
+
+test('projects 里程碑接口已移除', async () => {
+  const c = await api('POST', '/api/projects', { name: '无里程碑项目' });
+  const r = await api('POST', `/api/projects/${c.json.id}/milestones`, { name: '里程碑' });
+  assert.equal(r.status, 405, '里程碑接口应已移除');
 });
 
 test('books 笔记可独立编辑与删除', async () => {

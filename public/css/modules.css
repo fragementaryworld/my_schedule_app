@@ -73,12 +73,6 @@
 .list-item { padding: 12px; border-bottom: 1px solid var(--border); }
 .list-item:last-child { border-bottom: none; }
 
-/* 里程碑 */
-.milestone { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
-.milestone .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
-.milestone.doing .dot { background: var(--warning); }
-.milestone.done .dot { background: var(--success); }
-
 /* 详情页头部 */
 .detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .detail-head h2 { flex: 1; min-width: 200px; }
