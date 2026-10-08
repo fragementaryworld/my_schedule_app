@@ -237,7 +237,7 @@ export async function render(container, params = {}) {
 async function paintList() {
   if (!el) return;
   el.innerHTML = '';
-  const projects = await api.get('/api/projects');
+  const projects = await api.get('/api/projects?roots=1');
   cachedProjects = projects;
   el.append(buildViewBar());
   const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
@@ -922,6 +922,7 @@ function taskModal(p, t) {
 export function projectFields(p) {
   return [
     { name: 'name', label: '项目名称', required: true, value: p ? p.name : '' },
+    { name: 'icon', label: '图标（emoji，可选）', value: p ? (p.icon || '📁') : '📁' },
     { name: 'goal', label: '目标说明', type: 'textarea', value: p ? (p.goal || '') : '' },
     { name: 'status', label: '状态', type: 'select', value: p ? (p.status || 'active') : 'active',
       options: Object.entries(PROJECT_STATUS).map(([k, v]) => ({ value: k, label: v.label })) },

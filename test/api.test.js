@@ -331,6 +331,61 @@ test('projects 里程碑接口已移除', async () => {
   assert.equal(r.status, 405, '里程碑接口应已移除');
 });
 
+test('页面数据层：图标/父页面/顶层过滤', async () => {
+  const parent = await api('POST', '/api/projects', { name: '父页面', icon: '📘' });
+  assert.equal(parent.json.icon, '📘');
+  assert.equal(parent.json.parentId, null);
+  assert.deepEqual(parent.json.blocks, []);
+
+  const child = await api('POST', '/api/projects', { name: '子页面', parentId: parent.json.id });
+  assert.equal(child.status, 201);
+  assert.equal(child.json.parentId, parent.json.id);
+
+  const roots = (await api('GET', '/api/projects?roots=1')).json;
+  assert.ok(roots.some((p) => p.id === parent.json.id), '顶层应含父页面');
+  assert.ok(!roots.some((p) => p.id === child.json.id), '顶层不应含子页面');
+
+  const all = (await api('GET', '/api/projects')).json;
+  assert.ok(all.some((p) => p.id === child.json.id), '全部列表应含子页面');
+
+  const badParent = await api('POST', '/api/projects', { name: '坏父', parentId: 'not-exist' });
+  assert.equal(badParent.status, 400, '父页面不存在应报错');
+
+  const selfParent = await api('PUT', `/api/projects/${parent.json.id}`, { parentId: parent.json.id });
+  assert.equal(selfParent.status, 400, '父页面不能是自己');
+});
+
+test('页面内容块：增删改与排序', async () => {
+  const c = await api('POST', '/api/projects', { name: '有内容的页面' });
+  const pid = c.json.id;
+
+  const b1 = await api('POST', `/api/projects/${pid}/blocks`, { type: 'h1', text: '标题' });
+  assert.equal(b1.status, 201);
+  assert.equal(b1.json.type, 'h1');
+  const b2 = await api('POST', `/api/projects/${pid}/blocks`, { type: 'text', text: '正文', afterId: b1.json.id });
+  assert.equal(b2.status, 201);
+  const b3 = await api('POST', `/api/projects/${pid}/blocks`, { type: 'todo', text: '待办' });
+  assert.equal(b3.json.checked, false);
+
+  let p = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  assert.deepEqual(p.blocks.map((x) => x.id), [b1.json.id, b2.json.id, b3.json.id], 'afterId 应插到其后');
+
+  const upd = await api('PUT', `/api/projects/${pid}/blocks/${b3.json.id}`, { checked: true, text: '待办2' });
+  assert.equal(upd.json.checked, true);
+  assert.equal(upd.json.text, '待办2');
+
+  const invalidType = await api('POST', `/api/projects/${pid}/blocks`, { type: 'nope', text: 'x' });
+  assert.equal(invalidType.json.type, 'text', '非法类型回退为 text');
+
+  const reorder = await api('PUT', `/api/projects/${pid}/blocks`, { order: [b3.json.id, b1.json.id, b2.json.id] });
+  assert.deepEqual(reorder.json.map((x) => x.id), [b3.json.id, b1.json.id, b2.json.id]);
+
+  const del = await api('DELETE', `/api/projects/${pid}/blocks/${b1.json.id}`);
+  assert.equal(del.status, 200);
+  p = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  assert.deepEqual(p.blocks.map((x) => x.id), [b3.json.id, b2.json.id]);
+});
+
 test('projects 支持优先级/负责人/阻塞字段', async () => {
   const c = await api('POST', '/api/projects', { name: '字段项目', priority: 'high', owner: 'jun', blockedBy: '等待审批' });
   assert.equal(c.status, 201);
