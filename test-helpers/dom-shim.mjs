@@ -129,3 +129,13 @@ export function findAllByTag(root, tag) {
   walk(root);
   return out;
 }
+
+export function findAllByClass(root, cls) {
+  const out = [];
+  const walk = (n) => {
+    if (String(n.className || '').split(/\s+/).includes(cls)) out.push(n);
+    for (const c of n.children || []) walk(c);
+  };
+  walk(root);
+  return out;
+}

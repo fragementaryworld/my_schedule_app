@@ -207,6 +207,7 @@ export async function render(container, params = {}) {
 }
 
 async function paintList() {
+  if (!el) return;
   el.innerHTML = '';
   const projects = await api.get('/api/projects');
   cachedProjects = projects;
@@ -244,11 +245,22 @@ function renderProjectView(projects) {
   return buildProjectFeed(projects);
 }
 
-function buildProjectBoard(projects) {
+export function buildProjectBoard(projects) {
   const cols = groupProjectsByStatus(projects);
   const board = h('div', { class: 'kanban' });
   for (const col of cols) {
     const colEl = h('div', { class: `kanban-col board-col-${col.status}` });
+    colEl.addEventListener('dragover', (e) => { e.preventDefault(); colEl.classList.add('drop-hover'); });
+    colEl.addEventListener('dragleave', () => colEl.classList.remove('drop-hover'));
+    colEl.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      colEl.classList.remove('drop-hover');
+      const pid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+      if (!pid) return;
+      await api.put(`/api/projects/${pid}`, { status: col.status });
+      toast('状态已更新');
+      paintList();
+    });
     colEl.append(h('div', { class: 'col-head' },
       h('span', { class: `badge ${col.cls}` }, col.label),
       h('span', { class: 'small muted' }, String(col.items.length))));
@@ -262,7 +274,8 @@ function buildProjectBoard(projects) {
 
 function buildBoardCard(p) {
   const d = projectRowData(p);
-  const card = h('div', { class: 'kanban-card', style: 'cursor:pointer' });
+  const card = h('div', { class: 'kanban-card', draggable: 'true', style: 'cursor:pointer' });
+  card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); });
   card.onclick = () => { location.hash = `#/projects/${p.id}`; };
   card.append(h('div', { class: 'title', style: 'font-weight:600;margin-bottom:6px' }, escapeHtml(d.name)));
   card.append(h('div', { class: 'small muted' }, d.dates));
