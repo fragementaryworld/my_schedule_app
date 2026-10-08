@@ -85,6 +85,9 @@
 .task-table { width: 100%; border-collapse: collapse; }
 .task-table th, .task-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .task-table th { color: var(--muted); font-weight: 500; font-size: 12px; }
+.row-link { cursor: pointer; }
+.row-link:hover { color: var(--primary); }
+.done-title { text-decoration: line-through; color: var(--muted); }
 
 /* 项目列表：表格视图（Notion 风格） */
 .project-table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }

@@ -200,6 +200,20 @@ export async function createProject() {
   return created;
 }
 
+export const DEFAULT_TASK_NAME = '新任务';
+
+// 直接新建任务并跳转到任务页面
+export async function createTask(projectId) {
+  const created = await api.post(`/api/projects/${projectId}/tasks`, { title: DEFAULT_TASK_NAME });
+  toast('已新建任务');
+  location.hash = `#/task/${projectId}/${created.id}`;
+  return created;
+}
+
+export function taskHref(project, task) {
+  return `#/task/${project.id}/${task.id}`;
+}
+
 function daysBetween(a, b) {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
@@ -704,31 +718,20 @@ export function buildProjectTasksSection(p, refresh) {
 function buildProjectTasks(p) {
   const wrap = h('div', { class: 'card', style: 'padding:12px 16px' });
 
-  const switcher = h('div', { class: 'tabbar', style: 'margin-bottom:12px' });
+  const bar = h('div', { class: 'row', style: 'margin-bottom:12px;flex-wrap:wrap' });
+  const switcher = h('div', { class: 'tabbar', style: 'margin:0;border:none;flex-wrap:wrap' });
   for (const [k, label] of [['table', '表格'], ['gantt', '甘特图'], ['kanban', '看板']]) {
     const b = h('button', { class: 'tab' + (taskView === k ? ' active' : '') }, label);
     b.onclick = () => { taskView = k; refreshTasks(); };
     switcher.append(b);
   }
-  wrap.append(switcher);
+  bar.append(switcher, h('span', { class: 'spacer' }));
+  bar.append(h('button', { class: 'btn btn-primary btn-sm', onclick: () => createTask(p.id) }, '＋ 新增任务'));
+  wrap.append(bar);
 
   if (taskView === 'table') wrap.append(buildTaskTable(p));
   else if (taskView === 'gantt') wrap.append(buildTaskGantt(p));
   else wrap.append(buildTaskKanban(p));
-
-  const addRow = h('div', { class: 'row', style: 'margin:12px 0 0' });
-  const addInput = h('input', { class: 'input', placeholder: '输入任务，回车添加' });
-  const dueInput = h('input', { type: 'date', class: 'input', style: 'width:auto', title: '任务时间' });
-  addInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && addInput.value.trim()) {
-      await api.post(`/api/projects/${p.id}/tasks`, { title: addInput.value.trim(), dueDate: dueInput.value || null });
-      addInput.value = '';
-      dueInput.value = '';
-      refreshTasks();
-    }
-  });
-  addRow.append(addInput, dueInput);
-  wrap.append(addRow);
   return wrap;
 }
 
@@ -746,13 +749,15 @@ function buildTaskTable(p) {
     cb.checked = !!t.done;
     cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
     tdCb.append(cb);
-    const tdTitle = h('td', {}, h('span', { class: t.done ? 'muted' : '' }, escapeHtml(t.title)));
+    const titleSpan = h('span', { class: 'row-link' + (t.done ? ' muted' : '') }, escapeHtml(t.title));
+    titleSpan.onclick = () => { location.hash = taskHref(p, t); };
+    const tdTitle = h('td', {}, titleSpan);
     const tdDate = h('td', {}, t.dueDate || '—');
     const subs = t.subtasks || [];
     const tdSub = h('td', {}, `${subs.filter((s) => s.done).length}/${subs.length}`);
     const tdOps = h('td', {});
     const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
-    edit.onclick = () => taskModal(p, t);
+    edit.onclick = () => { location.hash = taskHref(p, t); };
     const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
     del.onclick = async () => {
       if (await confirmDialog('删除这个任务及其子任务？', { danger: true })) {
@@ -780,7 +785,7 @@ function buildTaskGantt(p) {
       const pct = ganttBarPct(t.dueDate, start, end);
       const row = h('div', { class: 'gantt-row' });
       const label = h('span', { class: 'gantt-label', title: t.title }, escapeHtml(t.title));
-      label.onclick = () => taskModal(p, t);
+      label.onclick = () => { location.hash = taskHref(p, t); };
       row.append(label);
       const track = h('div', { class: 'gantt-track' });
       track.append(h('i', { style: `width:${pct}%` }));
@@ -814,8 +819,8 @@ function kanbanCol(title, tasks, p) {
     cb.checked = !!t.done;
     cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
     head.append(cb);
-    const titleEl = h('span', { class: 'title', style: 'flex:1' }, escapeHtml(t.title));
-    titleEl.onclick = () => taskModal(p, t);
+    const titleEl = h('span', { class: 'title row-link', style: 'flex:1' }, escapeHtml(t.title));
+    titleEl.onclick = () => { location.hash = taskHref(p, t); };
     head.append(titleEl);
     card.append(head);
     if (t.dueDate) card.append(h('div', { class: 'small muted' }, `📅 ${t.dueDate}`));
@@ -824,80 +829,6 @@ function kanbanCol(title, tasks, p) {
     col.append(card);
   }
   return col;
-}
-
-function taskModal(p, t) {
-  const backdrop = h('div', { class: 'modal-backdrop' });
-  const modal = h('div', { class: 'modal' });
-  const body = h('div', { class: 'modal-body' });
-
-  body.append(h('label', {}, '任务'));
-  const titleInput = h('input', { class: 'input', value: t.title });
-  body.append(titleInput);
-  body.append(h('label', { style: 'margin-top:8px' }, '时间（可选）'));
-  const dueInput = h('input', { type: 'date', class: 'input', value: t.dueDate || '' });
-  body.append(dueInput);
-
-  body.append(h('label', { style: 'margin-top:8px' }, '子任务'));
-  const subWrap = h('div', {});
-  const renderSubs = () => {
-    subWrap.innerHTML = '';
-    for (const st of t.subtasks || []) {
-      const row = h('div', { class: 'row' });
-      const cb = h('input', { type: 'checkbox', class: 'task-check' });
-      cb.checked = !!st.done;
-      cb.onclick = async () => {
-        await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${st.id}`, { done: !st.done });
-        st.done = !st.done;
-        renderSubs();
-      };
-      row.append(cb);
-      row.append(h('span', { style: 'flex:1' }, escapeHtml(st.title)));
-      const del = h('button', { type: 'button', class: 'icon-btn danger' }, '🗑');
-      del.onclick = async () => {
-        if (await confirmDialog('删除这个子任务？', { danger: true })) {
-          await api.del(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${st.id}`);
-          t.subtasks = (t.subtasks || []).filter((x) => x.id !== st.id);
-          renderSubs();
-        }
-      };
-      row.append(del);
-      subWrap.append(row);
-    }
-  };
-  renderSubs();
-  body.append(subWrap);
-
-  const subInput = h('input', { class: 'input', placeholder: '添加子任务，回车确认', style: 'margin-top:4px' });
-  subInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && subInput.value.trim()) {
-      const st = await api.post(`/api/projects/${p.id}/tasks/${t.id}/subtasks`, { title: subInput.value.trim() });
-      t.subtasks = t.subtasks || [];
-      t.subtasks.push(st);
-      subInput.value = '';
-      renderSubs();
-    }
-  });
-  body.append(subInput);
-
-  const foot = h('div', { class: 'modal-foot' });
-  const cancel = h('button', { class: 'btn' }, '取消');
-  const save = h('button', { class: 'btn btn-primary' }, '保存');
-  foot.append(cancel, save);
-  modal.append(h('div', { class: 'modal-title' }, '编辑任务'), body, foot);
-  backdrop.append(modal);
-  document.body.appendChild(backdrop);
-
-  const close = () => backdrop.remove();
-  cancel.onclick = () => close();
-  // 点击遮罩不关闭，避免误触丢失已填内容
-  save.onclick = async () => {
-    if (!titleInput.value.trim()) { toast('请填写任务名称', 'error'); return; }
-    await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { title: titleInput.value.trim(), dueDate: dueInput.value || null });
-    toast('已保存');
-    close();
-    refreshTasks();
-  };
 }
 
 export function add() {
