@@ -86,9 +86,16 @@ export class Element {
   blur() {
     this.dispatchEvent('blur');
   }
+  // 同时触发 addEventListener 监听器与 on<type> 属性处理器
+  fire(type, event = {}) {
+    this.dispatchEvent(type, event);
+    const prop = this['on' + type];
+    if (typeof prop === 'function') {
+      prop({ target: this, preventDefault() {}, stopPropagation() {}, ...event });
+    }
+  }
   click() {
-    this.dispatchEvent('click');
-    if (typeof this.onclick === 'function') this.onclick({ target: this, preventDefault() {}, stopPropagation() {} });
+    this.fire('click');
   }
 }
 

@@ -188,16 +188,79 @@ function blockMarker(block, index) {
   return null;
 }
 
+export const BLOCK_TYPE_OPTIONS = [
+  ['text', '正文'], ['h1', '标题1'], ['h2', '标题2'], ['h3', '标题3'],
+  ['todo', '待办'], ['bullet', '无序列表'], ['number', '有序列表'], ['quote', '引用'], ['divider', '分割线']
+];
+
+// 把 dragId 移动到 targetId 之前/之后，返回新顺序
+export function reorderIds(ids, dragId, targetId, before = true) {
+  const list = (ids || []).filter((x) => x !== dragId);
+  const idx = list.indexOf(targetId);
+  if (idx < 0) return (ids || []).slice();
+  list.splice(before ? idx : idx + 1, 0, dragId);
+  return list;
+}
+
+// 依据指针在目标行中的位置判断插入到前面还是后面
+export function dropPosition(clientY, rectTop, rectHeight) {
+  if (!rectHeight) return 'before';
+  return clientY < rectTop + rectHeight / 2 ? 'before' : 'after';
+}
+
+function rowRect(node) {
+  const r = node.getBoundingClientRect ? node.getBoundingClientRect() : null;
+  return r || { top: 0, height: 0 };
+}
+
+function buildTypeSelect(page, block) {
+  const sel = h('select', { class: 'block-type-select', title: '转换类型' });
+  for (const [v, label] of BLOCK_TYPE_OPTIONS) sel.append(h('option', { value: v }, label));
+  sel.value = block.type;
+  sel.onchange = async () => {
+    await api.put(`/api/projects/${page.id}/blocks/${block.id}`, { type: sel.value });
+    await paint();
+  };
+  return sel;
+}
+
 function buildBlockEl(page, block, index, blocks) {
-  const row = h('div', { class: `block-row block-row-${block.type}`, dataset: { blockId: block.id } });
+  const row = h('div', { class: `block-row block-row-${block.type}`, dataset: { blockId: block.id }, draggable: 'true' });
+
+  row.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', block.id); });
+  row.addEventListener('dragover', (e) => { if (e.preventDefault) e.preventDefault(); row.classList.add('drop-target'); });
+  row.addEventListener('dragleave', () => row.classList.remove('drop-target'));
+  row.addEventListener('drop', async (e) => {
+    if (e.preventDefault) e.preventDefault();
+    row.classList.remove('drop-target');
+    const dragId = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    if (!dragId || dragId === block.id) return;
+    const rect = rowRect(row);
+    const before = dropPosition(e.clientY || 0, rect.top, rect.height) === 'before';
+    const order = reorderIds(blocks.map((b) => b.id), dragId, block.id, before);
+    await api.put(`/api/projects/${page.id}/blocks`, { order });
+    await paint();
+  });
 
   if (block.type === 'divider') {
     row.append(h('div', { class: 'block-divider' }));
+    row.append(buildTypeSelect(page, block));
     return row;
   }
 
   const marker = blockMarker(block, index);
-  if (marker) row.append(h('span', { class: 'block-marker' }, marker));
+  if (marker) {
+    const isTodo = block.type === 'todo';
+    const m = h('span', { class: 'block-marker' + (isTodo ? ' clickable' : '') }, marker);
+    if (isTodo) {
+      m.onclick = async () => {
+        await api.put(`/api/projects/${page.id}/blocks/${block.id}`, { checked: !block.checked });
+        block.checked = !block.checked;
+        await paint();
+      };
+    }
+    row.append(m);
+  }
 
   const editable = h('div', { class: `block block-${block.type}`, contenteditable: 'true', spellcheck: 'false' });
   editable.textContent = block.text || '';
@@ -232,7 +295,7 @@ function buildBlockEl(page, block, index, blocks) {
     }
   });
 
-  row.append(editable);
+  row.append(editable, buildTypeSelect(page, block));
   return row;
 }
 

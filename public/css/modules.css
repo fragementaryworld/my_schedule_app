@@ -209,6 +209,10 @@
 .block-marker { flex-shrink: 0; width: 18px; text-align: center; color: var(--muted); line-height: 1.7; }
 .block-add-hint { color: var(--muted); cursor: pointer; padding: 6px 4px; border-radius: 6px; }
 .block-add-hint:hover { background: var(--panel-2); color: var(--text); }
+.block-row.drop-target { outline: 2px dashed var(--primary); outline-offset: 1px; }
+.block-marker.clickable { cursor: pointer; }
+.block-type-select { opacity: 0; width: auto; padding: 1px 4px; font-size: 11px; border-radius: 6px; align-self: center; }
+.block-row:hover .block-type-select { opacity: 1; }
 .block-h1 { font-size: 22px; font-weight: 700; }
 .block-h2 { font-size: 18px; font-weight: 600; }
 .block-h3 { font-size: 16px; font-weight: 600; }
