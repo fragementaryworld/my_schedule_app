@@ -95,6 +95,44 @@ test('问题4：看板卡片去掉 checkbox 并显示子任务', () => {
   assert.ok(textOf(board).includes('无子任务'), '无子任务的任务应有提示');
 });
 
+test('问题5：信息流显示任务描述（Markdown）并可就地编辑', async () => {
+  calls.length = 0;
+  const p = {
+    id: 'p1',
+    name: 'P',
+    tasks: [{
+      id: 't1', title: '任务', done: false, dueDate: '2024-05-10',
+      desc: '**重点**\n- [ ] 待办',
+      subtasks: [{ id: 's1', title: '子任务', done: false }]
+    }]
+  };
+  const feed = projects.buildTaskFeed(p);
+  const md = findAllByClass(feed, 'feed-goal-md')[0];
+  assert.ok(md, '应显示任务描述');
+  assert.ok(String(md.innerHTML).includes('<strong>重点</strong>'), '描述应按 Markdown 渲染');
+
+  const edit = findAllByClass(feed, 'feed-goal')[0];
+  assert.equal(edit.getAttribute('contenteditable'), 'true');
+  edit.textContent = '新的描述';
+  edit.dispatchEvent('blur');
+  await tick();
+
+  const put = calls.find((c) => c.method === 'PUT' && c.body && Object.prototype.hasOwnProperty.call(c.body, 'desc'));
+  assert.ok(put, '应保存描述');
+  assert.deepEqual(put.body, { desc: '新的描述' });
+});
+
+test('问题5：信息流同时显示子任务', () => {
+  const p = {
+    id: 'p1',
+    name: 'P',
+    tasks: [{ id: 't1', title: '任务', done: false, dueDate: '2024-05-10', desc: '描述', subtasks: [{ id: 's1', title: '子任务A', done: false }] }]
+  };
+  const feed = projects.buildTaskFeed(p);
+  assert.ok(textOf(feed).includes('描述'));
+  assert.ok(textOf(feed).includes('子任务A'), '应显示子任务内容');
+});
+
 test('问题3：信息流标题可就地编辑保存', async () => {
   calls.length = 0;
   const feed = projects.buildTaskFeed(P);

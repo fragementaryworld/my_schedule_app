@@ -1086,6 +1086,33 @@ function buildTaskPost(p, t) {
   if (t.createdAt) meta.append(h('span', { class: 'small muted' }, `创建于 ${String(t.createdAt).slice(0, 10)}`));
   post.append(meta);
 
+  // 描述：Markdown 展示，点击就地编辑
+  post.append(h('h4', { class: 'feed-sec' }, '描述'));
+  const descDisplay = h('div', {
+    class: 'feed-goal-md',
+    html: renderMarkdown(t.desc || ''),
+    'data-placeholder': '点击这里编辑任务描述，支持 Markdown…'
+  });
+  const descEdit = h('div', { class: 'feed-goal', contenteditable: 'true' });
+  descEdit.textContent = t.desc || '';
+  descEdit.style.display = 'none';
+  descDisplay.onclick = () => {
+    descDisplay.style.display = 'none';
+    descEdit.style.display = '';
+    descEdit.textContent = t.desc || '';
+    if (descEdit.focus) descEdit.focus();
+  };
+  descEdit.addEventListener('blur', async () => {
+    const next = descEdit.textContent.trim();
+    if (next !== (t.desc || '')) {
+      await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { desc: next });
+      t.desc = next;
+      toast('已保存');
+      refreshTasks();
+    }
+  });
+  post.append(descDisplay, descEdit);
+
   post.append(h('h4', { class: 'feed-sec' }, '子任务'));
   post.append(buildTaskSubBoard(p, t));
   return post;

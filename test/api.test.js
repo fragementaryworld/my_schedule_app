@@ -372,6 +372,19 @@ test('页面删除：连同子页面一起删除', async () => {
   assert.ok(all.some((p) => p.id === keep.json.id), '无关页面应保留');
 });
 
+test('任务支持描述字段', async () => {
+  const p = await api('POST', '/api/projects', { name: '描述项目' });
+  const pid = p.json.id;
+  const t = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务', desc: '任务描述' });
+  assert.equal(t.json.desc, '任务描述');
+
+  const upd = await api('PUT', `/api/projects/${pid}/tasks/${t.json.id}`, { desc: '改后的描述' });
+  assert.equal(upd.json.desc, '改后的描述');
+
+  const task = (await api('GET', '/api/projects')).json.find((x) => x.id === pid).tasks.find((x) => x.id === t.json.id);
+  assert.equal(task.desc, '改后的描述');
+});
+
 test('任务支持开始/截止时间区间', async () => {
   const p = await api('POST', '/api/projects', { name: '时间区间项目' });
   const pid = p.json.id;
