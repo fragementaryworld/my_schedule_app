@@ -1,7 +1,7 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
-import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel } from '../utils.js';
+import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays } from '../utils.js';
 
 let el = null;
 let currentParams = {};
@@ -117,6 +117,40 @@ export function timelineBar(project, start, end) {
   let width = Math.max(3, Math.round((daysBetween(barStart, barEnd) / total) * 100));
   if (left + width > 100) width = Math.max(0, 100 - left);
   return { left, width };
+}
+
+// 顶部日期刻度（类似 Notion）
+export function timelineTicks(start, end, count = 7) {
+  const total = Math.max(1, daysBetween(start, end));
+  const n = Math.max(2, count);
+  const ticks = [];
+  for (let i = 0; i < n; i++) {
+    const offset = Math.round((total * i) / (n - 1));
+    ticks.push({ pct: (i / (n - 1)) * 100, date: addDays(start, offset) });
+  }
+  return ticks;
+}
+
+// 今日红线位置（不在范围内返回 null）
+export function todayPct(start, end, today = todayStr()) {
+  const total = Math.max(1, daysBetween(start, end));
+  const d = daysBetween(start, today);
+  if (d < 0 || d > total) return null;
+  return (d / total) * 100;
+}
+
+export function pxToDays(dxPx, trackWidthPx, totalDays) {
+  if (!trackWidthPx) return 0;
+  return Math.round((dxPx / trackWidthPx) * totalDays);
+}
+
+export function shiftDates(project, deltaDays) {
+  const startBase = project.startDate || project.dueDate || todayStr();
+  const dueBase = project.dueDate || null;
+  return {
+    startDate: addDays(startBase, deltaDays),
+    dueDate: dueBase ? addDays(dueBase, deltaDays) : null
+  };
 }
 
 export function feedGoalLines(goal) {
@@ -245,45 +279,105 @@ function buildBoardCard(p) {
 
 function buildProjectTimeline(projects) {
   const { start, end, days } = timelineRange(projects);
+  const totalDays = Math.max(1, days);
   const wrap = h('div', { class: 'timeline' });
   wrap.append(h('div', { class: 'row timeline-head' },
     h('span', { class: 'small muted' }, `时间轴：${start} ~ ${end}`),
     h('span', { class: 'spacer' }),
     h('span', { class: 'small muted' }, `${days} 天`)));
+  wrap.append(h('div', { class: 'small muted', style: 'margin-bottom:4px' }, '拖动时间条可改时间；把项目名拖到分组标题上可改状态'));
 
   const axis = h('div', { class: 'timeline-axis' });
-  for (let i = 0; i <= 6; i++) {
-    axis.append(h('div', { class: 'timeline-tick', style: `left:${(i / 6) * 100}%` }));
+  for (const t of timelineTicks(start, end, 7)) {
+    axis.append(h('div', { class: 'timeline-tickwrap', style: `left:${t.pct}%` },
+      h('span', { class: 'timeline-tick-label' }, t.date),
+      h('i', { class: 'timeline-tick' })));
   }
   wrap.append(axis);
 
+  const tp = todayPct(start, end);
+
   for (const col of groupProjectsByStatus(projects)) {
-    wrap.append(h('div', { class: 'timeline-group' },
+    const box = h('div', { class: 'timeline-groupbox' });
+    box.append(h('div', { class: 'timeline-group' },
       h('span', { class: `badge ${col.cls}` }, col.label),
       h('span', { class: 'small muted' }, String(col.items.length))));
-    if (!col.items.length) {
-      wrap.append(h('div', { class: 'small muted', style: 'padding:2px 8px' }, '暂无项目'));
-      continue;
-    }
+
+    box.ondragover = (e) => { e.preventDefault(); box.classList.add('drop-hover'); };
+    box.ondragleave = () => box.classList.remove('drop-hover');
+    box.ondrop = async (e) => {
+      e.preventDefault();
+      box.classList.remove('drop-hover');
+      const pid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+      if (pid) {
+        await api.put(`/api/projects/${pid}`, { status: col.status });
+        toast('状态已更新');
+        paintList();
+      }
+    };
+
+    if (!col.items.length) box.append(h('div', { class: 'small muted', style: 'padding:2px 8px' }, '暂无项目'));
+
     for (const p of col.items) {
       const bar = timelineBar(p, start, end);
       const row = h('div', { class: 'timeline-row' });
-      const label = h('span', { class: 'timeline-label', title: p.name }, escapeHtml(p.name));
+      const label = h('span', { class: 'timeline-label', title: `${p.name}（拖到分组标题可改状态）`, draggable: 'true' }, escapeHtml(p.name));
       label.onclick = () => { location.hash = `#/projects/${p.id}`; };
+      label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); };
       row.append(label);
+
       const track = h('div', { class: 'timeline-track' });
+      if (tp !== null) track.append(h('div', { class: 'timeline-today', style: `left:${tp}%` }));
       const barEl = h('div', {
         class: `timeline-bar bar-${col.cls}`,
         style: `left:${bar.left}%;width:${bar.width}%`,
         title: `${p.name}（${formatProjectDates(p)}）`
       }, h('span', {}, formatProjectDates(p)));
-      barEl.onclick = () => { location.hash = `#/projects/${p.id}`; };
+      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = `#/projects/${p.id}`; };
+      attachBarDrag(barEl, track, p, totalDays);
       track.append(barEl);
       row.append(track);
-      wrap.append(row);
+      box.append(row);
     }
+    wrap.append(box);
   }
   return wrap;
+}
+
+// 按住时间条左右拖动 → 平移项目起止日期
+function attachBarDrag(barEl, track, project, totalDays) {
+  barEl.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const width = (track.getBoundingClientRect && track.getBoundingClientRect().width) || 1;
+    const originLeft = parseFloat(barEl.style.left) || 0;
+    const originWidth = parseFloat(barEl.style.width) || 0;
+    const startX = e.clientX || 0;
+    let deltaDays = 0;
+    let moved = false;
+
+    const onMove = (ev) => {
+      const dx = (ev.clientX || 0) - startX;
+      if (Math.abs(dx) > 2) moved = true;
+      deltaDays = pxToDays(dx, width, totalDays);
+      const shiftPct = (deltaDays / Math.max(1, totalDays)) * 100;
+      const newLeft = Math.max(0, Math.min(Math.max(0, 100 - originWidth), originLeft + shiftPct));
+      barEl.style.left = `${newLeft}%`;
+    };
+    const onUp = async () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      if (barEl.dataset) barEl.dataset.dragged = '1';
+      setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
+      if (deltaDays === 0) return;
+      await api.put(`/api/projects/${project.id}`, shiftDates(project, deltaDays));
+      toast('时间已更新');
+      paintList();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }
 
 function buildProjectFeed(projects) {
