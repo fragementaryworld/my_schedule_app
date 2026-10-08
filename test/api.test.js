@@ -164,13 +164,12 @@ test('tasks 删除重复模板连带删除实例', async () => {
 });
 
 test('projects 增删改、里程碑与项目任务', async () => {
-  const c = await api('POST', '/api/projects', { name: '项目X', goal: '目标', status: 'active', progress: 10 });
+  const c = await api('POST', '/api/projects', { name: '项目X', goal: '目标', status: 'active' });
   assert.equal(c.status, 201);
   const pid = c.json.id;
 
-  const upd = await api('PUT', `/api/projects/${pid}`, { status: 'paused', progress: 30 });
+  const upd = await api('PUT', `/api/projects/${pid}`, { status: 'paused' });
   assert.equal(upd.json.status, 'paused');
-  assert.equal(upd.json.progress, 30);
 
   const m = await api('POST', `/api/projects/${pid}/milestones`, { name: '阶段一' });
   assert.equal(m.status, 201);
@@ -188,6 +187,32 @@ test('projects 增删改、里程碑与项目任务', async () => {
   const del = await api('DELETE', `/api/projects/${pid}`);
   assert.equal(del.status, 200);
   assert.ok(!(await api('GET', '/api/projects')).json.some((p) => p.id === pid));
+});
+
+test('projects 完成度由任务完成数量计算', async () => {
+  const c = await api('POST', '/api/projects', { name: '进度项目' });
+  const pid = c.json.id;
+  const t1 = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务一' });
+  const t2 = await api('POST', `/api/projects/${pid}/tasks`, { title: '任务二' });
+
+  let p = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  assert.equal(p.progress, 0, '未完成任务时进度为 0');
+
+  await api('PUT', `/api/projects/${pid}/tasks/${t1.json.id}`, { done: true });
+  p = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  assert.equal(p.progress, 50, '完成 1/2 任务进度为 50');
+
+  await api('PUT', `/api/projects/${pid}/tasks/${t2.json.id}`, { done: true });
+  p = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  assert.equal(p.progress, 100, '全部完成进度为 100');
+});
+
+test('projects 手动 progress 不再生效（完成度由任务决定）', async () => {
+  const c = await api('POST', '/api/projects', { name: '手动进度项目' });
+  await api('POST', `/api/projects/${c.json.id}/tasks`, { title: '任务' });
+  await api('PUT', `/api/projects/${c.json.id}`, { progress: 90 });
+  const p = (await api('GET', '/api/projects')).json.find((x) => x.id === c.json.id);
+  assert.equal(p.progress, 0, '手动 progress 应被忽略');
 });
 
 test('books 增改、进度、读完记日期、笔记', async () => {

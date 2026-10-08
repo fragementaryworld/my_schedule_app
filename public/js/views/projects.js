@@ -132,14 +132,14 @@ function buildOverview(p) {
   if (p.dueDate) meta.append(h('span', {}, `· 截止 ${fmtDate(p.dueDate)}`));
   card.append(meta);
 
-  const pct = h('span', { class: 'small muted' }, `${p.progress || 0}%`);
-  const range = h('input', { type: 'range', min: '0', max: '100', value: p.progress || 0, style: 'flex:1' });
-  range.onchange = async () => {
-    await api.put(`/api/projects/${p.id}`, { progress: Number(range.value) });
-    pct.textContent = `${range.value}%`;
-    toast('进度已更新');
-  };
-  card.append(h('div', { class: 'row', style: 'margin-top:10px' }, h('span', { class: 'small muted' }, '完成度'), range, pct));
+  const total = (p.tasks || []).length;
+  const doneCount = (p.tasks || []).filter((t) => t.done).length;
+  const pct = p.progress || 0;
+  card.append(h('div', { class: 'row', style: 'margin-top:10px' },
+    h('span', { class: 'small muted' }, '完成度'),
+    h('div', { class: 'progress', style: 'flex:1' }, h('i', { style: `width:${pct}%` })),
+    h('span', { class: 'small muted' }, `${pct}%（${doneCount}/${total}）`)
+  ));
   return card;
 }
 
@@ -213,15 +213,14 @@ function buildProjectTasks(p) {
   return wrap;
 }
 
-function projectFields(p) {
+export function projectFields(p) {
   return [
     { name: 'name', label: '项目名称', required: true, value: p ? p.name : '' },
     { name: 'goal', label: '目标说明', type: 'textarea', value: p ? (p.goal || '') : '' },
     { name: 'status', label: '状态', type: 'select', value: p ? (p.status || 'active') : 'active',
       options: Object.entries(PROJECT_STATUS).map(([k, v]) => ({ value: k, label: v.label })) },
     { name: 'startDate', label: '开始日期', type: 'date', value: p ? (p.startDate || todayStr()) : todayStr() },
-    { name: 'dueDate', label: '截止日期（可选）', type: 'date', value: p ? (p.dueDate || '') : '' },
-    { name: 'progress', label: '完成度（0-100）', type: 'number', value: p ? (p.progress ?? 0) : 0 }
+    { name: 'dueDate', label: '截止日期（可选）', type: 'date', value: p ? (p.dueDate || '') : '' }
   ];
 }
 
@@ -235,8 +234,7 @@ function projectModal(p) {
         goal: v.goal,
         status: v.status,
         startDate: v.startDate,
-        dueDate: v.dueDate || null,
-        progress: Number(v.progress) || 0
+        dueDate: v.dueDate || null
       };
       if (p) await api.put(`/api/projects/${p.id}`, payload);
       else await api.post('/api/projects', payload);
