@@ -88,7 +88,7 @@ export class Element {
   }
   click() {
     this.dispatchEvent('click');
-    if (typeof this.onclick === 'function') this.onclick({ target: this, stopPropagation() {} });
+    if (typeof this.onclick === 'function') this.onclick({ target: this, preventDefault() {}, stopPropagation() {} });
   }
 }
 

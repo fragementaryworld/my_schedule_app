@@ -32,6 +32,19 @@ export function pageBreadcrumb(projects, id) {
   return [...pageAncestors(projects, id), ...(self ? [self] : [])];
 }
 
+// 扁平项目列表 → 页面树（孤儿节点视为根）
+export function buildPageTree(projects) {
+  const byId = new Map();
+  for (const p of projects || []) byId.set(p.id, { page: p, children: [] });
+  const roots = [];
+  for (const node of byId.values()) {
+    const parentId = node.page.parentId;
+    if (parentId && byId.has(parentId)) byId.get(parentId).children.push(node);
+    else roots.push(node);
+  }
+  return roots;
+}
+
 export async function render(container, params = {}) {
   el = container;
   pageId = params.id || null;
