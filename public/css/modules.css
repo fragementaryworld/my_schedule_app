@@ -146,6 +146,40 @@
 .feed-goal:empty::before { content: attr(data-placeholder); color: var(--muted); }
 .inline-select { width: auto; padding: 3px 8px; font-size: 12px; }
 
+/* ===== 视觉美化：四个展示窗口 ===== */
+
+/* 视图切换：胶囊标签（Notion 风格） */
+.toolbar .tabbar { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 2px; }
+.toolbar .tabbar .tab { padding: 6px 14px; border-radius: 9px; border-bottom: none; font-size: 13px; }
+.toolbar .tabbar .tab:hover { color: var(--text); background: rgba(127, 127, 127, 0.08); }
+.toolbar .tabbar .tab.active { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
+
+/* 表格视图 */
+.project-table { box-shadow: var(--shadow); }
+.project-table th { font-size: 12px; letter-spacing: .03em; padding-top: 10px; padding-bottom: 10px; }
+.project-table td { padding-top: 11px; padding-bottom: 11px; }
+.project-table tbody tr { transition: background .12s; }
+.proj-name { display: inline-flex; align-items: center; gap: 8px; }
+.proj-name::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--primary); opacity: .8; flex-shrink: 0; }
+
+/* 看板视图 */
+.kanban { gap: 14px; }
+.kanban-col { border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
+.kanban-col .col-head { padding: 2px 4px 10px; }
+.kanban-card { border-radius: 10px; transition: transform .12s, box-shadow .12s; }
+.kanban-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+
+/* 时间线视图 */
+.timeline { box-shadow: var(--shadow); }
+.timeline-track { box-shadow: inset 0 1px 2px rgba(0, 0, 0, .05); }
+.timeline-bar { box-shadow: 0 1px 3px rgba(0, 0, 0, .18); transition: filter .12s; }
+.timeline-bar:hover { filter: brightness(1.06); }
+
+/* 信息流视图 */
+.feed-post { padding: 20px 22px; transition: box-shadow .12s; }
+.feed-post:hover { box-shadow: var(--shadow-lg); }
+.feed-sec { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+
 .gantt-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .gantt-track { flex: 1; height: 16px; background: var(--border); border-radius: 999px; overflow: hidden; }
