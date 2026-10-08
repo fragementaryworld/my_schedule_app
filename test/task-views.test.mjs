@@ -69,9 +69,9 @@ test('问题2：看板视图分为待办/已完成两列', () => {
 test('问题2：信息流视图每条任务一张卡片', () => {
   const feed = projects.buildTaskFeed(P);
   assert.equal(findAllByClass(feed, 'feed-post').length, 3);
-  const titles = findAllByClass(feed, 'feed-title').map((t) => textOf(t));
+  const titles = findAllByClass(feed, 'feed-title').map((t) => t.textContent);
   assert.deepEqual(titles, ['有时间的', '已完成的', '没时间'], '按时间排序');
-  assert.ok(findAllByClass(feed, 'feed-list').length >= 1, '有子任务的任务应列出子任务');
+  assert.ok(findAllByClass(feed, 'kanban-col').length >= 2, '每条任务应带子任务看板');
 });
 
 test('问题2：taskIsOverdue 只按日期判断', () => {

@@ -441,15 +441,21 @@ function buildProjectTimeline(projects) {
         title: `${p.name}（${formatProjectDates(p)}）`
       }, h('span', { class: 'timeline-bar-label' }, formatProjectDates(p)));
       barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = `#/page/${p.id}`; };
-      attachBarDrag(barEl, track, p, totalDays);
+      const savePatch = async (patch) => {
+        if (!patch) { paintList(); return; }
+        await api.put(`/api/projects/${p.id}`, patch);
+        toast('时间已更新');
+        paintList();
+      };
+      attachBarDrag(barEl, track, p, totalDays, savePatch);
 
       const leftH = h('div', { class: 'timeline-handle left', title: '拖动调整开始时间' });
       const rightH = h('div', { class: 'timeline-handle right', title: '拖动调整结束时间' });
       leftH.addEventListener('click', (e) => e.stopPropagation());
       rightH.addEventListener('click', (e) => e.stopPropagation());
       barEl.append(leftH, rightH);
-      attachHandleDrag(leftH, barEl, track, p, totalDays, 'left');
-      attachHandleDrag(rightH, barEl, track, p, totalDays, 'right');
+      attachHandleDrag(leftH, barEl, track, p, totalDays, 'left', savePatch);
+      attachHandleDrag(rightH, barEl, track, p, totalDays, 'right', savePatch);
 
       track.append(barEl);
       row.append(track);
@@ -471,8 +477,8 @@ function markDragged(barEl) {
   setTimeout(() => { if (barEl.dataset) delete barEl.dataset.dragged; }, 0);
 }
 
-// 按住时间条左右拖动 → 平移项目起止日期（画面跟着鼠标走，松手才按天吸附）
-function attachBarDrag(barEl, track, project, totalDays) {
+// 按住时间条左右拖动 → 平移起止日期（画面跟着鼠标走，松手才按天吸附）
+function attachBarDrag(barEl, track, item, totalDays, save) {
   barEl.addEventListener('mousedown', (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -499,10 +505,8 @@ function attachBarDrag(barEl, track, project, totalDays) {
       if (!moved) return;
       markDragged(barEl);
       const deltaDays = pctToDays(appliedPct, totalDays);
-      if (deltaDays === 0) { paintList(); return; }
-      await api.put(`/api/projects/${project.id}`, shiftDates(project, deltaDays));
-      toast('时间已更新');
-      paintList();
+      if (deltaDays === 0) { await save(null); return; }
+      await save(shiftDates(item, deltaDays));
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -510,7 +514,7 @@ function attachBarDrag(barEl, track, project, totalDays) {
 }
 
 // 拖动时间条左右两端的把手 → 单独调整开始 / 结束时间
-function attachHandleDrag(handleEl, barEl, track, project, totalDays, side) {
+function attachHandleDrag(handleEl, barEl, track, item, totalDays, side, save) {
   handleEl.addEventListener('mousedown', (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -545,11 +549,9 @@ function attachHandleDrag(handleEl, barEl, track, project, totalDays, side) {
       if (!moved) return;
       markDragged(barEl);
       const deltaDays = pctToDays(appliedPct, totalDays);
-      if (deltaDays === 0) { paintList(); return; }
-      const patch = side === 'left' ? resizeStart(project, deltaDays) : resizeEnd(project, deltaDays);
-      await api.put(`/api/projects/${project.id}`, patch);
-      toast('时间已更新');
-      paintList();
+      if (deltaDays === 0) { await save(null); return; }
+      const patch = side === 'left' ? resizeStart(item, deltaDays) : resizeEnd(item, deltaDays);
+      await save(patch);
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -857,11 +859,33 @@ export function buildTaskTable(p) {
   return table;
 }
 
-// 时间线：顶部日期刻度 + 今日红线 + 每条任务一条时间条
+// 任务在时间轴上的位置：有区间显示区间，只有截止时间则显示截止点
+export function taskTimelineBar(task, start, end) {
+  const total = Math.max(1, daysBetween(start, end));
+  const pct = (d) => Math.max(0, Math.min(100, Math.round((daysBetween(start, d) / total) * 100)));
+  if (task.startDate && task.dueDate) {
+    const left = pct(task.startDate);
+    const width = Math.max(3, pct(task.dueDate) - left);
+    return { left, width: Math.min(width, 100 - left) };
+  }
+  if (task.dueDate) {
+    const right = pct(task.dueDate);
+    return { left: Math.max(0, right - 3), width: 3 };
+  }
+  return { left: 0, width: 3 };
+}
+
+// 任务拖动时间：有区间则整体平移，只有截止时间则只移动截止时间
+export function shiftTaskDates(task, deltaDays) {
+  if (task.startDate && task.dueDate) return shiftDates(task, deltaDays);
+  if (task.dueDate) return { dueDate: addDays(task.dueDate, deltaDays) };
+  return { startDate: addDays(task.startDate || todayStr(), deltaDays) };
+}
+
+// 时间线：日期刻度 + 今日红线 + 待办/已完成分组（可拖动改时间、拖名切换完成）
 export function buildTaskTimeline(p) {
   const today = todayStr();
   const dated = (p.tasks || []).filter((t) => t.dueDate);
-  const undated = (p.tasks || []).filter((t) => !t.dueDate);
   const wrap = h('div', { class: 'timeline' });
 
   if (!dated.length) {
@@ -870,11 +894,12 @@ export function buildTaskTimeline(p) {
   }
 
   const { start, end } = ganttRange(p.tasks, p);
-  const days = Math.max(1, daysBetween(start, end));
+  const totalDays = Math.max(1, daysBetween(start, end));
   wrap.append(h('div', { class: 'row timeline-head' },
     h('span', { class: 'small muted' }, `时间轴：${start} ~ ${end}`),
     h('span', { class: 'spacer' }),
-    h('span', { class: 'small muted' }, `${days} 天`)));
+    h('span', { class: 'small muted' }, `${totalDays} 天`)));
+  wrap.append(h('div', { class: 'small muted', style: 'margin-bottom:4px' }, '拖动时间条可改时间、拖两端可改起止；把任务名拖到分组标题上可切换完成'));
 
   const axis = h('div', { class: 'timeline-axis' });
   for (const tk of timelineTicks(start, end, 7)) {
@@ -885,51 +910,115 @@ export function buildTaskTimeline(p) {
   wrap.append(axis);
 
   const tp = todayPct(start, end);
-  const box = h('div', { class: 'timeline-groupbox' });
-  for (const t of dated) {
-    const bar = timelineBar({ startDate: t.startDate || start, dueDate: t.dueDate }, start, end);
-    const row = h('div', { class: 'timeline-row' });
-    const label = h('span', { class: 'timeline-label row-link', title: t.title }, escapeHtml(t.title));
-    label.onclick = () => { location.hash = taskHref(p, t); };
-    row.append(label);
+  const groups = [
+    { key: 'pending', label: '待办', cls: 'active', done: false, items: dated.filter((t) => !t.done) },
+    { key: 'done', label: '已完成', cls: 'done', done: true, items: dated.filter((t) => t.done) }
+  ];
 
-    const track = h('div', { class: 'timeline-track' });
-    if (tp !== null) track.append(h('div', { class: 'timeline-today', style: `left:${tp}%` }));
-    const cls = t.done ? 'done' : (taskIsOverdue(t, today) ? 'paused' : 'active');
-    const barEl = h('div', {
-      class: `timeline-bar bar-${cls}`,
-      style: `left:${bar.left}%;width:${bar.width}%`,
-      title: `${t.title}（${t.dueDate}）`
-    }, h('span', { class: 'timeline-bar-label' }, t.dueDate));
-    barEl.onclick = () => { location.hash = taskHref(p, t); };
-    track.append(barEl);
-    row.append(track);
-    box.append(row);
+  for (const grp of groups) {
+    const box = h('div', { class: 'timeline-groupbox' });
+    box.append(h('div', { class: 'timeline-group' },
+      h('span', { class: `badge ${grp.cls}` }, grp.label),
+      h('span', { class: 'small muted' }, String(grp.items.length))));
+
+    box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('drop-hover'); });
+    box.addEventListener('dragleave', () => box.classList.remove('drop-hover'));
+    box.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      box.classList.remove('drop-hover');
+      const tid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+      if (!tid) return;
+      await api.put(`/api/projects/${p.id}/tasks/${tid}`, { done: grp.done });
+      toast('状态已更新');
+      refreshTasks();
+    });
+
+    if (!grp.items.length) box.append(h('div', { class: 'small muted', style: 'padding:2px 8px' }, '暂无'));
+
+    for (const t of grp.items) {
+      const bar = taskTimelineBar(t, start, end);
+      const row = h('div', { class: 'timeline-row' });
+      const label = h('span', {
+        class: 'timeline-label row-link',
+        title: `${t.title}（拖到分组标题可切换完成）`,
+        draggable: 'true'
+      }, escapeHtml(t.title));
+      label.onclick = () => { location.hash = taskHref(p, t); };
+      label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); };
+      row.append(label);
+
+      const track = h('div', { class: 'timeline-track' });
+      if (tp !== null) track.append(h('div', { class: 'timeline-today', style: `left:${tp}%` }));
+
+      const savePatch = async (patch) => {
+        if (!patch) { refreshTasks(); return; }
+        await api.put(`/api/projects/${p.id}/tasks/${t.id}`, patch);
+        toast('时间已更新');
+        refreshTasks();
+      };
+
+      const cls = t.done ? 'done' : (taskIsOverdue(t, today) ? 'paused' : 'active');
+      const barEl = h('div', {
+        class: `timeline-bar bar-${cls}`,
+        style: `left:${bar.left}%;width:${bar.width}%`,
+        title: `${t.title}（${formatTaskDates(t)}）`
+      }, h('span', { class: 'timeline-bar-label' }, formatTaskDates(t)));
+      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = taskHref(p, t); };
+      attachBarDrag(barEl, track, t, totalDays, savePatch);
+
+      const leftH = h('div', { class: 'timeline-handle left', title: '拖动调整开始时间' });
+      const rightH = h('div', { class: 'timeline-handle right', title: '拖动调整结束时间' });
+      leftH.addEventListener('click', (e) => e.stopPropagation());
+      rightH.addEventListener('click', (e) => e.stopPropagation());
+      barEl.append(leftH, rightH);
+      attachHandleDrag(leftH, barEl, track, t, totalDays, 'left', savePatch);
+      attachHandleDrag(rightH, barEl, track, t, totalDays, 'right', savePatch);
+
+      track.append(barEl);
+      row.append(track);
+      box.append(row);
+    }
+    wrap.append(box);
   }
-  wrap.append(box);
 
+  const undated = (p.tasks || []).filter((t) => !t.dueDate);
   if (undated.length) {
     wrap.append(h('div', { class: 'small muted', style: 'margin-top:8px' }, '未设置时间：' + undated.map((t) => t.title).join('、')));
   }
   return wrap;
 }
 
-// 看板：待办 / 已完成
+// 看板：待办 / 已完成（可拖动卡片切换）
 export function buildTaskBoard(p) {
   const { pending, done } = groupTasksByDone(p.tasks || []);
   const today = todayStr();
   const board = h('div', { class: 'kanban' });
-  board.append(taskCol('待办', pending, p, today));
-  board.append(taskCol('已完成', done, p, today));
+  board.append(taskCol('待办', pending, p, today, false));
+  board.append(taskCol('已完成', done, p, today, true));
   return board;
 }
 
-function taskCol(title, tasks, p, today) {
-  const col = h('div', { class: 'kanban-col ' + (title === '已完成' ? 'board-col-done' : 'board-col-active') });
+function taskCol(title, tasks, p, today, doneFlag) {
+  const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
+  col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
+  col.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    col.classList.remove('drop-hover');
+    const tid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    if (!tid) return;
+    await api.put(`/api/projects/${p.id}/tasks/${tid}`, { done: doneFlag });
+    toast('状态已更新');
+    refreshTasks();
+  });
+
   col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(tasks.length))));
   if (!tasks.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
+
   for (const t of tasks) {
-    const card = h('div', { class: 'kanban-card' });
+    const card = h('div', { class: 'kanban-card', draggable: 'true' });
+    card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
+
     const head = h('div', { class: 'row' });
     const cb = h('input', { type: 'checkbox', class: 'task-check' });
     cb.checked = !!t.done;
@@ -941,7 +1030,7 @@ function taskCol(title, tasks, p, today) {
     card.append(head);
 
     const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
-    if (t.dueDate) metaRow.append(h('span', { class: 'small muted' }, `📅 ${t.dueDate}`));
+    metaRow.append(h('span', { class: 'small muted' }, `📅 ${formatTaskDates(t)}`));
     if (!t.done && taskIsOverdue(t, today)) metaRow.append(h('span', { class: 'badge overdue' }, '已逾期'));
     const subs = t.subtasks || [];
     metaRow.append(h('span', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
@@ -951,7 +1040,7 @@ function taskCol(title, tasks, p, today) {
   return col;
 }
 
-// 信息流：每条任务一张卡片
+// 信息流：每条任务一张卡片（标题就地编辑 + 子任务看板可拖动）
 export function buildTaskFeed(p) {
   const feed = h('div', { class: 'feed' });
   for (const t of sortTasksForFeed(p.tasks || [])) feed.append(buildTaskPost(p, t));
@@ -967,27 +1056,65 @@ function buildTaskPost(p, t) {
   cb.checked = !!t.done;
   cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
   head.append(cb);
-  const title = h('h3', { class: 'feed-title row-link', style: 'margin:0;flex:1' }, escapeHtml(t.title));
-  title.onclick = () => { location.hash = taskHref(p, t); };
+
+  const title = h('h3', { class: 'feed-title', contenteditable: 'true', spellcheck: 'false', style: 'margin:0;flex:1' });
+  title.textContent = t.title;
+  title.addEventListener('blur', async () => {
+    const next = title.textContent.trim();
+    if (!next) { title.textContent = t.title; return; }
+    if (next !== t.title) {
+      await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { title: next });
+      t.title = next;
+      toast('已保存');
+      refreshTasks();
+    }
+  });
+  title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); } });
   head.append(title, taskStatusBadge(t, today));
   post.append(head);
 
   const meta = h('div', { class: 'row', style: 'margin:6px 0;flex-wrap:wrap' });
-  meta.append(h('span', { class: 'small muted' }, `📅 ${t.dueDate || '未排期'}`));
+  meta.append(h('span', { class: 'small muted' }, `📅 ${formatTaskDates(t)}`));
   const subs = t.subtasks || [];
   meta.append(h('span', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
   if (t.createdAt) meta.append(h('span', { class: 'small muted' }, `创建于 ${String(t.createdAt).slice(0, 10)}`));
   post.append(meta);
 
-  if (subs.length) {
-    const ul = h('ul', { class: 'feed-list' });
-    for (const st of subs) {
-      ul.append(h('li', { style: st.done ? 'text-decoration:line-through;color:var(--muted)' : '' },
-        `${st.done ? '☑' : '☐'} ${escapeHtml(st.title)}`));
-    }
-    post.append(ul);
-  }
+  post.append(h('h4', { class: 'feed-sec' }, '子任务'));
+  post.append(buildTaskSubBoard(p, t));
   return post;
+}
+
+function buildTaskSubBoard(p, t) {
+  const subs = t.subtasks || [];
+  const board = h('div', { class: 'kanban' });
+  board.append(subCol('未完成', subs.filter((s) => !s.done), p, t, false));
+  board.append(subCol('已完成', subs.filter((s) => s.done), p, t, true));
+  return board;
+}
+
+function subCol(title, subs, p, t, doneFlag) {
+  const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
+  col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
+  col.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    col.classList.remove('drop-hover');
+    const sid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    if (!sid) return;
+    await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${sid}`, { done: doneFlag });
+    toast('子任务已更新');
+    refreshTasks();
+  });
+  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(subs.length))));
+  if (!subs.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
+  for (const s of subs) {
+    const card = h('div', { class: 'kanban-card', draggable: 'true' });
+    card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', s.id); });
+    card.append(h('div', { class: 'title' }, escapeHtml(s.title)));
+    col.append(card);
+  }
+  return col;
 }
 
 export function add() {
