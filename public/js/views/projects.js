@@ -1019,22 +1019,28 @@ function taskCol(title, tasks, p, today, doneFlag) {
     const card = h('div', { class: 'kanban-card', draggable: 'true' });
     card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
 
-    const head = h('div', { class: 'row' });
-    const cb = h('input', { type: 'checkbox', class: 'task-check' });
-    cb.checked = !!t.done;
-    cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
-    head.append(cb);
-    const titleEl = h('span', { class: 'title row-link', style: 'flex:1' }, escapeHtml(t.title));
+    const titleEl = h('div', { class: 'title row-link' }, escapeHtml(t.title));
     titleEl.onclick = () => { location.hash = taskHref(p, t); };
-    head.append(titleEl);
-    card.append(head);
+    card.append(titleEl);
 
     const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
     metaRow.append(h('span', { class: 'small muted' }, `📅 ${formatTaskDates(t)}`));
     if (!t.done && taskIsOverdue(t, today)) metaRow.append(h('span', { class: 'badge overdue' }, '已逾期'));
-    const subs = t.subtasks || [];
-    metaRow.append(h('span', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
     card.append(metaRow);
+
+    const subs = t.subtasks || [];
+    if (subs.length) {
+      const list = h('div', { class: 'subtask-list', style: 'margin-top:6px' });
+      for (const st of subs) {
+        list.append(h('div', { class: 'row' },
+          h('span', { class: 'small muted' }, st.done ? '☑' : '☐'),
+          h('span', { class: 'small', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title))
+        ));
+      }
+      card.append(list);
+    } else {
+      card.append(h('div', { class: 'small muted', style: 'margin-top:6px' }, '无子任务'));
+    }
     col.append(card);
   }
   return col;

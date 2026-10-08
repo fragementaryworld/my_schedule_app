@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { makeDocument, findAllByClass } from '../test-helpers/dom-shim.mjs';
+import { makeDocument, findAllByClass, findAllByTag, textOf } from '../test-helpers/dom-shim.mjs';
 
 globalThis.document = makeDocument();
 globalThis.location = { hash: '#/page/p1' };
@@ -85,6 +85,14 @@ test('问题3：看板卡片可拖动切换完成', async () => {
   await tick();
   const put = calls.find((c) => c.method === 'PUT' && c.url.includes('/api/projects/p1/tasks/t1'));
   assert.deepEqual(put.body, { done: true });
+});
+
+test('问题4：看板卡片去掉 checkbox 并显示子任务', () => {
+  const board = projects.buildTaskBoard(P);
+  assert.equal(findAllByTag(board, 'input').length, 0, '看板不应再有 checkbox');
+  assert.equal(findAllByClass(board, 'task-check').length, 0);
+  assert.ok(textOf(board).includes('子任务'), '应直接列出子任务标题');
+  assert.ok(textOf(board).includes('无子任务'), '无子任务的任务应有提示');
 });
 
 test('问题3：信息流标题可就地编辑保存', async () => {
