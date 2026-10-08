@@ -69,6 +69,32 @@ export function groupProjectsByStatus(projects) {
   return cols;
 }
 
+export function timelineRange(projects) {
+  let start = null;
+  let end = null;
+  for (const p of projects || []) {
+    if (p.startDate && (!start || p.startDate < start)) start = p.startDate;
+    if (p.dueDate) {
+      if (!start || p.dueDate < start) start = p.dueDate;
+      if (!end || p.dueDate > end) end = p.dueDate;
+    }
+  }
+  if (!start) start = todayStr();
+  if (!end) end = start;
+  if (end < start) end = start;
+  return { start, end, days: Math.max(1, daysBetween(start, end)) };
+}
+
+export function timelineBar(project, start, end) {
+  const total = Math.max(1, daysBetween(start, end));
+  const barStart = project.startDate && project.startDate > start ? project.startDate : start;
+  const barEnd = project.dueDate && project.dueDate > barStart ? project.dueDate : barStart;
+  const left = Math.max(0, Math.min(100, Math.round((daysBetween(start, barStart) / total) * 100)));
+  let width = Math.max(3, Math.round((daysBetween(barStart, barEnd) / total) * 100));
+  if (left + width > 100) width = Math.max(0, 100 - left);
+  return { left, width };
+}
+
 function daysBetween(a, b) {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
@@ -187,8 +213,47 @@ function buildBoardCard(p) {
   return card;
 }
 
-function buildProjectTimeline() {
-  return placeholderView('时间线');
+function buildProjectTimeline(projects) {
+  const { start, end, days } = timelineRange(projects);
+  const wrap = h('div', { class: 'timeline' });
+  wrap.append(h('div', { class: 'row timeline-head' },
+    h('span', { class: 'small muted' }, `时间轴：${start} ~ ${end}`),
+    h('span', { class: 'spacer' }),
+    h('span', { class: 'small muted' }, `${days} 天`)));
+
+  const axis = h('div', { class: 'timeline-axis' });
+  for (let i = 0; i <= 6; i++) {
+    axis.append(h('div', { class: 'timeline-tick', style: `left:${(i / 6) * 100}%` }));
+  }
+  wrap.append(axis);
+
+  for (const col of groupProjectsByStatus(projects)) {
+    wrap.append(h('div', { class: 'timeline-group' },
+      h('span', { class: `badge ${col.cls}` }, col.label),
+      h('span', { class: 'small muted' }, String(col.items.length))));
+    if (!col.items.length) {
+      wrap.append(h('div', { class: 'small muted', style: 'padding:2px 8px' }, '暂无项目'));
+      continue;
+    }
+    for (const p of col.items) {
+      const bar = timelineBar(p, start, end);
+      const row = h('div', { class: 'timeline-row' });
+      const label = h('span', { class: 'timeline-label', title: p.name }, escapeHtml(p.name));
+      label.onclick = () => { location.hash = `#/projects/${p.id}`; };
+      row.append(label);
+      const track = h('div', { class: 'timeline-track' });
+      const barEl = h('div', {
+        class: `timeline-bar bar-${col.cls}`,
+        style: `left:${bar.left}%;width:${bar.width}%`,
+        title: `${p.name}（${formatProjectDates(p)}）`
+      }, h('span', {}, formatProjectDates(p)));
+      barEl.onclick = () => { location.hash = `#/projects/${p.id}`; };
+      track.append(barEl);
+      row.append(track);
+      wrap.append(row);
+    }
+  }
+  return wrap;
 }
 
 function buildProjectFeed() {
