@@ -247,7 +247,7 @@ export async function render(container, params = {}) {
 async function paintList() {
   if (!el) return;
   el.innerHTML = '';
-  const projects = await api.get('/api/projects?roots=1');
+  const projects = await api.get('/api/projects');
   cachedProjects = projects;
   el.append(buildViewBar());
   const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);

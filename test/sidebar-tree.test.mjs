@@ -1,47 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { pathToFileURL } from 'node:url';
+import fs from 'node:fs';
 import path from 'node:path';
-import { makeDocument, findAllByClass, textOf } from '../test-helpers/dom-shim.mjs';
 
-globalThis.document = makeDocument();
-globalThis.location = { hash: '#/projects' };
+const ROOT = process.cwd();
 
-const PROJECTS = [
-  { id: 'root', name: '根项目', icon: '📘', parentId: null },
-  { id: 'child', name: '子页面', icon: '📄', parentId: 'root' },
-  { id: 'other', name: '另一项目', icon: '📁', parentId: null }
-];
+test('问题3：左下角页面树已移除', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  assert.ok(!html.includes('pageTree'), 'index.html 不应再有页面树容器');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'public', 'js', 'sidebar.js')), 'sidebar.js 应已删除');
 
-globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => PROJECTS });
+  const app = fs.readFileSync(path.join(ROOT, 'public', 'js', 'app.js'), 'utf8');
+  assert.ok(!app.includes("./sidebar.js"), 'app.js 不应再引用 sidebar 模块');
+  assert.ok(!app.includes('renderPageTree'), 'app.js 不应再调用页面树渲染');
 
-const box = document.createElement('div');
-box.setAttribute('id', 'pageTree');
-document.body.appendChild(box);
-
-const sidebarUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'sidebar.js')).href;
-const { renderPageTree } = await import(sidebarUrl);
-
-test('增量3：页面树默认显示根页面，子页面折叠', async () => {
-  await renderPageTree();
-  const links = findAllByClass(box, 'tree-link');
-  assert.equal(links.length, 2, '默认只显示两个根页面');
-  assert.ok(textOf(links[0]).includes('根项目'));
-});
-
-test('增量3：点击箭头展开子页面', async () => {
-  await renderPageTree();
-  const carets = findAllByClass(box, 'tree-caret');
-  assert.equal(textOf(carets[0]), '▸', '有子节点时应显示折叠箭头');
-  carets[0].click();
-  await new Promise((r) => setTimeout(r, 10));
-  const links = findAllByClass(box, 'tree-link');
-  assert.equal(links.length, 3, '展开后应出现子页面');
-  assert.ok(links.some((a) => textOf(a).includes('子页面')));
-});
-
-test('增量3：页面链接指向 #/page/:id', () => {
-  const hrefs = findAllByClass(box, 'tree-link').map((a) => a.getAttribute('href'));
-  assert.ok(hrefs.includes('#/page/root'), '应包含根页面链接');
-  assert.ok(hrefs.includes('#/page/child'), '应包含子页面链接');
+  const css = fs.readFileSync(path.join(ROOT, 'public', 'css', 'modules.css'), 'utf8');
+  assert.ok(!css.includes('.page-tree'), 'CSS 不应再有页面树样式');
+  assert.ok(!css.includes('.tree-link'), 'CSS 不应再有树链接样式');
 });

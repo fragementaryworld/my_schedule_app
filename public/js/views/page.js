@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
-import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME } from './projects.js';
+import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME, createProject } from './projects.js';
 
 let el = null;
 let pageId = null;
@@ -13,44 +13,6 @@ const blockEls = new Map();
 export function isFreshPage(page) {
   if (!page) return false;
   return page.name === DEFAULT_PAGE_NAME && !(page.blocks || []).length && !String(page.goal || '').trim();
-}
-
-// 祖先页面（从根到父）
-export function pageAncestors(projects, id) {
-  const byId = new Map((projects || []).map((p) => [p.id, p]));
-  const out = [];
-  const seen = new Set();
-  let cur = byId.get(id);
-  while (cur && cur.parentId && !seen.has(cur.parentId)) {
-    seen.add(cur.parentId);
-    const parent = byId.get(cur.parentId);
-    if (!parent) break;
-    out.unshift(parent);
-    cur = parent;
-  }
-  return out;
-}
-
-export function pageChildren(projects, id) {
-  return (projects || []).filter((p) => p.parentId === id);
-}
-
-export function pageBreadcrumb(projects, id) {
-  const self = (projects || []).find((p) => p.id === id);
-  return [...pageAncestors(projects, id), ...(self ? [self] : [])];
-}
-
-// 扁平项目列表 → 页面树（孤儿节点视为根）
-export function buildPageTree(projects) {
-  const byId = new Map();
-  for (const p of projects || []) byId.set(p.id, { page: p, children: [] });
-  const roots = [];
-  for (const node of byId.values()) {
-    const parentId = node.page.parentId;
-    if (parentId && byId.has(parentId)) byId.get(parentId).children.push(node);
-    else roots.push(node);
-  }
-  return roots;
 }
 
 export async function render(container, params = {}) {
@@ -71,13 +33,10 @@ async function paint() {
     return;
   }
   el.append(buildBreadcrumb(page));
-  el.append(buildCover(page));
   el.append(buildIconTitle(page));
   el.append(buildProperties(projects, page));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
   el.append(buildBlocksEditor(page));
-  el.append(h('div', { class: 'page-section' }, '📄 子页面'));
-  el.append(buildSubpages(projects, page));
   el.append(h('div', { class: 'page-section' }, '✅ 任务'));
   el.append(buildProjectTasksSection(page, paint));
 
@@ -120,50 +79,6 @@ function buildBreadcrumb(page) {
 }
 
 export const PAGE_ICONS = ['📁', '📘', '📗', '📙', '📕', '📄', '📝', '✅', '💡', '🎯', '🚀', '⚙️', '📊', '🧪', '🏠', '❤️', '⭐', '🔥'];
-
-export const PAGE_COVERS = [
-  { key: 'none', label: '无', css: '' },
-  { key: 'blue', label: '蓝', css: 'linear-gradient(135deg,#4f6ef7,#9b6cf7)' },
-  { key: 'green', label: '绿', css: 'linear-gradient(135deg,#16a34a,#84cc16)' },
-  { key: 'orange', label: '橙', css: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
-  { key: 'violet', label: '紫', css: 'linear-gradient(135deg,#8b5cf6,#ec4899)' },
-  { key: 'slate', label: '灰', css: 'linear-gradient(135deg,#64748b,#94a3b8)' }
-];
-
-export function coverCss(key) {
-  const c = PAGE_COVERS.find((x) => x.key === key);
-  return c ? c.css : '';
-}
-
-export function buildCover(page) {
-  const wrap = h('div', { class: 'page-cover-wrap' });
-  const css = coverCss(page.cover);
-  let paletteEl = null;
-
-  if (css) wrap.append(h('div', { class: 'page-cover', style: `background:${css}` }));
-
-  const btn = h('button', { class: 'btn btn-sm page-cover-btn' }, css ? '更换封面' : '添加封面');
-  btn.onclick = () => {
-    if (paletteEl) { paletteEl.remove(); paletteEl = null; return; }
-    paletteEl = h('div', { class: 'cover-palette' });
-    for (const c of PAGE_COVERS) {
-      const sw = h('button', {
-        class: 'cover-swatch',
-        title: c.label,
-        style: c.css ? `background:${c.css}` : 'background:var(--panel-2)'
-      }, c.css ? '' : '无');
-      sw.onclick = async () => {
-        await api.put(`/api/projects/${page.id}`, { cover: c.key });
-        toast('封面已更新');
-        paint();
-      };
-      paletteEl.append(sw);
-    }
-    wrap.append(paletteEl);
-  };
-  wrap.append(btn);
-  return wrap;
-}
 
 export function buildIconTitle(page) {
   const wrap = h('div', { class: 'page-head' });
@@ -401,21 +316,6 @@ function focusBlock(id) {
   if (node && node.focus) node.focus();
 }
 
-function buildSubpages(projects, page) {
-  const kids = pageChildren(projects, page.id);
-  const wrap = h('div', { class: 'subpages' });
-  if (!kids.length) {
-    wrap.append(h('span', { class: 'small muted' }, '暂无子页面，点右下角「＋」新建。'));
-  }
-  for (const k of kids) {
-    wrap.append(h('a', { class: 'subpage-item', href: `#/page/${k.id}` }, `${k.icon || '📄'} ${escapeHtml(k.name)}`));
-  }
-  return wrap;
-}
-
 export async function add() {
-  if (!pageId) return;
-  const created = await api.post('/api/projects', { name: '新页面', parentId: pageId });
-  toast('已新建子页面');
-  location.hash = `#/page/${created.id}`;
+  await createProject();
 }

@@ -27,7 +27,7 @@ after(async () => {
 const NAV_LABELS = ['首页', '今日计划', '工作项目', '阅读计划', '健身计划', '灵感', '数据与设置'];
 const ASSETS = [
   '/css/base.css', '/css/shell.css', '/css/modules.css',
-  '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js', '/js/sidebar.js',
+  '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js',
   '/js/views/home.js', '/js/views/today.js', '/js/views/projects.js',
   '/js/views/reading.js', '/js/views/fitness.js', '/js/views/ideas.js',
   '/js/views/settings.js', '/js/views/page.js'
@@ -45,7 +45,7 @@ test('首页 HTML 包含 7 个模块导航、路由与容器', async () => {
   assert.ok(text.includes('id="content"'));
   assert.ok(text.includes('id="fab"'));
   assert.ok(text.includes('id="saveBtn"'), '缺少手动保存按钮');
-  assert.ok(text.includes('id="pageTree"'), '缺少侧边栏页面树容器');
+  assert.ok(!text.includes('id="pageTree"'), '左下角页面树应已移除');
 });
 
 test('所有前端资源可访问', async () => {

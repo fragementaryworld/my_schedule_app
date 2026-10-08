@@ -191,13 +191,8 @@
 .page-icon { width: 56px; height: 56px; font-size: 28px; border-radius: 10px; border: 1px solid transparent; background: transparent; cursor: pointer; flex-shrink: 0; line-height: 1; }
 .page-icon:hover { border-color: var(--border); background: var(--panel-2); }
 
-/* 页面封面与图标选择器 */
-.page-cover-wrap { margin-bottom: 12px; }
-.page-cover { height: 120px; border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 8px; }
-.page-cover-btn { font-size: 12px; }
-.cover-palette, .icon-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); margin-bottom: 8px; align-items: center; }
-.cover-swatch { width: 34px; height: 22px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 11px; color: var(--muted); }
-.cover-swatch:hover { transform: translateY(-1px); }
+/* 页面图标选择器 */
+.icon-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); margin-bottom: 8px; align-items: center; }
 .icon-choice { width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent; background: transparent; font-size: 17px; cursor: pointer; line-height: 1; }
 .icon-choice:hover { background: var(--panel-2); border-color: var(--border); }
 .page-title { flex: 1; min-width: 0; font-size: 30px; font-weight: 700; outline: none; padding: 4px 8px; border-radius: 8px; cursor: text; }
@@ -229,22 +224,7 @@
 .block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
 .block-divider { border-top: 1px solid var(--border); height: 0; padding: 0; }
 
-.subpages { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; box-shadow: var(--shadow); }
-.subpage-item { padding: 6px 8px; border-radius: 8px; }
-.subpage-item:hover { background: var(--panel-2); }
-
-/* 侧边栏页面树 */
-.page-tree { border-top: 1px solid var(--border); padding: 8px 6px; max-height: 42vh; overflow: auto; }
-.tree-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 8px 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
-.tree-empty { padding: 2px 8px; }
-.tree-list { display: flex; flex-direction: column; gap: 1px; }
-.tree-row { display: flex; align-items: center; gap: 4px; border-radius: 7px; padding-right: 2px; }
-.tree-row:hover { background: var(--panel-2); }
-.tree-caret { width: 14px; flex-shrink: 0; text-align: center; color: var(--muted); font-size: 10px; cursor: pointer; }
-.tree-link { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 4px; border-radius: 7px; font-size: 13px; }
-.tree-link.active { background: var(--primary); color: #fff; }
-.tree-add { opacity: 0; font-size: 12px; }
-.tree-row:hover .tree-add { opacity: 1; }
+.block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
 
 .gantt-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

@@ -9,7 +9,6 @@ import * as fitness from './views/fitness.js';
 import * as ideas from './views/ideas.js';
 import * as settings from './views/settings.js';
 import * as page from './views/page.js';
-import { renderPageTree } from './sidebar.js';
 
 export const views = { home, today, projects, reading, fitness, ideas, settings, page };
 
@@ -50,11 +49,6 @@ export async function navigate() {
   const content = document.getElementById('content');
   content.innerHTML = '';
   await view.render(content, currentParams);
-  try {
-    await renderPageTree();
-  } catch (e) {
-    /* 侧边栏树加载失败不影响主内容 */
-  }
   window.scrollTo(0, 0);
 }
 
