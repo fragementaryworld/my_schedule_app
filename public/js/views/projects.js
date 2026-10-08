@@ -57,6 +57,18 @@ export function projectRowData(p) {
   };
 }
 
+export function groupProjectsByStatus(projects) {
+  const order = ['active', 'paused', 'done'];
+  const cols = order.map((s) => ({ status: s, label: PROJECT_STATUS[s].label, cls: PROJECT_STATUS[s].cls, items: [] }));
+  const byStatus = {};
+  for (const c of cols) byStatus[c.status] = c;
+  for (const p of projects || []) {
+    const key = order.includes(p.status) ? p.status : 'active';
+    byStatus[key].items.push(p);
+  }
+  return cols;
+}
+
 function daysBetween(a, b) {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
@@ -142,8 +154,37 @@ function placeholderView(name) {
   return h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '🚧'), h('p', {}, `${name}视图将在后续步骤实现`));
 }
 
-function buildProjectBoard() {
-  return placeholderView('看板');
+function buildProjectBoard(projects) {
+  const cols = groupProjectsByStatus(projects);
+  const board = h('div', { class: 'kanban' });
+  for (const col of cols) {
+    const colEl = h('div', { class: `kanban-col board-col-${col.status}` });
+    colEl.append(h('div', { class: 'col-head' },
+      h('span', { class: `badge ${col.cls}` }, col.label),
+      h('span', { class: 'small muted' }, String(col.items.length))));
+    if (!col.items.length) colEl.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无项目'));
+    for (const p of col.items) colEl.append(buildBoardCard(p));
+    colEl.append(h('div', { class: 'board-new', onclick: () => projectModal() }, '＋ 新建项目'));
+    board.append(colEl);
+  }
+  return board;
+}
+
+function buildBoardCard(p) {
+  const d = projectRowData(p);
+  const card = h('div', { class: 'kanban-card', style: 'cursor:pointer' });
+  card.onclick = () => { location.hash = `#/projects/${p.id}`; };
+  card.append(h('div', { class: 'title', style: 'font-weight:600;margin-bottom:6px' }, escapeHtml(d.name)));
+  card.append(h('div', { class: 'small muted' }, d.dates));
+  const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
+  metaRow.append(h('span', { class: `badge ${d.priorityCls}` }, d.priorityLabel));
+  if (d.owner) metaRow.append(h('span', { class: 'small muted' }, `👤 ${d.owner}`));
+  if (d.blockedBy) metaRow.append(h('span', { class: 'badge blocked' }, `🚫 ${d.blockedBy}`));
+  card.append(metaRow);
+  card.append(h('div', { class: 'row', style: 'margin-top:8px' },
+    h('div', { class: 'progress', style: 'flex:1' }, h('i', { style: `width:${d.completion}%` })),
+    h('span', { class: 'small muted' }, `${d.completion}%`)));
+  return card;
 }
 
 function buildProjectTimeline() {

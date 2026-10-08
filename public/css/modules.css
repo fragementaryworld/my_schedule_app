@@ -97,6 +97,13 @@
 .badge.paused { color: var(--warning); border-color: var(--warning); }
 .badge.blocked { color: var(--danger); border-color: var(--danger); }
 
+/* 项目列表：看板视图（按状态分列，带颜色区分） */
+.board-col-active { background: rgba(217, 119, 6, 0.08); }
+.board-col-paused { background: rgba(139, 92, 246, 0.08); }
+.board-col-done { background: rgba(22, 163, 74, 0.08); }
+.board-new { color: var(--muted); padding: 8px; border-radius: 8px; cursor: pointer; }
+.board-new:hover { background: var(--panel); color: var(--text); }
+
 .gantt-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .gantt-track { flex: 1; height: 16px; background: var(--border); border-radius: 999px; overflow: hidden; }
