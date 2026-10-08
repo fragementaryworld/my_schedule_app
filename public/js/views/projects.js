@@ -8,6 +8,7 @@ let currentParams = {};
 let currentFilter = 'all';
 let listView = 'table';
 let taskView = 'table';
+let cachedProjects = [];
 
 const FILTERS = [
   { value: 'all', label: '全部' },
@@ -30,6 +31,15 @@ export function projectSummary(p) {
     done: tasks.filter((t) => t.done).length,
     nextActions: tasks.filter((t) => !t.done).length
   };
+}
+
+export function collectOwners(projects) {
+  const set = new Set();
+  for (const p of projects || []) {
+    const o = String(p.owner || '').trim();
+    if (o) set.add(o);
+  }
+  return [...set].sort();
 }
 
 export function formatProjectDates(p) {
@@ -151,6 +161,7 @@ export async function render(container, params = {}) {
 async function paintList() {
   el.innerHTML = '';
   const projects = await api.get('/api/projects');
+  cachedProjects = projects;
   el.append(buildViewBar());
   const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
   if (!shown.length) {
@@ -362,6 +373,7 @@ function buildProjectRow(p) {
 
 async function paintDetail(id) {
   const projects = await api.get('/api/projects');
+  cachedProjects = projects;
   const p = projects.find((x) => x.id === id);
   if (!p) {
     el.innerHTML = '<div class="empty"><p>项目不存在或已删除。</p></div>';
@@ -635,7 +647,7 @@ export function projectFields(p) {
     { name: 'dueDate', label: '截止日期（可选）', type: 'date', value: p ? (p.dueDate || '') : '' },
     { name: 'priority', label: '优先级', type: 'select', value: p ? (p.priority || 'medium') : 'medium',
       options: [{ value: 'high', label: '高' }, { value: 'medium', label: '中' }, { value: 'low', label: '低' }] },
-    { name: 'owner', label: '负责人', value: p ? (p.owner || '') : '' },
+    { name: 'owner', label: '负责人（可选择或输入）', type: 'datalist', value: p ? (p.owner || '') : '', options: collectOwners(cachedProjects) },
     { name: 'blockedBy', label: '阻塞（可选）', value: p ? (p.blockedBy || '') : '' }
   ];
 }

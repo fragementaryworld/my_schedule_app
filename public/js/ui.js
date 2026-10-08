@@ -71,6 +71,14 @@ export function openModal({ title, fields = [], submitText = '保存', onSubmit 
         c = h('select', {});
         for (const o of f.options || []) c.append(h('option', { value: o.value }, o.label));
         c.value = f.value || (f.options && f.options[0] && f.options[0].value);
+      } else if (f.type === 'datalist') {
+        wrap.append(h('label', {}, f.label || ''));
+        const listId = `dl-${f.name}-${Math.random().toString(36).slice(2, 8)}`;
+        c = h('input', { type: 'text', list: listId, placeholder: f.placeholder || '' });
+        c.value = f.value || '';
+        const dl = h('datalist', { id: listId });
+        for (const o of f.options || []) dl.append(h('option', { value: typeof o === 'string' ? o : o.value }));
+        wrap.append(dl);
       } else if (f.type === 'checkbox') {
         c = h('input', { type: 'checkbox' });
         c.checked = !!f.value;
