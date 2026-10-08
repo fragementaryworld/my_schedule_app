@@ -187,9 +187,19 @@
 .breadcrumb .crumb.current { color: var(--text); font-weight: 500; }
 .crumb-sep { color: var(--border); }
 
-.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.page-icon-input { width: 56px; height: 56px; font-size: 28px; text-align: center; padding: 0; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); }
-.page-icon-input:hover { border-color: var(--border); background: var(--panel-2); }
+.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.page-icon { width: 56px; height: 56px; font-size: 28px; border-radius: 10px; border: 1px solid transparent; background: transparent; cursor: pointer; flex-shrink: 0; line-height: 1; }
+.page-icon:hover { border-color: var(--border); background: var(--panel-2); }
+
+/* 页面封面与图标选择器 */
+.page-cover-wrap { margin-bottom: 12px; }
+.page-cover { height: 120px; border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 8px; }
+.page-cover-btn { font-size: 12px; }
+.cover-palette, .icon-picker { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); margin-bottom: 8px; align-items: center; }
+.cover-swatch { width: 34px; height: 22px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 11px; color: var(--muted); }
+.cover-swatch:hover { transform: translateY(-1px); }
+.icon-choice { width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent; background: transparent; font-size: 17px; cursor: pointer; line-height: 1; }
+.icon-choice:hover { background: var(--panel-2); border-color: var(--border); }
 .page-title { flex: 1; min-width: 0; font-size: 30px; font-weight: 700; outline: none; padding: 4px 8px; border-radius: 8px; cursor: text; }
 .page-title:hover { background: var(--panel-2); }
 .page-title:focus { background: var(--panel-2); box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.25); }

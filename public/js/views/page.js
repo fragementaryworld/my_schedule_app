@@ -63,6 +63,7 @@ async function paint() {
     return;
   }
   el.append(buildBreadcrumb(projects, page));
+  el.append(buildCover(page));
   el.append(buildIconTitle(page));
   el.append(buildProperties(projects, page));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
@@ -85,20 +86,81 @@ function buildBreadcrumb(projects, page) {
   return bar;
 }
 
-function buildIconTitle(page) {
-  const wrap = h('div', { class: 'page-head' });
+export const PAGE_ICONS = ['📁', '📘', '📗', '📙', '📕', '📄', '📝', '✅', '💡', '🎯', '🚀', '⚙️', '📊', '🧪', '🏠', '❤️', '⭐', '🔥'];
 
-  const icon = h('input', { class: 'page-icon-input', value: page.icon || '📁', title: '修改图标' });
-  icon.addEventListener('blur', async () => {
-    const val = icon.value.trim() || '📁';
-    if (val !== (page.icon || '📁')) {
-      await api.put(`/api/projects/${page.id}`, { icon: val });
-      toast('图标已更新');
-      paint();
+export const PAGE_COVERS = [
+  { key: 'none', label: '无', css: '' },
+  { key: 'blue', label: '蓝', css: 'linear-gradient(135deg,#4f6ef7,#9b6cf7)' },
+  { key: 'green', label: '绿', css: 'linear-gradient(135deg,#16a34a,#84cc16)' },
+  { key: 'orange', label: '橙', css: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
+  { key: 'violet', label: '紫', css: 'linear-gradient(135deg,#8b5cf6,#ec4899)' },
+  { key: 'slate', label: '灰', css: 'linear-gradient(135deg,#64748b,#94a3b8)' }
+];
+
+export function coverCss(key) {
+  const c = PAGE_COVERS.find((x) => x.key === key);
+  return c ? c.css : '';
+}
+
+export function buildCover(page) {
+  const wrap = h('div', { class: 'page-cover-wrap' });
+  const css = coverCss(page.cover);
+  let paletteEl = null;
+
+  if (css) wrap.append(h('div', { class: 'page-cover', style: `background:${css}` }));
+
+  const btn = h('button', { class: 'btn btn-sm page-cover-btn' }, css ? '更换封面' : '添加封面');
+  btn.onclick = () => {
+    if (paletteEl) { paletteEl.remove(); paletteEl = null; return; }
+    paletteEl = h('div', { class: 'cover-palette' });
+    for (const c of PAGE_COVERS) {
+      const sw = h('button', {
+        class: 'cover-swatch',
+        title: c.label,
+        style: c.css ? `background:${c.css}` : 'background:var(--panel-2)'
+      }, c.css ? '' : '无');
+      sw.onclick = async () => {
+        await api.put(`/api/projects/${page.id}`, { cover: c.key });
+        toast('封面已更新');
+        paint();
+      };
+      paletteEl.append(sw);
     }
-  });
-  icon.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); icon.blur(); } });
-  wrap.append(icon);
+    wrap.append(paletteEl);
+  };
+  wrap.append(btn);
+  return wrap;
+}
+
+export function buildIconTitle(page) {
+  const wrap = h('div', { class: 'page-head' });
+  let pickerEl = null;
+
+  const iconBtn = h('button', { class: 'page-icon', title: '修改图标' }, page.icon || '📁');
+  iconBtn.onclick = () => {
+    if (pickerEl) { pickerEl.remove(); pickerEl = null; return; }
+    pickerEl = h('div', { class: 'icon-picker' });
+    for (const emoji of PAGE_ICONS) {
+      const b = h('button', { class: 'icon-choice' }, emoji);
+      b.onclick = async () => {
+        await api.put(`/api/projects/${page.id}`, { icon: emoji });
+        toast('图标已更新');
+        paint();
+      };
+      pickerEl.append(b);
+    }
+    const custom = h('input', { class: 'input inline-input', placeholder: '自定义', style: 'width:80px' });
+    custom.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter' && custom.value.trim()) {
+        await api.put(`/api/projects/${page.id}`, { icon: custom.value.trim() });
+        toast('图标已更新');
+        paint();
+      }
+    });
+    pickerEl.append(custom);
+    wrap.append(pickerEl);
+  };
+  wrap.append(iconBtn);
 
   const title = h('h1', { class: 'page-title', contenteditable: 'true', spellcheck: 'false', title: '点击直接编辑标题' });
   title.textContent = page.name;

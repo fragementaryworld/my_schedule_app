@@ -355,8 +355,16 @@ test('页面数据层：图标/父页面/顶层过滤', async () => {
   assert.equal(selfParent.status, 400, '父页面不能是自己');
 });
 
-test('页面内容块：增删改与排序', async () => {
-  const c = await api('POST', '/api/projects', { name: '有内容的页面' });
+test('页面封面：创建与更新', async () => {
+  const c = await api('POST', '/api/projects', { name: '封面页', cover: 'blue' });
+  assert.equal(c.json.cover, 'blue');
+  const upd = await api('PUT', `/api/projects/${c.json.id}`, { cover: 'green' });
+  assert.equal(upd.json.cover, 'green');
+  const p = (await api('GET', '/api/projects')).json.find((x) => x.id === c.json.id);
+  assert.equal(p.cover, 'green');
+});
+
+test('页面内容块：增删改与排序', async () => {  const c = await api('POST', '/api/projects', { name: '有内容的页面' });
   const pid = c.json.id;
 
   const b1 = await api('POST', `/api/projects/${pid}/blocks`, { type: 'h1', text: '标题' });
