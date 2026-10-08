@@ -42,6 +42,20 @@ export function collectOwners(projects) {
   return [...set].sort();
 }
 
+export function otherProjectNames(projects, excludeId) {
+  return (projects || []).filter((x) => x.id !== excludeId && x.name).map((x) => x.name);
+}
+
+// 阻塞下拉：内容为其他项目；保留无法匹配的历史值
+export function blockedByOptions(projects, currentValue, excludeId) {
+  const names = otherProjectNames(projects, excludeId);
+  const opts = [{ value: '', label: '无' }, ...names.map((n) => ({ value: n, label: n }))];
+  if (currentValue && !names.includes(currentValue)) {
+    opts.push({ value: currentValue, label: currentValue });
+  }
+  return opts;
+}
+
 export function formatProjectDates(p) {
   const start = (p && p.startDate) || '';
   const due = (p && p.dueDate) || '';
@@ -648,7 +662,8 @@ export function projectFields(p) {
     { name: 'priority', label: '优先级', type: 'select', value: p ? (p.priority || 'medium') : 'medium',
       options: [{ value: 'high', label: '高' }, { value: 'medium', label: '中' }, { value: 'low', label: '低' }] },
     { name: 'owner', label: '负责人（可选择或输入）', type: 'datalist', value: p ? (p.owner || '') : '', options: collectOwners(cachedProjects) },
-    { name: 'blockedBy', label: '阻塞（可选）', value: p ? (p.blockedBy || '') : '' }
+    { name: 'blockedBy', label: '阻塞（可选）', type: 'select', value: p ? (p.blockedBy || '') : '',
+      options: blockedByOptions(cachedProjects, p ? (p.blockedBy || '') : '', p ? p.id : null) }
   ];
 }
 
