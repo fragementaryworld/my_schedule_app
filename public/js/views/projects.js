@@ -623,11 +623,11 @@ function feedTaskCol(title, tasks, p, doneFlag) {
   return col;
 }
 
-function buildProjectTable(projects) {
+export function buildProjectTable(projects) {
   const table = h('table', { class: 'project-table' });
   table.append(h('thead', {}, h('tr', {},
     h('th', {}, '项目名称'), h('th', {}, '状态'), h('th', {}, '负责人'),
-    h('th', {}, '日期'), h('th', {}, '优先级'), h('th', {}, '完成度'), h('th', {}, '阻塞')
+    h('th', {}, '日期'), h('th', {}, '优先级'), h('th', {}, '完成度'), h('th', {}, '阻塞'), h('th', {}, '')
   )));
   const tbody = h('tbody', {});
   for (const p of projects) tbody.append(buildProjectRow(p));
@@ -650,6 +650,21 @@ function buildProjectRow(p) {
     h('div', { class: 'progress', style: 'width:70px' }, h('i', { style: `width:${d.completion}%` })),
     h('span', { class: 'small muted' }, `${d.completion}%`))));
   tr.append(h('td', {}, d.blockedBy ? h('span', { class: 'badge blocked' }, escapeHtml(d.blockedBy)) : ''));
+
+  const tdOps = h('td', {});
+  const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
+  edit.onclick = (e) => { e.stopPropagation(); projectModal(p); };
+  const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
+  del.onclick = async (e) => {
+    e.stopPropagation();
+    if (await confirmDialog(`确认删除「${p.name}」？此操作不可恢复。`, { danger: true })) {
+      await api.del(`/api/projects/${p.id}`);
+      toast('已删除');
+      paintList();
+    }
+  };
+  tdOps.append(edit, del);
+  tr.append(tdOps);
   return tr;
 }
 

@@ -355,8 +355,24 @@ test('页面数据层：图标/父页面/顶层过滤', async () => {
   assert.equal(selfParent.status, 400, '父页面不能是自己');
 });
 
-test('页面封面：创建与更新', async () => {
-  const c = await api('POST', '/api/projects', { name: '封面页', cover: 'blue' });
+test('页面删除：连同子页面一起删除', async () => {
+  const parent = await api('POST', '/api/projects', { name: '待删父页' });
+  const child = await api('POST', '/api/projects', { name: '待删子页', parentId: parent.json.id });
+  const grand = await api('POST', '/api/projects', { name: '待删孙页', parentId: child.json.id });
+  const keep = await api('POST', '/api/projects', { name: '保留页' });
+
+  const del = await api('DELETE', `/api/projects/${parent.json.id}`);
+  assert.equal(del.status, 200);
+  assert.equal(del.json.deleted, 3, '应删除父+子+孙共 3 个');
+
+  const all = (await api('GET', '/api/projects')).json;
+  for (const gone of [parent.json.id, child.json.id, grand.json.id]) {
+    assert.ok(!all.some((p) => p.id === gone), '子孙页面应被删除');
+  }
+  assert.ok(all.some((p) => p.id === keep.json.id), '无关页面应保留');
+});
+
+test('页面封面：创建与更新', async () => {  const c = await api('POST', '/api/projects', { name: '封面页', cover: 'blue' });
   assert.equal(c.json.cover, 'blue');
   const upd = await api('PUT', `/api/projects/${c.json.id}`, { cover: 'green' });
   assert.equal(upd.json.cover, 'green');

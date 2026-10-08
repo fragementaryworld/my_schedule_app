@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast } from '../ui.js';
+import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
 import { buildProjectTasksSection, collectOwners, blockedByOptions } from './projects.js';
 
@@ -62,7 +62,7 @@ async function paint() {
     el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
     return;
   }
-  el.append(buildBreadcrumb(projects, page));
+  el.append(buildBreadcrumb(page));
   el.append(buildCover(page));
   el.append(buildIconTitle(page));
   el.append(buildProperties(projects, page));
@@ -74,15 +74,22 @@ async function paint() {
   el.append(buildProjectTasksSection(page, paint));
 }
 
-function buildBreadcrumb(projects, page) {
+function buildBreadcrumb(page) {
   const bar = h('div', { class: 'breadcrumb' });
   bar.append(h('a', { href: '#/projects', class: 'crumb' }, '项目'));
-  for (const anc of pageAncestors(projects, page.id)) {
-    bar.append(h('span', { class: 'crumb-sep' }, '/'));
-    bar.append(h('a', { href: `#/page/${anc.id}`, class: 'crumb' }, `${anc.icon || '📁'} ${escapeHtml(anc.name)}`));
-  }
   bar.append(h('span', { class: 'crumb-sep' }, '/'));
   bar.append(h('span', { class: 'crumb current' }, `${page.icon || '📁'} ${escapeHtml(page.name)}`));
+  bar.append(h('span', { class: 'spacer' }));
+
+  const del = h('button', { class: 'btn btn-sm btn-danger' }, '🗑 删除页面');
+  del.onclick = async () => {
+    if (await confirmDialog(`确认删除「${page.name}」？此操作不可恢复。`, { danger: true })) {
+      await api.del(`/api/projects/${page.id}`);
+      toast('已删除');
+      location.hash = '#/projects';
+    }
+  };
+  bar.append(del);
   return bar;
 }
 
