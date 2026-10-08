@@ -95,6 +95,15 @@ export function timelineBar(project, start, end) {
   return { left, width };
 }
 
+export function feedGoalLines(goal) {
+  if (!goal) return [];
+  return String(goal).split(/\n|；|;/).map((s) => s.trim()).filter(Boolean);
+}
+
+export function sortFeedProjects(projects) {
+  return (projects || []).slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
 function daysBetween(a, b) {
   const [ay, am, ad] = a.split('-').map(Number);
   const [by, bm, bd] = b.split('-').map(Number);
@@ -176,10 +185,6 @@ function renderProjectView(projects) {
   return buildProjectFeed(projects);
 }
 
-function placeholderView(name) {
-  return h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '🚧'), h('p', {}, `${name}视图将在后续步骤实现`));
-}
-
 function buildProjectBoard(projects) {
   const cols = groupProjectsByStatus(projects);
   const board = h('div', { class: 'kanban' });
@@ -256,8 +261,73 @@ function buildProjectTimeline(projects) {
   return wrap;
 }
 
-function buildProjectFeed() {
-  return placeholderView('信息流');
+function buildProjectFeed(projects) {
+  const feed = h('div', { class: 'feed' });
+  for (const p of sortFeedProjects(projects)) feed.append(buildFeedPost(p));
+  return feed;
+}
+
+function buildFeedPost(p) {
+  const d = projectRowData(p);
+  const post = h('div', { class: 'feed-post card' });
+
+  const head = h('div', { class: 'row', style: 'margin-bottom:8px' });
+  head.append(h('span', { class: 'avatar' }, escapeHtml((d.owner || '我').slice(0, 1))));
+  head.append(h('span', { class: 'small muted' }, `${d.owner || '我的'} · ${String(p.createdAt || '').slice(0, 10)}`));
+  head.append(h('span', { class: 'spacer' }));
+  head.append(h('span', { class: `badge ${d.statusCls}` }, d.statusLabel));
+  post.append(head);
+
+  const title = h('h3', { class: 'feed-title' }, escapeHtml(d.name));
+  title.onclick = () => { location.hash = `#/projects/${p.id}`; };
+  post.append(title);
+
+  post.append(h('h4', { class: 'feed-sec' }, 'About this project'));
+  const lines = feedGoalLines(p.goal);
+  if (lines.length) {
+    const ul = h('ul', { class: 'feed-list' });
+    for (const line of lines) ul.append(h('li', {}, escapeHtml(line)));
+    post.append(ul);
+  } else {
+    post.append(h('p', { class: 'muted' }, '暂无描述'));
+  }
+
+  const metaRow = h('div', { class: 'row', style: 'margin:10px 0;flex-wrap:wrap' });
+  metaRow.append(h('span', { class: `badge ${d.priorityCls}` }, `优先级 ${d.priorityLabel}`));
+  metaRow.append(h('span', { class: 'small muted' }, `📅 ${d.dates}`));
+  if (d.blockedBy) metaRow.append(h('span', { class: 'badge blocked' }, `🚫 ${d.blockedBy}`));
+  post.append(metaRow);
+
+  post.append(h('div', { class: 'row' },
+    h('div', { class: 'progress', style: 'flex:1' }, h('i', { style: `width:${d.completion}%` })),
+    h('span', { class: 'small muted' }, `${d.completion}%`)));
+
+  post.append(h('h4', { class: 'feed-sec' }, 'Project tasks'));
+  post.append(buildFeedTasks(p));
+  return post;
+}
+
+function buildFeedTasks(p) {
+  const { pending, done } = groupTasksByDone(p.tasks || []);
+  const board = h('div', { class: 'kanban' });
+  board.append(feedTaskCol('未完成', pending));
+  board.append(feedTaskCol('已完成', done));
+  return board;
+}
+
+function feedTaskCol(title, tasks) {
+  const col = h('div', { class: 'kanban-col' });
+  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(tasks.length))));
+  if (!tasks.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
+  for (const t of tasks) {
+    const card = h('div', { class: 'kanban-card' });
+    card.append(h('div', { class: 'title' }, escapeHtml(t.title)));
+    if (t.dueDate) card.append(h('div', { class: 'small muted' }, `📅 ${t.dueDate}`));
+    const subs = t.subtasks || [];
+    card.append(h('div', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
+    col.append(card);
+  }
+  return col;
 }
 
 function buildProjectTable(projects) {
