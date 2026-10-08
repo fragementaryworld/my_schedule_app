@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays } from '../utils.js';
+import { renderMarkdown } from '../markdown.js';
 
 let el = null;
 let currentParams = {};
@@ -543,18 +544,30 @@ function buildFeedPost(p) {
   post.append(title);
 
   post.append(h('h4', { class: 'feed-sec' }, 'About this project'));
-  // 描述：直接就地编辑（像 markdown 文本）
-  const goalEl = h('div', { class: 'feed-goal', contenteditable: 'true', 'data-placeholder': '点击这里直接编辑描述…' });
-  goalEl.textContent = p.goal || '';
-  goalEl.addEventListener('blur', async () => {
-    const next = goalEl.textContent.trim();
+  // 描述：渲染 Markdown 展示，点击就地编辑
+  const goalDisplay = h('div', {
+    class: 'feed-goal-md',
+    html: renderMarkdown(p.goal || ''),
+    'data-placeholder': '点击这里编辑描述，支持 Markdown…'
+  });
+  const goalEdit = h('div', { class: 'feed-goal', contenteditable: 'true' });
+  goalEdit.textContent = p.goal || '';
+  goalEdit.style.display = 'none';
+  goalDisplay.onclick = () => {
+    goalDisplay.style.display = 'none';
+    goalEdit.style.display = '';
+    goalEdit.textContent = p.goal || '';
+    if (goalEdit.focus) goalEdit.focus();
+  };
+  goalEdit.addEventListener('blur', async () => {
+    const next = goalEdit.textContent.trim();
     if (next !== (p.goal || '')) {
       await api.put(`/api/projects/${p.id}`, { goal: next });
       toast('已保存');
       paintList();
     }
   });
-  post.append(goalEl);
+  post.append(goalDisplay, goalEdit);
 
   const metaRow = h('div', { class: 'row', style: 'margin:10px 0;flex-wrap:wrap' });
   // 优先级：就地下拉

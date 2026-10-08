@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
+import { renderMarkdown } from '../markdown.js';
 import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME, createProject } from './projects.js';
 
 let el = null;
@@ -273,9 +274,24 @@ function buildBlockEl(page, block, index, blocks) {
     row.append(m);
   }
 
-  const editable = h('div', { class: `block block-${block.type}`, contenteditable: 'true', spellcheck: 'false' });
+  const editable = h('div', { class: `block block-${block.type} block-edit`, contenteditable: 'true', spellcheck: 'false' });
   editable.textContent = block.text || '';
-  blockEls.set(block.id, editable);
+  editable.style.display = 'none';
+
+  // 显示层渲染 Markdown，点击进入编辑
+  const display = h('div', {
+    class: `block-md block-md-${block.type}`,
+    html: renderMarkdown(block.text),
+    'data-placeholder': '输入内容，支持 Markdown'
+  });
+  const enterEdit = () => {
+    display.style.display = 'none';
+    editable.style.display = '';
+    editable.textContent = block.text || '';
+    if (editable.focus) editable.focus();
+  };
+  display.onclick = enterEdit;
+  blockEls.set(block.id, { display, editable });
 
   editable.addEventListener('blur', async () => {
     const next = editable.textContent;
@@ -284,6 +300,9 @@ function buildBlockEl(page, block, index, blocks) {
       block.text = next;
       toast('已保存');
     }
+    display.innerHTML = renderMarkdown(block.text || '');
+    editable.style.display = 'none';
+    display.style.display = '';
   });
 
   editable.addEventListener('keydown', async (e) => {
@@ -306,14 +325,19 @@ function buildBlockEl(page, block, index, blocks) {
     }
   });
 
-  row.append(editable, buildTypeSelect(page, block));
+  row.append(display, editable, buildTypeSelect(page, block));
   return row;
 }
 
 function focusBlock(id) {
   if (!id) return;
-  const node = blockEls.get(id);
-  if (node && node.focus) node.focus();
+  const pair = blockEls.get(id);
+  if (!pair) return;
+  if (pair.display) pair.display.style.display = 'none';
+  if (pair.editable) {
+    pair.editable.style.display = '';
+    if (pair.editable.focus) pair.editable.focus();
+  }
 }
 
 export async function add() {
