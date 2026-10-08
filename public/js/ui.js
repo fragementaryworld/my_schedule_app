@@ -100,7 +100,7 @@ export function openModal({ title, fields = [], submitText = '保存', onSubmit 
 
     const close = (result) => { backdrop.remove(); resolve(result); };
     cancel.onclick = () => close(null);
-    backdrop.onclick = (e) => { if (e.target === backdrop) close(null); };
+    // 点击遮罩不关闭弹窗，避免误触丢失已填内容
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();

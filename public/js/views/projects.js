@@ -615,7 +615,7 @@ function taskModal(p, t) {
 
   const close = () => backdrop.remove();
   cancel.onclick = () => close();
-  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  // 点击遮罩不关闭，避免误触丢失已填内容
   save.onclick = async () => {
     if (!titleInput.value.trim()) { toast('请填写任务名称', 'error'); return; }
     await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { title: titleInput.value.trim(), dueDate: dueInput.value || null });

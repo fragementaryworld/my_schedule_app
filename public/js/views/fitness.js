@@ -133,7 +133,7 @@ function modalShell(title, body, foot) {
   backdrop.append(modal);
   document.body.appendChild(backdrop);
   const close = () => backdrop.remove();
-  backdrop.onclick = (e) => { if (e.target === backdrop) close(); };
+  // 点击遮罩不关闭，避免误触
   return { close };
 }
 

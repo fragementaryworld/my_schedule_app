@@ -33,6 +33,25 @@ test('问题2：弹窗保存按钮通过 form 属性关联表单并可提交', a
   assert.deepEqual(called, { title: '测试标题' }, '提交应把表单值传给 onSubmit');
 });
 
+test('问题1：点击遮罩不关闭表单弹窗（防误触）', async () => {
+  const p = openModal({
+    title: '新增',
+    fields: [{ name: 'title', label: '标题', type: 'text' }],
+    onSubmit: async () => {}
+  });
+  const backdrops = document.body.children.filter((c) => c.className === 'modal-backdrop');
+  const backdrop = backdrops[backdrops.length - 1];
+  assert.ok(backdrop, '弹窗应已打开');
+
+  backdrop.click(); // 点击遮罩区域
+  assert.ok(document.body.children.includes(backdrop), '点击遮罩后弹窗不应消失');
+
+  const cancel = findAllByTag(backdrop, 'button').find((b) => b.getAttribute('type') === 'button');
+  assert.ok(cancel, '应存在取消按钮');
+  cancel.click();
+  await p;
+});
+
 test('问题2：必填字段为空时不触发 onSubmit', async () => {
   let called = false;
   const p = openModal({
