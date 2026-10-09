@@ -140,6 +140,105 @@ export function todayPct(start, end, today = todayStr()) {
   return (d / total) * 100;
 }
 
+export function lastDayOfMonth(y, m) {
+  return new Date(y, m, 0).getDate(); // m: 1-12
+}
+
+// 日刻度密度：范围越长标注越稀，避免臃肿
+export function axisStep(totalDays) {
+  if (totalDays <= 31) return 1;
+  if (totalDays <= 92) return 2;
+  if (totalDays <= 200) return 7;
+  return 14;
+}
+
+// Notion 式两级时间轴：上面按月分段，下面按日分格
+export function timelineAxis(start, end) {
+  const totalDays = Math.max(1, daysBetween(start, end));
+  const pct = (d) => (daysBetween(start, d) / totalDays) * 100;
+  const months = [];
+  let cursor = start;
+  while (cursor <= end) {
+    const y = Number(cursor.slice(0, 4));
+    const m = Number(cursor.slice(5, 7));
+    const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDayOfMonth(y, m)).padStart(2, '0')}`;
+    const left = pct(cursor);
+    const right = monthEnd < end ? pct(addDays(monthEnd, 1)) : 100;
+    months.push({ key: `${y}-${m}`, label: `${y}年${m}月`, left, width: Math.max(0, right - left) });
+    cursor = addDays(monthEnd, 1);
+  }
+  const step = axisStep(totalDays);
+  const days = [];
+  for (let i = 0; i < totalDays; i += step) {
+    const date = addDays(start, i);
+    days.push({
+      date,
+      day: Number(date.slice(8, 10)),
+      left: pct(date),
+      width: (Math.min(step, totalDays - i) / totalDays) * 100
+    });
+  }
+  return { start, end, totalDays, step, months, days };
+}
+
+// 每条项目/任务一个稳定颜色（按 id 哈希，顺序变化也不跳色）
+export const TIMELINE_COLORS = [
+  '#4f6ef7', '#16a34a', '#f59e0b', '#8b5cf6', '#ec4899',
+  '#0891b2', '#65a30d', '#ea580c', '#0d9488', '#64748b'
+];
+
+export function timelineColorIndex(id) {
+  const s = String(id === null || id === undefined ? '' : id);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % TIMELINE_COLORS.length;
+}
+
+export function timelineColor(id) {
+  return TIMELINE_COLORS[timelineColorIndex(id)];
+}
+
+// 时间轴标尺：上排月份、下排日期，底部加极浅分格线
+export function buildTimelineAxis(start, end) {
+  const axis = timelineAxis(start, end);
+  const minW = Math.max(520, Math.min(4000, axis.totalDays * 20));
+  const ruler = h('div', { class: 'timeline-axis timeline-ruler', style: `min-width:${minW}px` });
+
+  const months = h('div', { class: 'timeline-months' });
+  for (const m of axis.months) {
+    months.append(h('div', { class: 'timeline-month', style: `left:${m.left}%;width:${m.width}%` },
+      h('span', { class: 'timeline-month-label timeline-tick-label' }, m.label)));
+  }
+
+  const days = h('div', { class: 'timeline-days' });
+  for (const d of axis.days) {
+    days.append(h('div', { class: 'timeline-day', style: `left:${d.left}%;width:${d.width}%` },
+      h('span', { class: 'timeline-day-label timeline-tick-label' }, String(d.day))));
+  }
+
+  ruler.append(
+    h('div', { class: 'timeline-ruler-gutter' }),
+    h('div', { class: 'timeline-ruler-body' }, months, days, gridLines(axis))
+  );
+  ruler.dataset.totalDays = String(axis.totalDays);
+  return ruler;
+}
+
+function gridLines(axis) {
+  const grid = h('div', { class: 'timeline-grid' });
+  for (const d of axis.days) grid.append(h('i', { class: 'timeline-gridline', style: `left:${d.left}%` }));
+  return grid;
+}
+
+// 轨道里的同款浅灰分格，和标尺竖线对齐
+function trackGrid(start, end) {
+  const grid = h('div', { class: 'timeline-track-grid' });
+  for (const d of timelineAxis(start, end).days) {
+    grid.append(h('i', { class: 'timeline-gridline', style: `left:${d.left}%` }));
+  }
+  return grid;
+}
+
 // 连续位移百分比（画面 1:1 跟随鼠标，不做整天取整，避免跳格）
 export function dragDeltaPct(dxPx, trackWidthPx) {
   if (!trackWidthPx) return 0;
@@ -418,14 +517,10 @@ function buildProjectTimeline(projects) {
     h('span', { class: 'small muted' }, `${days} 天`)));
   wrap.append(h('div', { class: 'small muted', style: 'margin-bottom:4px' }, '拖动时间条可改时间；把项目名拖到分组标题上可改状态'));
 
-  const axis = h('div', { class: 'timeline-axis' });
-  for (const t of timelineTicks(start, end, 7)) {
-    axis.append(h('div', { class: 'timeline-tickwrap', style: `left:${t.pct}%` },
-      h('span', { class: 'timeline-tick-label' }, t.date),
-      h('i', { class: 'timeline-tick' })));
-  }
-  wrap.append(axis);
+  wrap.append(buildTimelineAxis(start, end));
 
+  const axisInfo = timelineAxis(start, end);
+  const rowMinW = Math.max(520, Math.min(4000, axisInfo.totalDays * 20));
   const tp = todayPct(start, end);
 
   for (const col of groupProjectsByStatus(projects)) {
@@ -451,17 +546,21 @@ function buildProjectTimeline(projects) {
 
     for (const p of col.items) {
       const bar = timelineBar(p, start, end);
-      const row = h('div', { class: 'timeline-row' });
-      const label = h('span', { class: 'timeline-label', title: `${p.name}（拖到分组标题可改状态）`, draggable: 'true' }, escapeHtml(p.name));
+      const color = timelineColor(p.id);
+      const row = h('div', { class: 'timeline-row', style: `min-width:${rowMinW}px` });
+      const label = h('span', { class: 'timeline-label', title: `${p.name}（拖到分组标题可改状态）`, draggable: 'true' },
+        h('i', { class: 'timeline-dot', style: `background:${color}` }),
+        escapeHtml(p.name));
       label.onclick = () => { location.hash = `#/page/${p.id}`; };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); };
       row.append(label);
 
       const track = h('div', { class: 'timeline-track' });
+      track.append(trackGrid(start, end));
       if (tp !== null) track.append(h('div', { class: 'timeline-today', style: `left:${tp}%` }));
       const barEl = h('div', {
         class: `timeline-bar bar-${col.cls}`,
-        style: `left:${bar.left}%;width:${bar.width}%`,
+        style: `left:${bar.left}%;width:${bar.width}%;background:${color}`,
         title: `${p.name}（${formatProjectDates(p)}）`
       }, h('span', { class: 'timeline-bar-label' }, formatProjectDates(p)));
       barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = `#/page/${p.id}`; };
@@ -1065,14 +1164,10 @@ export function buildItemTimeline(ctx) {
     h('span', { class: 'small muted' }, `${totalDays} 天`)));
   wrap.append(h('div', { class: 'small muted', style: 'margin-bottom:4px' }, '拖动时间条可改时间、拖两端可改起止；把名称拖到分组标题上可切换完成'));
 
-  const axis = h('div', { class: 'timeline-axis' });
-  for (const tk of timelineTicks(start, end, 7)) {
-    axis.append(h('div', { class: 'timeline-tickwrap', style: `left:${tk.pct}%` },
-      h('span', { class: 'timeline-tick-label' }, tk.date),
-      h('i', { class: 'timeline-tick' })));
-  }
-  wrap.append(axis);
+  wrap.append(buildTimelineAxis(start, end));
 
+  const axisInfo = timelineAxis(start, end);
+  const rowMinW = Math.max(520, Math.min(4000, axisInfo.totalDays * 20));
   const tp = todayPct(start, end);
   const groups = [
     { key: 'pending', label: '待办', cls: 'active', done: false, items: dated.filter((e) => !e.node.done) },
@@ -1103,18 +1198,20 @@ export function buildItemTimeline(ctx) {
     for (const entry of grp.items) {
       const t = entry.node;
       const bar = taskTimelineBar(t, start, end);
-      const row = h('div', { class: 'timeline-row' });
+      const color = timelineColor(t.id);
+      const row = h('div', { class: 'timeline-row', style: `min-width:${rowMinW}px` });
       const label = h('span', {
         class: 'timeline-label row-link',
         style: entry.depth > 1 ? `padding-left:${(entry.depth - 1) * 14}px` : '',
         title: `${t.title}（拖到分组标题可切换完成）`,
         draggable: 'true'
-      }, escapeHtml(t.title));
+      }, h('i', { class: 'timeline-dot', style: `background:${color}` }), escapeHtml(t.title));
       label.onclick = () => { location.hash = ctx.deepHref(entry.path); };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); };
       row.append(label);
 
       const track = h('div', { class: 'timeline-track' });
+      track.append(trackGrid(start, end));
       if (tp !== null) track.append(h('div', { class: 'timeline-today', style: `left:${tp}%` }));
 
       const savePatch = async (patch) => {
@@ -1127,7 +1224,7 @@ export function buildItemTimeline(ctx) {
       const cls = t.done ? 'done' : (taskIsOverdue(t, today) ? 'paused' : 'active');
       const barEl = h('div', {
         class: `timeline-bar bar-${cls}`,
-        style: `left:${bar.left}%;width:${bar.width}%`,
+        style: `left:${bar.left}%;width:${bar.width}%;background:${color}`,
         title: `${t.title}（${formatTaskDates(t)}）`
       }, h('span', { class: 'timeline-bar-label' }, formatTaskDates(t)));
       barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = ctx.deepHref(entry.path); };
