@@ -202,6 +202,9 @@ export function projectEntriesForDates(projects, dates, today = todayStr()) {
         spanStart: date === span.from,
         spanEnd: date === span.to,
         continued: date !== span.from,
+        detail: detailText(node),
+        subtaskCount: (node.subtasks || []).length,
+        subtaskDone: (node.subtasks || []).filter((s) => s && s.done).length,
         overdue: !node.done && !!node.dueDate && node.dueDate < today
       });
     }
@@ -236,6 +239,9 @@ export function projectEntriesByDate(projects, today = todayStr()) {
       spanStart: date === span.from,
       spanEnd: date === span.to,
       continued: date !== span.from,
+      detail: detailText(node),
+      subtaskCount: (node.subtasks || []).length,
+      subtaskDone: (node.subtasks || []).filter((s) => s && s.done).length,
       overdue: !node.done && !!node.dueDate && node.dueDate < today
     });
   }
@@ -269,6 +275,30 @@ export function dateBoard(entries) {
   const pending = list.filter((e) => !e.done);
   const done = list.filter((e) => e.done);
   return { pending, done, total: list.length };
+}
+
+// 内容块里的文字拼成一段（用于详情预览）
+export function blocksText(blocks) {
+  return (blocks || [])
+    .map((b) => (b && b.text ? String(b.text).trim() : ''))
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function truncate(text, max = 90) {
+  const s = String(text === null || text === undefined ? '' : text).trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, max)}…`;
+}
+
+// 任务详情预览：描述 + 内容块
+export function detailText(node) {
+  if (!node) return '';
+  const parts = [];
+  if (node.desc && String(node.desc).trim()) parts.push(String(node.desc).trim());
+  const bt = blocksText(node.blocks);
+  if (bt) parts.push(bt);
+  return parts.join(' · ');
 }
 
 // 跨多天的条目：每个任务只出一条（用于画连续 block，而不是每天放一个）

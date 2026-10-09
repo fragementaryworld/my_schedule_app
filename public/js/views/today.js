@@ -5,7 +5,7 @@ import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '.
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
-  projectEntriesForDates, mergeEntries, legendFor, dateBoard, multiDayEntries, spanBarLayout, tint
+  projectEntriesForDates, mergeEntries, legendFor, dateBoard, multiDayEntries, spanBarLayout, tint, truncate
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
 
@@ -70,6 +70,7 @@ function toEntry(t) {
     source: t.source || null,
     sourceLabel: t.source && t.source.type ? sourceLabel(t.source.type) : '',
     color: DAY_TASK_COLOR,
+    detail: (t.note || '').trim(),
     overdue: isOverdue(t, todayStr()),
     raw: t
   };
@@ -280,21 +281,40 @@ function buildSelectedBoard(byDate) {
   wrap.append(head);
 
   const board = h('div', { class: 'kanban' });
-  board.append(boardCol('待办', pending, false));
-  board.append(boardCol('已完成', done, true));
+  const all = [...pending, ...done];
+  board.append(boardCol('待办', pending, false, all));
+  board.append(boardCol('已完成', done, true, all));
   wrap.append(board);
   return wrap;
 }
 
-function boardCol(title, entries, doneFlag) {
+function boardCol(title, entries, doneFlag, all) {
   const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
+
+  // 可以拖动任务：拖到另一列即切换完成状态
+  col.addEventListener('dragover', (ev) => { ev.preventDefault(); col.classList.add('drop-hover'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
+  col.addEventListener('drop', async (ev) => {
+    ev.preventDefault();
+    col.classList.remove('drop-hover');
+    const id = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '';
+    const entry = (all || []).find((x) => x.id === id);
+    if (!entry || entry.done === doneFlag) return;
+    await moveEntry(entry, doneFlag);
+  });
+
   col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(entries.length))));
   if (!entries.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
   for (const e of entries) {
     const card = h('div', {
       class: 'kanban-card cal-board-card' + (e.done ? ' done' : ''),
-      style: `background:${tint(e.color || DAY_TASK_COLOR)};border-left: 3px solid ${e.color || DAY_TASK_COLOR}`
+      style: `background:${tint(e.color || DAY_TASK_COLOR)};border-left: 3px solid ${e.color || DAY_TASK_COLOR}`,
+      draggable: 'true'
     });
+    card.addEventListener('dragstart', (ev) => {
+      if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', e.id);
+    });
+
     const row = h('div', { class: 'row' });
     const cb = h('input', { type: 'checkbox', class: 'task-check cal-check' });
     cb.checked = !!e.done;
@@ -308,15 +328,27 @@ function boardCol(title, entries, doneFlag) {
     row.append(title);
     card.append(row);
 
+    // 有详细内容就显示出来（描述 / 内容块 / 备注）
+    if (e.detail) card.append(h('div', { class: 'cal-board-detail' }, truncate(e.detail, 90)));
+
     const meta = h('div', { class: 'row cal-card-meta' });
     if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
     meta.append(h('span', { class: 'cal-chip' }, e.kind === 'project' ? `📁 ${escapeHtml(e.projectName)}` : '每日任务'));
     if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `跨 ${e.spanDays} 天`));
+    if (e.subtaskCount) meta.append(h('span', { class: 'cal-chip' }, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));
     if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
     card.append(meta);
     col.append(card);
   }
   return col;
+}
+
+// 拖动切换完成状态
+async function moveEntry(entry, done) {
+  if (entry.kind === 'project') await api.put(entry.base, { done });
+  else await api.put(`/api/tasks/${entry.id}`, { done });
+  toast(done ? '已移到已完成' : '已移回待办');
+  paint();
 }
 
 function selectedLabel() {
