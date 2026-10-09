@@ -6,7 +6,7 @@ import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
 import {
   PRIORITY_OPTIONS, REPEAT_OPTIONS, SOURCE_OPTIONS,
-  repeatCode, decodeRepeat, isFreshDayTask, createDayTask
+  repeatCode, decodeRepeat, isFreshDayTask, createDayTask, taskDateValue, taskDatePatch
 } from '../daytask.js';
 
 let el = null;
@@ -113,13 +113,9 @@ function buildProperties(task) {
   };
 
   const dateField = buildDateField({
-    value: { dueDate: task.date, dueTime: task.time, dateFormat: task.dateFormat },
+    value: taskDateValue(task),
     onSave: async (patch) => {
-      const next = {
-        date: patch.dueDate || task.date,
-        time: patch.dueTime,
-        dateFormat: patch.dateFormat
-      };
+      const next = taskDatePatch(patch, task);
       await api.put(`/api/tasks/${task.id}`, next);
       Object.assign(task, next);
       toast('时间已更新');

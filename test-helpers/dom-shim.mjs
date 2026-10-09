@@ -191,5 +191,7 @@ export function textOf(node) {
   if (node.nodeType === 3) return node.text || '';
   let s = '';
   for (const c of node.children || []) s += textOf(c);
+  // 没有子元素时，回退读取 textContent（代码里常用 el.textContent = '…' 赋值）
+  if (!s && typeof node.textContent === 'string') return node.textContent;
   return s;
 }

@@ -60,6 +60,53 @@ export function dayTaskHref(id) {
   return `#/plan/${id}`;
 }
 
+// 任务的时间显示：区间时给出「09:00–11:00」
+export function timeRangeLabel(time, endTime) {
+  const t = time || '';
+  const e = endTime || '';
+  if (t && e && e !== t) return `${t}–${e}`;
+  return t || (e ? `–${e}` : '');
+}
+
+// 每日任务 → 日期选择器的值（有结束日期就是区间，重开也要还原成区间）
+export function taskDateValue(task) {
+  const t = task || {};
+  if (t.endDate) {
+    return {
+      startDate: t.date,
+      dueDate: t.endDate,
+      startTime: t.time,
+      dueTime: t.endTime,
+      dateFormat: t.dateFormat
+    };
+  }
+  return { dueDate: t.date, dueTime: t.time, dateFormat: t.dateFormat };
+}
+
+// 日期选择器的结果 → 每日任务字段
+// 注意：选择器的区间字段是 startDate/startTime + dueDate/dueTime
+export function taskDatePatch(patch, current) {
+  const p = patch || {};
+  const cur = current || {};
+  const format = p.dateFormat || cur.dateFormat || 'full';
+  if (p.startDate && p.dueDate) {
+    return {
+      date: p.startDate,
+      time: p.startTime || null,
+      endDate: p.dueDate,
+      endTime: p.dueTime || null,
+      dateFormat: format
+    };
+  }
+  return {
+    date: p.dueDate || cur.date || p.startDate,
+    time: p.dueTime || null,
+    endDate: null,
+    endTime: null,
+    dateFormat: format
+  };
+}
+
 // 新建后还没填写内容
 export function isFreshDayTask(t) {
   if (!t) return false;

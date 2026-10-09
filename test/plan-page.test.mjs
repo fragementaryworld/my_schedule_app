@@ -103,7 +103,7 @@ test('问题2：日期选择器写回 date/time/dateFormat', async () => {
   dayBtn(el, target).click();
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
-  assert.deepEqual(put.body, { date: target, time: '09:30', dateFormat: 'full' });
+  assert.deepEqual(put.body, { date: target, time: '09:30', endDate: null, endTime: null, dateFormat: 'full' });
 });
 
 test('问题2：状态/优先级/重复/来源 都能改', async () => {

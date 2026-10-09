@@ -4,10 +4,10 @@ import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '../utils.js';
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
-  periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
-  projectEntriesForDates, mergeEntries, legendFor, dateBoard, multiDayEntries, spanBarLayout, tint, truncate
+  periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber, groupByDate, spanDays,
+  projectEntriesByDate, legendFor, dateBoard, expandEntries, spanningEntries, spanBarLayout, tint, truncate
 } from '../calendar.js';
-import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
+import { createDayTask, dayTaskHref, sourceLabel, timeRangeLabel } from '../daytask.js';
 
 // 兼容：这些纯函数仍从本模块导出（供既有测试与页面复用）
 export { repeatCode, decodeRepeat, repeatLabel, sourceLabel } from '../daytask.js';
@@ -41,9 +41,9 @@ async function paint() {
     api.get(`/api/tasks?from=${from}&to=${to}`),
     api.get('/api/projects').catch(() => [])
   ]);
-  const projectEntries = projectEntriesForDates(projects, dates, todayStr());
-  const byDate = mergeEntries(tasks.map(toEntry), projectEntries);
-  const multiDay = multiDayEntries(projects, dates, todayStr());
+  const items = [...(tasks || []).map(toEntry), ...projectEntriesByDate(projects, todayStr())];
+  const byDate = groupByDate(expandEntries(items, dates));
+  const multiDay = spanningEntries(items, dates);
 
   container.innerHTML = '';
   try {
@@ -57,12 +57,15 @@ async function paint() {
 }
 
 function toEntry(t) {
+  const from = t.date;
+  const to = t.endDate || t.date;
+  const span = to && from && to >= from ? { from, to } : { from: t.date, to: t.date };
   return {
     kind: 'day',
     id: t.id,
     title: t.title,
     date: t.date,
-    time: t.time || '',
+    time: timeRangeLabel(t.time, t.endTime),
     done: !!t.done,
     priority: t.priority || 'medium',
     repeat: t.repeat || null,
@@ -71,6 +74,12 @@ function toEntry(t) {
     sourceLabel: t.source && t.source.type ? sourceLabel(t.source.type) : '',
     color: DAY_TASK_COLOR,
     detail: (t.note || '').trim(),
+    spanFrom: span.from,
+    spanTo: span.to,
+    spanDays: spanDays(span),
+    spanStart: true,
+    spanEnd: true,
+    continued: false,
     overdue: isOverdue(t, todayStr()),
     raw: t
   };

@@ -173,43 +173,7 @@ export function spanDays(span) {
 
 // 项目任务铺到给定日期：跨多天的任务在每一天都出现（不是只放在开始/结束那天）
 export function projectEntriesForDates(projects, dates, today = todayStr()) {
-  const wanted = [...(dates || [])].sort();
-  if (!wanted.length) return [];
-  const out = [];
-  for (const { node, project, path, depth } of flattenProjectItems(projects)) {
-    const span = itemSpan(node);
-    if (!span) continue;
-    const total = spanDays(span);
-    for (const date of wanted) {
-      if (date < span.from || date > span.to) continue;
-      out.push({
-        kind: 'project',
-        id: node.id,
-        title: node.title,
-        date,
-        time: node.dueTime || '',
-        done: !!node.done,
-        projectId: project.id,
-        projectName: project.name,
-        color: timelineColor(project.id),
-        path,
-        depth,
-        base: itemBase(project.id, path),
-        href: itemHref(project.id, path),
-        spanFrom: span.from,
-        spanTo: span.to,
-        spanDays: total,
-        spanStart: date === span.from,
-        spanEnd: date === span.to,
-        continued: date !== span.from,
-        detail: detailText(node),
-        subtaskCount: (node.subtasks || []).length,
-        subtaskDone: (node.subtasks || []).filter((s) => s && s.done).length,
-        overdue: !node.done && !!node.dueDate && node.dueDate < today
-      });
-    }
-  }
-  return out;
+  return expandEntries(projectEntriesByDate(projects, today), dates);
 }
 
 // 项目任务 → 日历条目（只落在一天：优先截止日）
@@ -299,6 +263,32 @@ export function detailText(node) {
   const bt = blocksText(node.blocks);
   if (bt) parts.push(bt);
   return parts.join(' · ');
+}
+
+// 把「带跨度的条目」铺到每一天（项目任务与每日任务通用）
+export function expandEntries(entries, dates) {
+  const out = [];
+  for (const e of entries || []) {
+    const from = e.spanFrom || e.date;
+    const to = e.spanTo || e.date;
+    for (const d of dates || []) {
+      if (!d || d < from || d > to) continue;
+      out.push({ ...e, date: d, spanStart: d === from, spanEnd: d === to, continued: d !== from });
+    }
+  }
+  return out;
+}
+
+// 与给定日期范围有交集的跨天条目（每个任务只出一条，用来画连续 block）
+export function spanningEntries(entries, dates) {
+  const wanted = (dates || []).filter(Boolean).slice().sort();
+  if (!wanted.length) return [];
+  const from = wanted[0];
+  const to = wanted[wanted.length - 1];
+  return (entries || []).filter((e) => {
+    if (!e || (e.spanDays || 1) <= 1) return false;
+    return (e.spanFrom || e.date) <= to && (e.spanTo || e.date) >= from;
+  });
 }
 
 // 跨多天的条目：每个任务只出一条（用于画连续 block，而不是每天放一个）
