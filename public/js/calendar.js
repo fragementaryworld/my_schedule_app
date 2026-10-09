@@ -254,3 +254,11 @@ export function legendFor(entries) {
   }
   return [...seen.values()];
 }
+
+// 某一天的看板：待办 / 已完成
+export function dateBoard(entries) {
+  const list = sortDayEntries(entries || []);
+  const pending = list.filter((e) => !e.done);
+  const done = list.filter((e) => e.done);
+  return { pending, done, total: list.length };
+}
