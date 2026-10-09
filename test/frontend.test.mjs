@@ -30,7 +30,7 @@ const ASSETS = [
   '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js',
   '/js/views/home.js', '/js/views/today.js', '/js/views/projects.js',
   '/js/views/reading.js', '/js/views/fitness.js', '/js/views/ideas.js',
-  '/js/views/settings.js', '/js/views/page.js', '/js/views/task.js', '/js/views/subtask.js',
+  '/js/views/settings.js', '/js/views/page.js', '/js/views/item.js',
   '/js/markdown.js', '/js/datepicker.js'
 ];
 
@@ -63,8 +63,8 @@ test('app.js 可导入且视图都导出 render/add', async () => {
   assert.equal(app.titles.ideas, '灵感');
   assert.equal(typeof app.saveNow, 'function', 'app 缺少 saveNow');
   const viewNames = Object.keys(app.views);
-  assert.equal(viewNames.length, 10);
-  for (const name of ['home', 'today', 'projects', 'reading', 'fitness', 'ideas', 'settings', 'page', 'task', 'subtask']) {
+  assert.equal(viewNames.length, 9);
+  for (const name of ['home', 'today', 'projects', 'reading', 'fitness', 'ideas', 'settings', 'page', 'task']) {
     assert.ok(viewNames.includes(name), `缺少视图：${name}`);
     assert.equal(typeof app.views[name].render, 'function', `${name} 缺少 render`);
     assert.equal(typeof app.views[name].add, 'function', `${name} 缺少 add`);

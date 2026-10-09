@@ -19,11 +19,9 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 const pageUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'page.js')).href;
-const taskUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'task.js')).href;
-const subtaskUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'subtask.js')).href;
+const itemUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'item.js')).href;
 const pageMod = await import(pageUrl);
-const taskMod = await import(taskUrl);
-const subtaskMod = await import(subtaskUrl);
+const itemMod = await import(itemUrl);
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
 const dateInputs = (root) => findAllByTag(root, 'input').filter((i) => i.getAttribute('type') === 'date');
@@ -68,8 +66,8 @@ test('时间字段：项目页区间按当前端点写回项目接口', async ()
   assert.equal(put.body.startDate, '2024-05-20');
 });
 
-test('时间字段：任务页用单个日期选择器，去掉开始/截止', () => {
-  const props = taskMod.buildTaskProperties({ id: 'p1' }, mkTask());
+test('时间字段：任务页（第 1 层）用单个日期选择器，去掉开始/截止', () => {
+  const props = itemMod.buildItemProperties({ id: 'p1' }, mkTask(), ['t1']);
   assert.equal(findAllByClass(props, 'date-field').length, 1);
   assert.equal(dateInputs(props).length, 0);
   assert.ok(!textOf(props).includes('开始') && !textOf(props).includes('截止'));
@@ -77,7 +75,7 @@ test('时间字段：任务页用单个日期选择器，去掉开始/截止', (
 
 test('时间字段：任务页单日期写到 dueDate，不写 startDate', async () => {
   calls.length = 0;
-  const props = taskMod.buildTaskProperties({ id: 'p1' }, mkTask());
+  const props = itemMod.buildItemProperties({ id: 'p1' }, mkTask(), ['t1']);
   findAllByClass(props, 'date-trigger')[0].click();
   dayBtn(props, '2024-05-25').click();
   await tick();
@@ -90,7 +88,7 @@ test('时间字段：任务页单日期写到 dueDate，不写 startDate', async
 
 test('时间字段：任务页可把单日期改成时间区间', async () => {
   calls.length = 0;
-  const props = taskMod.buildTaskProperties({ id: 'p1' }, mkTask());
+  const props = itemMod.buildItemProperties({ id: 'p1' }, mkTask(), ['t1']);
   findAllByClass(props, 'date-trigger')[0].click();
   findAllByClass(props, 'dp-switch-end')[0].click();
   await tick();
@@ -99,9 +97,9 @@ test('时间字段：任务页可把单日期改成时间区间', async () => {
   assert.equal(put.body.dueDate, '2024-05-10');
 });
 
-test('时间字段：子任务页用单个日期选择器并写子任务接口', async () => {
+test('时间字段：子任务页（第 2 层）用单个日期选择器并写子任务接口', async () => {
   calls.length = 0;
-  const props = subtaskMod.buildSubtaskProperties({ id: 'p1' }, { id: 't1' }, mkSubtask());
+  const props = itemMod.buildItemProperties({ id: 'p1' }, mkSubtask(), ['t1', 's1']);
   assert.equal(findAllByClass(props, 'date-field').length, 1);
   assert.equal(dateInputs(props).length, 0);
   assert.ok(!textOf(props).includes('截止'));
@@ -115,8 +113,20 @@ test('时间字段：子任务页用单个日期选择器并写子任务接口',
   assert.equal(put.body.startDate, null);
 });
 
-test('时间字段：三个页面都不再出现原生 date 输入', () => {
-  for (const f of ['page.js', 'task.js', 'subtask.js']) {
+test('时间字段：深层（第 4 层）也写对应层级接口', async () => {
+  calls.length = 0;
+  const deep = { id: 's3', title: 'L4', dueDate: '2024-05-20' };
+  const props = itemMod.buildItemProperties({ id: 'p1' }, deep, ['t1', 's1', 's2', 's3']);
+  findAllByClass(props, 'date-trigger')[0].click();
+  dayBtn(props, '2024-05-22').click();
+  await tick();
+  const put = putTo('/api/projects/p1/tasks/t1/subtasks/s1/subtasks/s2/subtasks/s3').pop();
+  assert.ok(put, '应写到第 4 层路径');
+  assert.equal(put.body.dueDate, '2024-05-22');
+});
+
+test('时间字段：相关页面都不再出现原生 date 输入', () => {
+  for (const f of ['page.js', 'item.js']) {
     const src = fs.readFileSync(path.join(process.cwd(), 'public', 'js', 'views', f), 'utf8');
     assert.ok(!src.includes("type: 'date'"), `${f} 不应再有原生 date 输入`);
     assert.ok(src.includes('buildDateField'), `${f} 应使用日期选择器`);

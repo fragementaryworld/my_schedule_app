@@ -9,10 +9,9 @@ import * as fitness from './views/fitness.js';
 import * as ideas from './views/ideas.js';
 import * as settings from './views/settings.js';
 import * as page from './views/page.js';
-import * as task from './views/task.js';
-import * as subtask from './views/subtask.js';
+import * as task from './views/item.js';
 
-export const views = { home, today, projects, reading, fitness, ideas, settings, page, task, subtask };
+export const views = { home, today, projects, reading, fitness, ideas, settings, page, task };
 
 export const titles = {
   home: '首页',
@@ -23,8 +22,7 @@ export const titles = {
   ideas: '灵感',
   settings: '数据与设置',
   page: '项目页面',
-  task: '任务',
-  subtask: '子任务'
+  task: '任务'
 };
 
 export async function saveNow() {
@@ -37,15 +35,21 @@ let currentParams = {};
 function parseHash() {
   const hash = location.hash.replace(/^#\/?/, '');
   const parts = hash.split('/').filter(Boolean);
-  return { route: parts[0] || 'home', id: parts[1] || null, subId: parts[2] || null, subId2: parts[3] || null };
+  return {
+    route: parts[0] || 'home',
+    id: parts[1] || null,
+    subId: parts[2] || null,
+    subId2: parts[3] || null,
+    chain: parts.slice(2)
+  };
 }
 
 export async function navigate() {
-  const { route, id, subId, subId2 } = parseHash();
+  const { route, id, subId, subId2, chain } = parseHash();
   const view = views[route] || views.home;
   currentView = view;
-  currentParams = { id, subId, subId2 };
-  const navRoute = (route === 'page' || route === 'task' || route === 'subtask') ? 'projects' : route;
+  currentParams = { id, subId, subId2, chain };
+  const navRoute = (route === 'page' || route === 'task') ? 'projects' : route;
   document.querySelectorAll('#nav a, .sidebar-foot a').forEach((a) => {
     a.classList.toggle('active', a.dataset.route === navRoute);
   });

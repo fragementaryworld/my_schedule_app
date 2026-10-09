@@ -203,31 +203,45 @@ export async function createProject() {
 }
 
 export const DEFAULT_TASK_NAME = '新任务';
+export const DEFAULT_SUBTASK_NAME = '新子任务';
 
-// 直接新建任务并跳转到任务页面
+// 层级路径：项目 > tasks/t1[/subtasks/s1[/subtasks/s2 …]]，最多 5 层
+export function itemBase(projectId, chain) {
+  const parts = ['/api/projects', projectId, 'tasks', chain[0]];
+  for (let i = 1; i < chain.length; i++) parts.push('subtasks', chain[i]);
+  return parts.join('/');
+}
+
+export function itemHref(projectId, chain) {
+  return `#/task/${[projectId, ...chain].join('/')}`;
+}
+
+// 第 1 层：在项目下新建任务并跳转
 export async function createTask(projectId) {
   const created = await api.post(`/api/projects/${projectId}/tasks`, { title: DEFAULT_TASK_NAME });
   toast('已新建任务');
-  location.hash = `#/task/${projectId}/${created.id}`;
+  location.hash = itemHref(projectId, [created.id]);
+  return created;
+}
+
+// 任意层：在当前层下面再建一层并跳转
+export async function createChild(projectId, chain) {
+  const created = await api.post(`${itemBase(projectId, chain)}/subtasks`, { title: DEFAULT_SUBTASK_NAME });
+  toast('已新建子任务');
+  location.hash = itemHref(projectId, [...chain, created.id]);
   return created;
 }
 
 export function taskHref(project, task) {
-  return `#/task/${project.id}/${task.id}`;
+  return itemHref(project.id, [task.id]);
 }
 
-export const DEFAULT_SUBTASK_NAME = '新子任务';
-
-// 直接新建子任务并跳转到子任务页面
 export async function createSubtask(projectId, taskId) {
-  const created = await api.post(`/api/projects/${projectId}/tasks/${taskId}/subtasks`, { title: DEFAULT_SUBTASK_NAME });
-  toast('已新建子任务');
-  location.hash = `#/subtask/${projectId}/${taskId}/${created.id}`;
-  return created;
+  return createChild(projectId, [taskId]);
 }
 
 export function subtaskHref(project, task, subtask) {
-  return `#/subtask/${project.id}/${task.id}/${subtask.id}`;
+  return itemHref(project.id, [task.id, subtask.id]);
 }
 
 function daysBetween(a, b) {
@@ -863,9 +877,11 @@ export function buildTaskTable(p) {
           st.done = !st.done;
           refreshTasks();
         };
+        const subLink = h('span', { class: 'row-link', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title));
+        subLink.onclick = () => { location.hash = subtaskHref(p, t, st); };
         list.append(h('div', { class: 'row', style: 'padding:2px 0' },
           cb,
-          h('span', { style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title)),
+          subLink,
           h('span', { class: 'small muted' }, formatDateValue(st))
         ));
       }

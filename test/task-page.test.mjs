@@ -19,9 +19,9 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 
 const projectsUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'projects.js')).href;
-const taskUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'task.js')).href;
+const itemUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'item.js')).href;
 const projects = await import(projectsUrl);
-const taskMod = await import(taskUrl);
+const itemMod = await import(itemUrl);
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
@@ -58,15 +58,33 @@ test('问题1：表格中的任务标题跳转到任务页面', () => {
   assert.equal(globalThis.location.hash, '#/task/p1/t1');
 });
 
-test('问题1：任务页面导出 render/add', () => {
-  assert.equal(typeof taskMod.render, 'function');
-  assert.equal(typeof taskMod.add, 'function');
+test('问题1：任务页面（第 1 层）导出 render/add', () => {
+  assert.equal(typeof itemMod.render, 'function');
+  assert.equal(typeof itemMod.add, 'function');
 });
 
-test('问题1：isFreshTask 判定新建任务', () => {
-  assert.equal(taskMod.isFreshTask({ title: taskMod.DEFAULT_TASK_NAME, subtasks: [], dueDate: null }), true);
-  assert.equal(taskMod.isFreshTask({ title: '有名字', subtasks: [], dueDate: null }), false);
-  assert.equal(taskMod.isFreshTask({ title: taskMod.DEFAULT_TASK_NAME, subtasks: [{ id: 's' }] }), false);
-  assert.equal(taskMod.isFreshTask({ title: taskMod.DEFAULT_TASK_NAME, dueDate: '2024-01-01' }), false);
-  assert.equal(taskMod.isFreshTask(null), false);
+test('问题1：isFreshItem 判定新建任务', () => {
+  const NAME = projects.DEFAULT_TASK_NAME;
+  assert.equal(itemMod.isFreshItem({ title: NAME, subtasks: [], blocks: [], dueDate: null }), true);
+  assert.equal(itemMod.isFreshItem({ title: '有名字', subtasks: [], blocks: [] }), false);
+  assert.equal(itemMod.isFreshItem({ title: NAME, subtasks: [{ id: 's' }] }), false);
+  assert.equal(itemMod.isFreshItem({ title: NAME, dueDate: '2024-01-01' }), false);
+  assert.equal(itemMod.isFreshItem({ title: NAME, blocks: [{ id: 'b' }] }), false);
+  assert.equal(itemMod.isFreshItem(null), false);
+});
+
+test('问题1：任务页面的接口与链接都指向层级路径', () => {
+  assert.equal(projects.itemBase('p1', ['t1']), '/api/projects/p1/tasks/t1');
+  assert.equal(projects.itemBase('p1', ['t1', 's1']), '/api/projects/p1/tasks/t1/subtasks/s1');
+  assert.equal(projects.itemHref('p1', ['t1']), '#/task/p1/t1');
+  assert.equal(projects.itemHref('p1', ['t1', 's1', 's2']), '#/task/p1/t1/s1/s2');
+  assert.equal(projects.taskHref({ id: 'p1' }, { id: 't1' }), '#/task/p1/t1');
+  assert.equal(projects.subtaskHref({ id: 'p1' }, { id: 't1' }, { id: 's1' }), '#/task/p1/t1/s1');
+});
+
+test('问题1：已删除的 task.js / subtask.js 不再存在（统一为 item.js）', () => {
+  const dir = path.join(process.cwd(), 'public', 'js', 'views');
+  assert.ok(!fs.existsSync(path.join(dir, 'task.js')));
+  assert.ok(!fs.existsSync(path.join(dir, 'subtask.js')));
+  assert.ok(fs.existsSync(path.join(dir, 'item.js')));
 });

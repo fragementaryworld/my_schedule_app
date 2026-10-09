@@ -456,6 +456,69 @@ test('任务支持开始/截止时间区间', async () => {
   assert.equal(task.dueDate, '2024-05-10');
 });
 
+test('任务层级：可嵌套 5 层，第 6 层被拒绝', async () => {
+  const p = await api('POST', '/api/projects', { name: '多层项目' });
+  const pid = p.json.id;
+  const ids = [];
+
+  let r = await api('POST', `/api/projects/${pid}/tasks`, { title: 'L1' });
+  assert.equal(r.status, 201);
+  ids.push(r.json.id);
+
+  for (let lvl = 2; lvl <= 5; lvl++) {
+    const base = `/api/projects/${pid}/tasks/${ids.join('/subtasks/')}`;
+    r = await api('POST', `${base}/subtasks`, { title: `L${lvl}` });
+    assert.equal(r.status, 201, `第 ${lvl} 层应能创建`);
+    ids.push(r.json.id);
+  }
+
+  const deepest = `/api/projects/${pid}/tasks/${ids.join('/subtasks/')}`;
+  const tooDeep = await api('POST', `${deepest}/subtasks`, { title: 'L6' });
+  assert.equal(tooDeep.status, 400, '超过 5 层应被拒绝');
+
+  // 逐层取回
+  const all = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  let node = all.tasks.find((x) => x.id === ids[0]);
+  assert.equal(node.title, 'L1');
+  for (let i = 1; i < ids.length; i++) {
+    node = node.subtasks.find((x) => x.id === ids[i]);
+    assert.ok(node, `第 ${i + 1} 层应能取回`);
+  }
+  assert.equal(node.title, 'L5');
+
+  // 最深一层也有内容模块与时间字段
+  const blk = await api('POST', `${deepest}/blocks`, { type: 'text', text: '最深层内容' });
+  assert.equal(blk.status, 201);
+  const upd = await api('PUT', deepest, { title: 'L5改', dueDate: '2024-06-01', dateFormat: 'iso' });
+  assert.equal(upd.json.title, 'L5改');
+  assert.equal(upd.json.dateFormat, 'iso');
+  assert.equal(upd.json.dueDate, '2024-06-01');
+
+  // 删除最深一层 → 父层的 subtasks 变空
+  assert.equal((await api('DELETE', deepest)).status, 200);
+  let after = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  let walk = after.tasks.find((x) => x.id === ids[0]);
+  for (let i = 1; i <= 3; i++) walk = walk.subtasks.find((x) => x.id === ids[i]);
+  assert.equal(walk.subtasks.length, 0, 'L4 下面是空的');
+
+  // 删除中间一层会连带其下级消失
+  const l3 = `/api/projects/${pid}/tasks/${ids.slice(0, 3).join('/subtasks/')}`;
+  assert.equal((await api('DELETE', l3)).status, 200);
+  after = (await api('GET', '/api/projects')).json.find((x) => x.id === pid);
+  const l2 = after.tasks.find((x) => x.id === ids[0]).subtasks.find((x) => x.id === ids[1]);
+  assert.equal(l2.subtasks.length, 0, '删掉 L3 后 L2 没有下级了');
+});
+
+test('任务层级：不存在的层级路径返回 404', async () => {
+  const p = await api('POST', '/api/projects', { name: '路径项目' });
+  const pid = p.json.id;
+  const t = await api('POST', `/api/projects/${pid}/tasks`, { title: 'T' });
+  const missing = await api('PUT', `/api/projects/${pid}/tasks/nope/subtasks/alsonope`, { title: 'x' });
+  assert.equal(missing.status, 404);
+  const badBlock = await api('POST', `/api/projects/${pid}/tasks/${t.json.id}/subtasks/nope/blocks`, { type: 'text' });
+  assert.equal(badBlock.status, 404);
+});
+
 test('任务内容块：增删改与排序', async () => {
   const p = await api('POST', '/api/projects', { name: '块任务项目' });
   const pid = p.json.id;
