@@ -338,3 +338,49 @@ test('问题1：选好日期后仍可点外部退出', async () => {
   document.dispatchEvent('click', { target: document.createElement('div') });
   assert.equal(pop.style.display, 'none', '点窗口外退出');
 });
+
+// ——— 修复：点窗口内部不能关闭 ———
+// 点日期会重绘面板，旧节点随即脱离文档；若让它冒泡到全局监听会被误判成"点了窗口外"
+
+test('修复：点面板里的日期后弹窗保持打开', async () => {
+  const { field, saved, pop } = openField({ dueDate: '2024-05-11' });
+  dayBtn(field, '2024-05-20').click();
+  await tick();
+  assert.equal(saved.length, 1, '日期应已保存');
+  assert.equal(pop.style.display, '', '面板必须保持打开');
+});
+
+test('修复：点面板里的开关/格式/清除也不关闭', () => {
+  const { field, pop } = openField({ dueDate: '2024-05-11' });
+
+  findAllByClass(field, 'dp-switch-end')[0].click();
+  assert.equal(pop.style.display, '', '开启结束日期后面板仍打开');
+
+  findAllByClass(field, 'dp-switch-time')[0].click();
+  assert.equal(pop.style.display, '', '开启包含时间后面板仍打开');
+
+  const sel = findAllByClass(field, 'date-format-select')[0];
+  sel.value = 'iso';
+  sel.fire('change');
+  assert.equal(pop.style.display, '', '切换日期格式后面板仍打开');
+
+  findAllByClass(field, 'dp-clear')[0].click();
+  assert.equal(pop.style.display, '', '清除后面板仍打开');
+});
+
+test('修复：连点多个日期都保持打开，只有点外部才关', async () => {
+  const { field, saved, pop } = openField({ dueDate: '2024-05-11' });
+  findAllByClass(field, 'dp-switch-end')[0].click();
+
+  for (const date of ['2024-05-13', '2024-05-15', '2024-05-18']) {
+    dayBtn(field, date).click();
+    await tick();
+    assert.equal(pop.style.display, '', `点 ${date} 后仍应打开`);
+  }
+  assert.ok(saved.length >= 3, '每次点击都保存了');
+
+  const outside = document.createElement('div');
+  document.body.append(outside);
+  outside.click();
+  assert.equal(pop.style.display, 'none', '只有点窗口外才退出');
+});

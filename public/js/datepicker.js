@@ -233,6 +233,12 @@ export function buildDateField({ value, onSave, placeholder = '选择时间', to
   const pop = h('div', { class: 'datepicker-pop' });
   pop.style.display = 'none';
 
+  // 面板内部的点击不要冒泡到 document：
+  // 点日期会重绘面板，旧节点随即脱离文档，若让它冒泡到全局监听就会被误判成"点了窗口外"
+  pop.addEventListener('click', (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+  });
+
   const paintTrigger = () => {
     const text = formatStateDisplay(state, today);
     trigger.textContent = text || placeholder;

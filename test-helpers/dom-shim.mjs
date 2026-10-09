@@ -42,6 +42,8 @@ export class Element {
     return this._innerHTML;
   }
   set innerHTML(v) {
+    // 真实 DOM 里被移除的节点会脱离文档（parentNode 变 null），这里也要照做
+    for (const c of this.children) c.parentNode = null;
     this._innerHTML = String(v);
     this.children = [];
   }
@@ -86,13 +88,33 @@ export class Element {
   blur() {
     this.dispatchEvent('blur');
   }
-  // 同时触发 addEventListener 监听器与 on<type> 属性处理器
+  // 同时触发 addEventListener 监听器与 on<type> 属性处理器，并按浏览器行为向父级冒泡
   fire(type, event = {}) {
-    this.dispatchEvent(type, event);
-    const prop = this['on' + type];
-    if (typeof prop === 'function') {
-      prop({ target: this, preventDefault() {}, stopPropagation() {}, ...event });
+    const e = {
+      type,
+      target: this,
+      preventDefault() {},
+      stopPropagation() { e._stopped = true; },
+      ...event
+    };
+    const doc = typeof document === 'undefined' ? null : document;
+    // 传播路径在派发时就固定下来：即使处理函数中途把节点移出文档，事件仍沿原路径继续冒泡
+    const path = [];
+    let reachedBody = false;
+    let node = this;
+    while (node) {
+      path.push(node);
+      if (doc && node === doc.body) reachedBody = true;
+      node = node.parentNode || null;
     }
+    for (const n of path) {
+      for (const fn of n._listeners[type] || []) fn(e);
+      const prop = n['on' + type];
+      if (typeof prop === 'function') prop(e);
+      if (e._stopped) return;
+    }
+    // 只有挂在文档上的元素，事件才会继续冒泡到 document
+    if (reachedBody && doc && typeof doc.dispatchEvent === 'function') doc.dispatchEvent(type, e);
   }
   click() {
     this.fire('click');
