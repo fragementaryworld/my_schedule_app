@@ -1,6 +1,7 @@
 'use strict';
-// 今日计划（日历）用到的纯计算：周/月网格、分组、排序
+// 今日计划（日历）用到的纯计算：周/月网格、分组、排序、工作项目任务并入
 import { addDays, weekdayIndex, todayStr } from './utils.js';
+import { itemBase, itemHref } from './views/projects.js';
 
 export const CALENDAR_VIEWS = [
   { value: 'week', label: '周视图' },
@@ -114,4 +115,57 @@ export function visibleDates(anchor, view, weekStartPref = 'mon') {
 export function rangeOf(anchor, view, weekStartPref = 'mon') {
   const dates = visibleDates(anchor, view, weekStartPref);
   return { from: dates[0], to: dates[dates.length - 1], dates };
+}
+
+// ——— 工作项目任务并入每日计划 ———
+
+// 把项目里所有任务与各级子任务摊平，带上级路径
+export function flattenProjectItems(projects) {
+  const out = [];
+  const list = Array.isArray(projects) ? projects : [];
+  const walk = (nodes, project, parentPath, depth) => {
+    for (const node of nodes || []) {
+      const path = [...parentPath, node.id];
+      out.push({ node, project, path, depth });
+      walk(node.subtasks, project, path, depth + 1);
+    }
+  };
+  for (const project of list) walk(project.tasks, project, [], 1);
+  return out;
+}
+
+// 项目任务落在哪一天：优先截止日，没有截止日就用开始日；都没有则不进日历
+export function itemCalendarDate(node) {
+  if (!node) return null;
+  return node.dueDate || node.startDate || null;
+}
+
+// 项目任务 → 日历条目（含接口地址与页面链接）
+export function projectEntriesByDate(projects, today = todayStr()) {
+  const out = [];
+  for (const { node, project, path, depth } of flattenProjectItems(projects)) {
+    const date = itemCalendarDate(node);
+    if (!date) continue;
+    out.push({
+      kind: 'project',
+      id: node.id,
+      title: node.title,
+      date,
+      time: node.dueTime || '',
+      done: !!node.done,
+      projectId: project.id,
+      projectName: project.name,
+      path,
+      depth,
+      base: itemBase(project.id, path),
+      href: itemHref(project.id, path),
+      overdue: !node.done && !!node.dueDate && node.dueDate < today
+    });
+  }
+  return out;
+}
+
+// 合并每日任务与项目任务后按日期分组
+export function mergeEntries(dayEntries, projectEntries) {
+  return groupByDate([...(dayEntries || []), ...(projectEntries || [])]);
 }

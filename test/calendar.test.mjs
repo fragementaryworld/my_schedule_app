@@ -22,6 +22,7 @@ globalThis.fetch = async (url, opts = {}) => {
   const method = opts.method || 'GET';
   calls.push({ url: u, method, body: opts.body ? JSON.parse(opts.body) : null });
   if (u.includes('/api/preferences')) return { ok: true, status: 200, json: async () => ({ weekStart: 'mon' }) };
+  if (u.includes('/api/projects')) return { ok: true, status: 200, json: async () => [] };
   if (u.includes('/api/tasks?from=')) {
     const from = /from=([\d-]+)/.exec(u)[1];
     const to = /to=([\d-]+)/.exec(u)[1];
@@ -169,6 +170,7 @@ test('问题1：月视图每格最多 3 条，多出的显示 +N', async () => {
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
     if (u.includes('/api/preferences')) return { ok: true, status: 200, json: async () => ({ weekStart: 'mon' }) };
+    if (u.includes('/api/projects')) return { ok: true, status: 200, json: async () => [] };
     if (u.includes('/api/tasks?from=')) return { ok: true, status: 200, json: async () => many };
     return { ok: true, status: 200, json: async () => ({ ok: true }) };
   };

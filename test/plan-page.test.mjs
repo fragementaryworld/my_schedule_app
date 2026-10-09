@@ -20,6 +20,7 @@ globalThis.fetch = async (url, opts = {}) => {
   const method = opts.method || 'GET';
   calls.push({ url: u, method, body: opts.body ? JSON.parse(opts.body) : null });
   if (u.includes('/api/preferences')) return { ok: true, status: 200, json: async () => ({ weekStart: 'mon' }) };
+  if (method === 'GET' && u.includes('/api/projects')) return { ok: true, status: 200, json: async () => [] };
   if (method === 'GET' && u.includes('/api/tasks?from=')) {
     return { ok: true, status: 200, json: async () => [JSON.parse(JSON.stringify(TASK))] };
   }

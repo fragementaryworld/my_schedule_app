@@ -3,8 +3,9 @@ import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '../utils.js';
 import {
-  CALENDAR_VIEWS, weekdayLabels, visibleDates, rangeOf, groupByDate, sortDayEntries,
-  periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber
+  CALENDAR_VIEWS, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
+  periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
+  projectEntriesByDate, mergeEntries
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
 
@@ -29,18 +30,23 @@ export function partitionTasks(tasks) {
 }
 
 async function paint() {
-  if (!el) return;
+  const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
+  if (!container) return;
   const pos = scrollPos();
   const { from, to } = rangeOf(anchor, view, weekStartPref);
-  const tasks = await api.get(`/api/tasks?from=${from}&to=${to}`);
-  const byDate = groupByDate(tasks.map(toEntry));
+  // 每日计划任务 + 工作项目里的所有任务（含各级子任务）
+  const [tasks, projects] = await Promise.all([
+    api.get(`/api/tasks?from=${from}&to=${to}`),
+    api.get('/api/projects').catch(() => [])
+  ]);
+  const byDate = mergeEntries(tasks.map(toEntry), projectEntriesByDate(projects, todayStr()));
   const dates = visibleDates(anchor, view, weekStartPref);
 
-  el.innerHTML = '';
+  container.innerHTML = '';
   try {
-    el.append(buildToolbar());
-    el.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
-    el.append(h('div', { class: 'small muted cal-legend' }, '点标题进入任务页面；勾选框可直接完成/取消完成。'));
+    container.append(buildToolbar());
+    container.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
+    container.append(h('div', { class: 'small muted cal-legend' }, '点标题进入对应页面；勾选框可直接完成/取消完成。📁 标记来自工作项目。'));
   } finally {
     restoreScroll(pos);
   }
@@ -187,13 +193,14 @@ function buildCard(e, compact) {
 }
 
 async function toggleEntry(e) {
-  await api.put(`/api/tasks/${e.id}`, { done: !e.done });
+  if (e.kind === 'project') await api.put(e.base, { done: !e.done });
+  else await api.put(`/api/tasks/${e.id}`, { done: !e.done });
   paint();
 }
 
-// 标题点进入任务页面（页面式编辑，不再弹窗）
+// 标题点进入对应页面（页面式编辑，不再弹窗）
 function openEntry(e) {
-  location.hash = dayTaskHref(e.id);
+  location.hash = e.kind === 'project' ? e.href : dayTaskHref(e.id);
 }
 
 async function addTask() {
