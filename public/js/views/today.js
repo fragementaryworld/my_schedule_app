@@ -1,12 +1,16 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, openModal, confirmDialog } from '../ui.js';
+import { h, toast, openModal, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
+import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '../utils.js';
 import {
-  todayStr, addDays, fmtDate, escapeHtml, isOverdue, priorityClass, priorityLabel
-} from '../utils.js';
+  CALENDAR_VIEWS, weekdayLabels, visibleDates, rangeOf, groupByDate, sortDayEntries,
+  periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber
+} from '../calendar.js';
 
 let el = null;
-let currentDate = todayStr();
+let anchor = todayStr();
+let view = 'week';
+let weekStartPref = 'mon';
 
 export function partitionTasks(tasks) {
   const done = [];
@@ -71,127 +75,175 @@ const PRIORITY_OPTIONS = [
 ];
 
 async function paint() {
+  if (!el) return;
+  const pos = scrollPos();
+  const { from, to } = rangeOf(anchor, view, weekStartPref);
+  const tasks = await api.get(`/api/tasks?from=${from}&to=${to}`);
+  const byDate = groupByDate(tasks.map(toEntry));
+  const dates = visibleDates(anchor, view, weekStartPref);
+
   el.innerHTML = '';
-  el.append(buildToolbar());
-  const tasks = await api.get(`/api/tasks?date=${currentDate}`);
-  const s = partitionTasks(tasks);
-  el.append(buildList(s));
+  try {
+    el.append(buildToolbar());
+    el.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
+    el.append(buildLegend());
+  } finally {
+    restoreScroll(pos);
+  }
+}
+
+// 日历条目：目前是每日计划里的独立任务（工作项目任务在后续增量并入）
+function toEntry(t) {
+  return {
+    kind: 'day',
+    id: t.id,
+    title: t.title,
+    date: t.date,
+    time: t.time || '',
+    done: !!t.done,
+    priority: t.priority || 'medium',
+    repeat: t.repeat || null,
+    repeatOf: t.repeatOf || null,
+    source: t.source || null,
+    sourceLabel: t.source && t.source.type ? sourceLabel(t.source.type) : '',
+    overdue: isOverdue(t, todayStr()),
+    raw: t
+  };
 }
 
 function buildToolbar() {
-  const bar = h('div', { class: 'toolbar' });
-  const prev = h('button', { class: 'btn btn-sm' }, '‹ 前一天');
-  const next = h('button', { class: 'btn btn-sm' }, '后一天 ›');
-  const todayBtn = h('button', { class: 'btn btn-sm' }, '今天');
-  const dateInput = h('input', { type: 'date', class: 'input', style: 'width:auto', value: currentDate });
+  const wrap = h('div', { class: 'cal-toolbar' });
+
+  const top = h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' });
   const addBtn = h('button', { class: 'btn btn-primary btn-sm' }, '＋ 新增任务');
-
-  const go = (d) => { currentDate = d; dateInput.value = d; paint(); };
-  prev.onclick = () => go(addDays(currentDate, -1));
-  next.onclick = () => go(addDays(currentDate, 1));
-  todayBtn.onclick = () => go(todayStr());
-  dateInput.onchange = () => { if (dateInput.value) go(dateInput.value); };
   addBtn.onclick = () => addTask();
+  top.append(addBtn);
 
-  bar.append(prev, todayBtn, next, dateInput, h('span', { class: 'spacer' }), addBtn);
-  return bar;
+  const tabs = h('div', { class: 'tabbar', style: 'margin:0;border:none' });
+  for (const v of CALENDAR_VIEWS) {
+    const b = h('button', { class: 'tab' + (view === v.value ? ' active' : '') }, v.label);
+    b.onclick = () => { view = v.value; paint(); };
+    tabs.append(b);
+  }
+  top.append(tabs);
+  wrap.append(top);
+
+  const nav = h('div', { class: 'row cal-nav' });
+  nav.append(h('span', { class: 'cal-period' }, periodTitle(anchor, view)));
+  nav.append(h('span', { class: 'spacer' }));
+  const prev = h('button', { class: 'icon-btn cal-prev', title: '上一页' }, '‹');
+  const todayBtn = h('button', { class: 'btn btn-sm' }, '今天');
+  const next = h('button', { class: 'icon-btn cal-next', title: '下一页' }, '›');
+  prev.onclick = () => { anchor = shiftAnchor(anchor, view, -1); paint(); };
+  next.onclick = () => { anchor = shiftAnchor(anchor, view, 1); paint(); };
+  todayBtn.onclick = () => { anchor = todayStr(); paint(); };
+  nav.append(prev, todayBtn, next);
+  wrap.append(nav);
+
+  return wrap;
 }
 
-function buildList(s) {
-  const list = h('div', { class: 'list' });
-  if (!s.timed.length && !s.untimed.length && !s.done.length) {
-    list.append(h('div', { class: 'empty' },
-      h('span', { class: 'empty-icon' }, '📋'),
-      h('p', {}, '这一天还没有安排，点右上角新增任务。')));
-    return list;
-  }
-  for (const t of s.timed) list.append(buildTaskItem(t));
-  s.untimed.forEach((t, i) => list.append(buildTaskItem(t, i)));
-  if (s.done.length) {
-    const doneWrap = h('div', { style: 'display:none' });
-    s.done.forEach((t) => doneWrap.append(buildTaskItem(t)));
-    const fold = h('div', { class: 'fold-head' }, h('span', {}, `▾ 已完成 ${s.done.length} 项`));
-    fold.onclick = () => { doneWrap.style.display = doneWrap.style.display === 'none' ? '' : 'none'; };
-    list.append(fold, doneWrap);
-  }
-  return list;
+function buildWeekdays() {
+  const row = h('div', { class: 'cal-weekdays' });
+  for (const label of weekdayLabels(weekStartPref)) row.append(h('div', { class: 'cal-wd' }, label));
+  return row;
 }
 
-function buildTaskItem(t, untimedIndex) {
-  const item = h('div', { class: 'task-item' + (t.done ? ' done' : '') });
+function buildWeek(byDate, dates) {
+  const wrap = h('div', { class: 'cal cal-week' });
+  wrap.append(buildWeekdays());
 
-  const cb = h('input', { type: 'checkbox', class: 'task-check' });
-  cb.checked = !!t.done;
-  cb.onclick = async () => { await toggleDone(t); };
-  item.append(cb);
-
-  const body = h('div', { class: 'task-body' });
-  const titleRow = h('div', { class: 'task-title' });
-  titleRow.append(h('span', { class: `badge ${priorityClass(t.priority)}` }, priorityLabel(t.priority)));
-  titleRow.append(h('span', { class: 't' }, escapeHtml(t.title)));
-  if (isOverdue(t, todayStr())) titleRow.append(h('span', { class: 'badge overdue' }, '逾期'));
-  body.append(titleRow);
-
-  const meta = h('div', { class: 'task-meta' });
-  if (t.time) meta.append(h('span', { class: 'task-time' }, `🕐 ${t.time}`));
-  if (t.repeat) meta.append(h('span', { class: 'chip' }, `🔁 ${repeatLabel(t.repeat)}`));
-  if (t.repeatOf) meta.append(h('span', { class: 'chip' }, '🔁 重复'));
-  if (t.source && t.source.type) meta.append(h('span', { class: 'chip' }, sourceLabel(t.source.type)));
-  if (t.note) meta.append(h('span', { class: 'chip', title: t.note }, '📝'));
-  body.append(meta);
-  item.append(body);
-
-  const actions = h('div', { class: 'task-actions' });
-  if (!t.done && untimedIndex !== undefined) {
-    const up = h('button', { class: 'icon-btn', title: '上移' }, '↑');
-    const down = h('button', { class: 'icon-btn', title: '下移' }, '↓');
-    up.onclick = async () => { await moveUntimed(untimedIndex, -1); };
-    down.onclick = async () => { await moveUntimed(untimedIndex, 1); };
-    actions.append(up, down);
+  const row = h('div', { class: 'cal-week-row' });
+  for (const d of dates) {
+    const col = h('div', { class: 'cal-col' + (isToday(d) ? ' today' : ''), dataset: { date: d } });
+    col.append(h('div', { class: 'cal-col-head' }, h('span', { class: 'cal-daynum' }, String(dayNumber(d)))));
+    const list = h('div', { class: 'cal-cards' });
+    for (const e of sortDayEntries(byDate.get(d) || [])) list.append(buildCard(e));
+    col.append(list);
+    row.append(col);
   }
-  if (t.repeat || t.repeatOf) {
-    const finish = h('button', { class: 'icon-btn', title: '完成整个系列' }, '✓✓');
-    finish.onclick = async () => {
+  wrap.append(row);
+  return wrap;
+}
+
+function buildMonth(byDate, dates) {
+  const { y, m } = parseYm(anchor);
+  const wrap = h('div', { class: 'cal cal-month' });
+  wrap.append(buildWeekdays());
+
+  const grid = h('div', { class: 'cal-month-grid' });
+  for (const d of dates) {
+    const cell = h('div', {
+      class: 'cal-cell' + (sameMonth(d, y, m) ? '' : ' outside') + (isToday(d) ? ' today' : ''),
+      dataset: { date: d }
+    });
+    cell.append(h('div', { class: 'cal-cell-head' }, h('span', { class: 'cal-daynum' }, String(dayNumber(d)))));
+    const entries = sortDayEntries(byDate.get(d) || []);
+    const list = h('div', { class: 'cal-cards' });
+    for (const e of entries.slice(0, 3)) list.append(buildCard(e, true));
+    if (entries.length > 3) list.append(h('div', { class: 'cal-more' }, `+${entries.length - 3}`));
+    cell.append(list);
+    grid.append(cell);
+  }
+  wrap.append(grid);
+  return wrap;
+}
+
+function buildCard(e, compact) {
+  const card = h('div', {
+    class: 'cal-card' + (e.done ? ' done' : '') + (e.kind === 'project' ? ' from-project' : ''),
+    title: e.title
+  });
+
+  const cb = h('input', { type: 'checkbox', class: 'task-check cal-check' });
+  cb.checked = !!e.done;
+  cb.onclick = async (ev) => {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    await toggleEntry(e);
+  };
+  card.append(cb);
+
+  const body = h('div', { class: 'cal-card-body' });
+  const title = h('div', { class: 'cal-card-title row-link' }, escapeHtml(e.title));
+  title.onclick = () => openEntry(e);
+  body.append(title);
+
+  const meta = h('div', { class: 'cal-card-meta' });
+  if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
+  if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
+  if (e.sourceLabel) meta.append(h('span', { class: 'cal-chip' }, e.sourceLabel));
+  if (e.repeat || e.repeatOf) meta.append(h('span', { class: 'cal-chip' }, '🔁'));
+  if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
+  if (!compact && e.priority) meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));
+  if (meta.children.length) body.append(meta);
+  card.append(body);
+
+  if (e.repeat || e.repeatOf) {
+    const finish = h('button', { class: 'icon-btn cal-card-act', title: '完成整个系列' }, '✓✓');
+    finish.onclick = async (ev) => {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
       if (await confirmDialog('完成整个系列？所有已生成与未来的实例都会标记完成。')) {
-        await api.put(`/api/tasks/${t.id}`, { done: true, finishSeries: true });
+        await api.put(`/api/tasks/${e.id}`, { done: true, finishSeries: true });
         toast('已完成整个系列');
         paint();
       }
     };
-    actions.append(finish);
+    card.append(finish);
   }
-  const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
-  edit.onclick = () => editTask(t);
-  const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
-  del.onclick = async () => {
-    if (await confirmDialog('确认删除这个任务？此操作不可恢复。', { danger: true })) {
-      await api.del(`/api/tasks/${t.id}`);
-      toast('已删除');
-      paint();
-    }
-  };
-  actions.append(edit, del);
-  item.append(actions);
-
-  return item;
+  return card;
 }
 
-async function toggleDone(t) {
-  await api.put(`/api/tasks/${t.id}`, { done: !t.done });
+function buildLegend() {
+  return h('div', { class: 'small muted cal-legend' }, '点标题可编辑；勾选框可直接完成/取消完成。');
+}
+
+async function toggleEntry(e) {
+  await api.put(`/api/tasks/${e.id}`, { done: !e.done });
   paint();
 }
 
-async function moveUntimed(index, dir) {
-  const tasks = await api.get(`/api/tasks?date=${currentDate}`);
-  const s = partitionTasks(tasks);
-  const j = index + dir;
-  if (j < 0 || j >= s.untimed.length) return;
-  const a = s.untimed[index];
-  const b = s.untimed[j];
-  const tmp = a.order ?? 0;
-  await api.put(`/api/tasks/${a.id}`, { order: b.order ?? 0 });
-  await api.put(`/api/tasks/${b.id}`, { order: tmp });
-  paint();
+function openEntry(e) {
+  editTask(e.raw || e);
 }
 
 function taskFields(t) {
@@ -231,7 +283,7 @@ function addTask() {
     onSubmit: async (v) => {
       await api.post('/api/tasks', {
         title: v.title.trim(),
-        date: currentDate,
+        date: anchor,
         time: v.time || null,
         priority: v.priority,
         repeat: decodeRepeat(v.repeat),
@@ -247,7 +299,13 @@ function addTask() {
 
 export async function render(container) {
   el = container;
-  currentDate = todayStr();
+  anchor = todayStr();
+  try {
+    const prefs = await api.get('/api/preferences');
+    weekStartPref = prefs && prefs.weekStart === 'sun' ? 'sun' : 'mon';
+  } catch (err) {
+    weekStartPref = 'mon';
+  }
   await paint();
 }
 
