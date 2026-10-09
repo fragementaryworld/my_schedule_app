@@ -30,7 +30,8 @@ const ASSETS = [
   '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js',
   '/js/views/home.js', '/js/views/today.js', '/js/views/projects.js',
   '/js/views/reading.js', '/js/views/fitness.js', '/js/views/ideas.js',
-  '/js/views/settings.js', '/js/views/page.js', '/js/views/task.js', '/js/views/subtask.js', '/js/markdown.js'
+  '/js/views/settings.js', '/js/views/page.js', '/js/views/task.js', '/js/views/subtask.js',
+  '/js/markdown.js', '/js/datepicker.js'
 ];
 
 test('首页 HTML 包含 7 个模块导航、路由与容器', async () => {

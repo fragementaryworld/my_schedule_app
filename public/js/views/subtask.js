@@ -4,6 +4,7 @@ import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml } from '../utils.js';
 import { DEFAULT_SUBTASK_NAME } from './projects.js';
 import { buildBlocksEditor } from './page.js';
+import { buildDateField } from '../datepicker.js';
 
 let el = null;
 let projectId = null;
@@ -39,7 +40,7 @@ async function paint() {
   }
   el.append(buildBreadcrumb(project, task, subtask));
   el.append(buildHead(project, task, subtask));
-  el.append(buildProperties(project, task, subtask));
+  el.append(buildSubtaskProperties(project, task, subtask));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
   el.append(buildBlocksEditor(subtask, `/api/projects/${projectId}/tasks/${taskId}/subtasks/${subtaskId}`, paint));
   if (isFreshSubtask(subtask)) focusTitle();
@@ -103,7 +104,7 @@ function buildHead(project, task, subtask) {
   return wrap;
 }
 
-function buildProperties(project, task, subtask) {
+export function buildSubtaskProperties(project, task, subtask) {
   const card = h('div', { class: 'page-props' });
   const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
   const subBase = `/api/projects/${project.id}/tasks/${task.id}/subtasks/${subtask.id}`;
@@ -118,24 +119,18 @@ function buildProperties(project, task, subtask) {
     await paint();
   };
 
-  const startInput = h('input', { type: 'date', class: 'input inline-input', value: subtask.startDate || '' });
-  startInput.onchange = async () => {
-    await api.put(subBase, { startDate: startInput.value || null });
-    toast('已保存');
-    await paint();
-  };
-
-  const dueInput = h('input', { type: 'date', class: 'input inline-input', value: subtask.dueDate || '' });
-  dueInput.onchange = async () => {
-    await api.put(subBase, { dueDate: dueInput.value || null });
-    toast('已保存');
-    await paint();
-  };
+  const dateField = buildDateField({
+    value: subtask,
+    onSave: async (patch) => {
+      await api.put(subBase, patch);
+      Object.assign(subtask, patch);
+      toast('时间已更新');
+    }
+  });
 
   card.append(
     row('状态', doneSel),
-    row('开始', startInput),
-    row('截止', dueInput)
+    row('时间', dateField)
   );
   return card;
 }

@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
+import { formatDateValue } from '../datepicker.js';
 
 let el = null;
 let currentParams = {};
@@ -11,14 +12,9 @@ let listView = 'table';
 let taskView = 'table';
 const expandedTasks = new Set();
 
-// 任务时间区间展示
+// 任务时间展示（按该任务选定的日期格式）
 export function formatTaskDates(task) {
-  const start = (task && task.startDate) || '';
-  const due = (task && task.dueDate) || '';
-  if (start && due) return `${start} → ${due}`;
-  if (due) return due;
-  if (start) return start;
-  return '—';
+  return formatDateValue(task) || '—';
 }
 
 const FILTERS = [
@@ -68,12 +64,7 @@ export function blockedByOptions(projects, currentValue, excludeId) {
 }
 
 export function formatProjectDates(p) {
-  const start = (p && p.startDate) || '';
-  const due = (p && p.dueDate) || '';
-  if (start && due) return `${start} → ${due}`;
-  if (due) return due;
-  if (start) return start;
-  return '—';
+  return formatDateValue(p) || '—';
 }
 
 // 表格/看板等视图所需的展示数据

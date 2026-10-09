@@ -4,6 +4,7 @@ import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml } from '../utils.js';
 import { createTask, createSubtask, subtaskHref } from './projects.js';
 import { buildBlocksEditor } from './page.js';
+import { buildDateField } from '../datepicker.js';
 
 let el = null;
 let projectId = null;
@@ -38,7 +39,7 @@ async function paint() {
   }
   el.append(buildBreadcrumb(project, task));
   el.append(buildTaskHead(project, task));
-  el.append(buildProperties(project, task));
+  el.append(buildTaskProperties(project, task));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
   el.append(buildBlocksEditor(task, `/api/projects/${projectId}/tasks/${taskId}`, paint));
   el.append(h('div', { class: 'page-section' }, '📄 子任务'));
@@ -102,7 +103,7 @@ function buildTaskHead(project, task) {
   return wrap;
 }
 
-function buildProperties(project, task) {
+export function buildTaskProperties(project, task) {
   const card = h('div', { class: 'page-props' });
   const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
 
@@ -116,25 +117,19 @@ function buildProperties(project, task) {
     await paint();
   };
 
-  const startInput = h('input', { type: 'date', class: 'input inline-input', value: task.startDate || '' });
-  startInput.onchange = async () => {
-    await api.put(`/api/projects/${project.id}/tasks/${task.id}`, { startDate: startInput.value || null });
-    toast('已保存');
-    await paint();
-  };
-
-  const dueInput = h('input', { type: 'date', class: 'input inline-input', value: task.dueDate || '' });
-  dueInput.onchange = async () => {
-    await api.put(`/api/projects/${project.id}/tasks/${task.id}`, { dueDate: dueInput.value || null });
-    toast('已保存');
-    await paint();
-  };
+  const dateField = buildDateField({
+    value: task,
+    onSave: async (patch) => {
+      await api.put(`/api/projects/${project.id}/tasks/${task.id}`, patch);
+      Object.assign(task, patch);
+      toast('时间已更新');
+    }
+  });
 
   const subs = task.subtasks || [];
   card.append(
     row('状态', doneSel),
-    row('开始', startInput),
-    row('截止', dueInput),
+    row('时间', dateField),
     row('子任务', h('span', { class: 'small muted' }, `${subs.filter((s) => s.done).length}/${subs.length} 已完成`))
   );
   return card;

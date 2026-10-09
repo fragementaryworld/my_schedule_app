@@ -401,6 +401,33 @@ test('子任务支持时间区间与内容块', async () => {
   assert.equal(gone.status, 200);
 });
 
+test('时间字段：项目/任务/子任务支持时间与日期格式', async () => {
+  const p = await api('POST', '/api/projects', {
+    name: '时间字段项目', startDate: '2024-05-01', dueDate: '2024-05-31',
+    startTime: '09:00', dueTime: '18:00', dateFormat: 'iso'
+  });
+  assert.equal(p.json.startTime, '09:00');
+  assert.equal(p.json.dueTime, '18:00');
+  assert.equal(p.json.dateFormat, 'iso');
+
+  const pu = await api('PUT', `/api/projects/${p.json.id}`, { dateFormat: 'mdy', dueTime: '20:00' });
+  assert.equal(pu.json.dateFormat, 'mdy');
+  assert.equal(pu.json.dueTime, '20:00');
+
+  const t = await api('POST', `/api/projects/${p.json.id}/tasks`, { title: '任务', dueDate: '2024-05-10', dueTime: '12:00', dateFormat: 'short' });
+  assert.equal(t.json.dueTime, '12:00');
+  assert.equal(t.json.dateFormat, 'short');
+  const tu = await api('PUT', `/api/projects/${p.json.id}/tasks/${t.json.id}`, { startTime: '08:00' });
+  assert.equal(tu.json.startTime, '08:00');
+
+  const st = await api('POST', `/api/projects/${p.json.id}/tasks/${t.json.id}/subtasks`, { title: '子任务' });
+  assert.equal(st.json.dateFormat, 'full', '子任务默认完整日期');
+  assert.equal(st.json.dueTime, null);
+  const stu = await api('PUT', `/api/projects/${p.json.id}/tasks/${t.json.id}/subtasks/${st.json.id}`, { dueDate: '2024-05-08', dueTime: '11:00', dateFormat: 'ymd' });
+  assert.equal(stu.json.dueTime, '11:00');
+  assert.equal(stu.json.dateFormat, 'ymd');
+});
+
 test('任务支持描述字段', async () => {
   const p = await api('POST', '/api/projects', { name: '描述项目' });
   const pid = p.json.id;

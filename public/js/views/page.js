@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
+import { buildDateField } from '../datepicker.js';
 import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME, createProject } from './projects.js';
 
 let el = null;
@@ -35,7 +36,7 @@ async function paint() {
   }
   el.append(buildBreadcrumb(page));
   el.append(buildIconTitle(page));
-  el.append(buildProperties(projects, page));
+  el.append(buildPageProperties(projects, page));
   el.append(h('div', { class: 'page-section' }, '📝 内容'));
   el.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
   el.append(h('div', { class: 'page-section' }, '✅ 任务'));
@@ -128,7 +129,7 @@ export function buildIconTitle(page) {
   return wrap;
 }
 
-function buildProperties(projects, page) {
+export function buildPageProperties(projects, page) {
   const card = h('div', { class: 'page-props' });
   const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
 
@@ -151,11 +152,14 @@ function buildProperties(projects, page) {
     if (val !== (page.owner || '')) { await api.put(`/api/projects/${page.id}`, { owner: val }); toast('已保存'); paint(); }
   });
 
-  const startInput = h('input', { type: 'date', class: 'input inline-input', value: page.startDate || '' });
-  startInput.onchange = async () => { await api.put(`/api/projects/${page.id}`, { startDate: startInput.value }); toast('已保存'); paint(); };
-
-  const dueInput = h('input', { type: 'date', class: 'input inline-input', value: page.dueDate || '' });
-  dueInput.onchange = async () => { await api.put(`/api/projects/${page.id}`, { dueDate: dueInput.value || null }); toast('已保存'); paint(); };
+  const dateField = buildDateField({
+    value: page,
+    onSave: async (patch) => {
+      await api.put(`/api/projects/${page.id}`, patch);
+      Object.assign(page, patch);
+      toast('时间已更新');
+    }
+  });
 
   const blockedSel = h('select', { class: 'input inline-select' });
   for (const o of blockedByOptions(projects, page.blockedBy || '', page.id)) blockedSel.append(h('option', { value: o.value }, o.label));
@@ -166,8 +170,7 @@ function buildProperties(projects, page) {
     row('状态', statusSel),
     row('优先级', prioSel),
     row('负责人', h('span', { class: 'row' }, ownerInput, dl)),
-    row('开始', startInput),
-    row('截止', dueInput),
+    row('时间', dateField),
     row('阻塞', blockedSel)
   );
   return card;
