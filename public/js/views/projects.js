@@ -323,9 +323,10 @@ export async function render(container, params = {}) {
 async function paintList() {
   if (!el) return;
   const pos = scrollPos();
+  // 先取数据，再一次性重建：中间不出现空页面，滚动条就不会被弹回顶部
+  const projects = await api.get('/api/projects');
+  el.innerHTML = '';
   try {
-    el.innerHTML = '';
-    const projects = await api.get('/api/projects');
     el.append(buildViewBar());
     const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
     if (!shown.length) {

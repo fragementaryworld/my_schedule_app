@@ -18,15 +18,26 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
-// 重绘会先清空内容，浏览器会把滚动条弹回顶部；重绘前后保住滚动位置
+// 重绘会先清空内容，浏览器会把滚动条弹回顶部；重绘前后保住滚动位置。
+// 注意：本应用真正滚动的是 #content（shell.css 里 overflow:auto），不是 window。
+export function scrollBox() {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return null;
+  return document.getElementById('content');
+}
+
 export function scrollPos() {
-  if (typeof window === 'undefined') return null;
-  return { x: window.scrollX || 0, y: window.scrollY || 0 };
+  const box = scrollBox();
+  const win = (typeof window === 'undefined') ? null : { x: window.scrollX || 0, y: window.scrollY || 0 };
+  if (!box && !win) return null;
+  return { box, boxTop: box ? (box.scrollTop || 0) : 0, win };
 }
 
 export function restoreScroll(pos) {
-  if (!pos || typeof window === 'undefined' || typeof window.scrollTo !== 'function') return;
-  window.scrollTo(pos.x, pos.y);
+  if (!pos) return;
+  if (pos.box) pos.box.scrollTop = pos.boxTop;
+  if (pos.win && typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+    window.scrollTo(pos.win.x, pos.win.y);
+  }
 }
 
 export function toast(msg, type = 'info') {

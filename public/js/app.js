@@ -57,6 +57,7 @@ export async function navigate() {
   const content = document.getElementById('content');
   content.innerHTML = '';
   await view.render(content, currentParams);
+  content.scrollTop = 0;
   window.scrollTo(0, 0);
 }
 

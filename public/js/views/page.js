@@ -26,12 +26,13 @@ export async function render(container, params = {}) {
 async function paint() {
   if (!el) return;
   const pos = scrollPos();
+  // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
+  const projects = await api.get('/api/projects');
+  const page = projects.find((x) => x.id === pageId);
+  blockEls.clear();
+  titleEl = null;
+  el.innerHTML = '';
   try {
-    blockEls.clear();
-    titleEl = null;
-    el.innerHTML = '';
-    const projects = await api.get('/api/projects');
-    const page = projects.find((x) => x.id === pageId);
     if (!page) {
       el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
       return;
