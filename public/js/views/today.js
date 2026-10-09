@@ -5,7 +5,7 @@ import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '.
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
-  projectEntriesForDates, mergeEntries, legendFor, dateBoard
+  projectEntriesForDates, mergeEntries, legendFor, dateBoard, multiDayEntries, spanBarLayout
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
 
@@ -43,11 +43,12 @@ async function paint() {
   ]);
   const projectEntries = projectEntriesForDates(projects, dates, todayStr());
   const byDate = mergeEntries(tasks.map(toEntry), projectEntries);
+  const multiDay = multiDayEntries(projects, dates, todayStr());
 
   container.innerHTML = '';
   try {
     container.append(buildToolbar());
-    container.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
+    container.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
     container.append(buildLegend(byDate, dates));
     container.append(buildSelectedBoard(byDate));
   } finally {
@@ -112,47 +113,80 @@ function buildWeekdays() {
   return row;
 }
 
-function buildWeek(byDate, dates) {
-  const wrap = h('div', { class: 'cal cal-week' });
-  wrap.append(buildWeekdays());
+// 跨天任务用连续 block 画在顶部，单日任务仍放在当天格子里
+const SPAN_TOP = 28;
+const SPAN_LANE_H = 22;
 
-  const row = h('div', { class: 'cal-week-row' });
-  for (const d of dates) {
-    const col = h('div', {
-      class: 'cal-col' + (isToday(d) ? ' today' : '') + (d === selectedDate ? ' selected' : ''),
+function buildRow(rowDates, byDate, opts) {
+  const { month, y, m, multiDay } = opts;
+  const layout = spanBarLayout(multiDay, rowDates);
+  const padTop = layout.laneCount * SPAN_LANE_H;
+
+  const row = h('div', { class: 'cal-row ' + (month ? 'cal-month-row' : 'cal-week-row') });
+  for (const d of rowDates) {
+    const cell = h('div', {
+      class: (month ? 'cal-cell' : 'cal-col')
+        + (month && !sameMonth(d, y, m) ? ' outside' : '')
+        + (isToday(d) ? ' today' : '')
+        + (d === selectedDate ? ' selected' : ''),
       dataset: { date: d }
     });
-    col.append(h('div', { class: 'cal-col-head' }, h('span', { class: 'cal-daynum' }, String(dayNumber(d)))));
-    const list = h('div', { class: 'cal-cards' });
-    for (const e of sortDayEntries(byDate.get(d) || [])) list.append(buildCard(e));
-    col.append(list);
-    col.onclick = () => selectDate(d);
-    row.append(col);
+    cell.append(h('div', { class: month ? 'cal-cell-head' : 'cal-col-head' },
+      h('span', { class: 'cal-daynum' }, String(dayNumber(d)))));
+
+    const list = h('div', { class: 'cal-cards', style: padTop ? `padding-top:${padTop}px` : '' });
+    // 跨天任务由上面的连续 block 表示，这里只列当天的单日任务
+    const entries = sortDayEntries(byDate.get(d) || []).filter((e) => !(e.spanDays > 1));
+    const max = month ? 3 : entries.length;
+    for (const e of entries.slice(0, max)) list.append(buildCard(e, month));
+    if (entries.length > max) list.append(h('div', { class: 'cal-more' }, `+${entries.length - max}`));
+    cell.append(list);
+
+    cell.onclick = () => selectDate(d);
+    row.append(cell);
   }
-  wrap.append(row);
+  if (layout.bars.length) row.append(buildSpanLayer(layout, rowDates.length));
+  return row;
+}
+
+function buildSpanLayer(layout, cols) {
+  const layer = h('div', { class: 'cal-span-layer' });
+  for (const bar of layout.bars) {
+    const e = bar.entry;
+    const el = h('div', {
+      class: 'cal-span'
+        + (bar.continuesLeft ? ' clip-left' : '')
+        + (bar.continuesRight ? ' clip-right' : '')
+        + (e.done ? ' done' : ''),
+      style: `left:${(bar.startCol / cols) * 100}%;width:${((bar.endCol - bar.startCol + 1) / cols) * 100}%;`
+        + `top:${SPAN_TOP + bar.lane * SPAN_LANE_H}px;background:${e.color || DAY_TASK_COLOR}`,
+      title: `${e.title}（${e.spanFrom} → ${e.spanTo}，共 ${e.spanDays} 天）`
+    });
+    el.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
+    if (bar.continuesLeft) el.append(h('span', { class: 'cal-span-clip' }, '◀'));
+    el.append(h('span', { class: 'cal-span-title' }, escapeHtml(e.title)));
+    el.append(h('span', { class: 'cal-span-days' }, `${e.spanDays} 天`));
+    if (bar.continuesRight) el.append(h('span', { class: 'cal-span-clip' }, '▶'));
+    layer.append(el);
+  }
+  return layer;
+}
+
+function buildWeek(byDate, dates, multiDay) {
+  const wrap = h('div', { class: 'cal cal-week' });
+  wrap.append(buildWeekdays());
+  wrap.append(buildRow(dates, byDate, { month: false, multiDay }));
   return wrap;
 }
 
-function buildMonth(byDate, dates) {
+function buildMonth(byDate, dates, multiDay) {
   const { y, m } = parseYm(anchor);
   const wrap = h('div', { class: 'cal cal-month' });
   wrap.append(buildWeekdays());
 
   const grid = h('div', { class: 'cal-month-grid' });
-  for (const d of dates) {
-    const cell = h('div', {
-      class: 'cal-cell' + (sameMonth(d, y, m) ? '' : ' outside') + (isToday(d) ? ' today' : '')
-        + (d === selectedDate ? ' selected' : ''),
-      dataset: { date: d }
-    });
-    cell.append(h('div', { class: 'cal-cell-head' }, h('span', { class: 'cal-daynum' }, String(dayNumber(d)))));
-    const entries = sortDayEntries(byDate.get(d) || []);
-    const list = h('div', { class: 'cal-cards' });
-    for (const e of entries.slice(0, 3)) list.append(buildCard(e, true));
-    if (entries.length > 3) list.append(h('div', { class: 'cal-more' }, `+${entries.length - 3}`));
-    cell.append(list);
-    cell.onclick = () => selectDate(d);
-    grid.append(cell);
+  for (let i = 0; i < dates.length; i += 7) {
+    grid.append(buildRow(dates.slice(i, i + 7), byDate, { month: true, y, m, multiDay }));
   }
   wrap.append(grid);
   return wrap;

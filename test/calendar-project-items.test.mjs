@@ -139,14 +139,15 @@ test('问题3：日历里能看到工作项目的任务（含各级子任务）'
   const el = await renderToday();
   const todayCell = cellOf(el, TODAY);
   const names = findAllByClass(todayCell, 'cal-card-title').map((t) => textOf(t)).sort();
-  // 项目任务1 跨 今天→明天，今天这一格也要出现
-  assert.deepEqual(names, ['子任务1', '子子任务', '每日任务', '项目任务1'].sort());
+  // 项目任务1 跨 今天→明天，改由顶部的连续 block 表示，不再重复成卡片
+  assert.deepEqual(names, ['子任务1', '子子任务', '每日任务'].sort());
 
   const projectCards = findAllByClass(todayCell, 'cal-card').filter((c) => c.classList.contains('from-project'));
-  assert.equal(projectCards.length, 3, '三条来自工作项目');
+  assert.equal(projectCards.length, 2, '两条单日子任务来自工作项目');
   assert.ok(textOf(todayCell).includes('📁 项目A'), '标出来自哪个项目');
+  assert.ok(findAllByClass(el, 'cal-span').some((s) => textOf(s).includes('项目任务1')), '跨天的项目任务画成 block');
 
-  assert.deepEqual(findAllByClass(cellOf(el, TOMORROW), 'cal-card-title').map((t) => textOf(t)), ['项目任务1']);
+  assert.equal(findAllByClass(cellOf(el, TOMORROW), 'cal-card-title').length, 0, '明天不再重复这张卡片');
 });
 
 test('问题3：项目任务勾选写到它自己那一层', async () => {
@@ -181,5 +182,5 @@ test('问题3：项目任务与每日任务按时间混排', async () => {
   const el = await renderToday();
   const titles = findAllByClass(cellOf(el, TODAY), 'cal-card-title').map((t) => textOf(t));
   assert.equal(titles[0], '每日任务', '08:00 的每日任务排最前');
-  assert.equal(titles.length, 4);
+  assert.equal(titles.length, 3, '单日卡片 3 张（跨天的那条走 block）');
 });

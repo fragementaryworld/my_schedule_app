@@ -320,7 +320,7 @@
 .cal-card.from-project { border-left: 3px solid var(--primary); }
 .cal-card-act { opacity: 0; }
 .cal-card:hover .cal-card-act { opacity: 1; }
-.cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-month-grid { display: block; }
 .cal-cell { min-height: 110px; border-right: 1px solid var(--grid-line); border-bottom: 1px solid var(--grid-line); padding: 5px; display: flex; flex-direction: column; gap: 4px; }
 .cal-cell:nth-child(7n) { border-right: none; }
 .cal-cell.outside { background: var(--panel-2); }
@@ -342,10 +342,22 @@
 .cal-card-title { flex: 1; min-width: 0; }
 .cal-cont { color: var(--muted); font-size: 11px; }
 
-/* 跨多天的任务：中间几天做"延续"处理 */
-.cal-card.spanning { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
-.cal-card.continued .cal-card-title { opacity: .92; }
-.cal-card.span-end { border-bottom-right-radius: 3px; }
+/* 跨多天的任务：一条连续 block 横跨整段日期 */
+.cal-row { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-span-layer { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.cal-span {
+  position: absolute; height: 20px; box-sizing: border-box; border-radius: 8px;
+  display: flex; align-items: center; gap: 5px; padding: 0 7px;
+  color: #fff; font-size: 11.5px; white-space: nowrap; overflow: hidden;
+  pointer-events: auto; cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+}
+.cal-span:hover { filter: brightness(1.07); }
+.cal-span.done { opacity: .5; }
+.cal-span.clip-left { border-top-left-radius: 2px; border-bottom-left-radius: 2px; }
+.cal-span.clip-right { border-top-right-radius: 2px; border-bottom-right-radius: 2px; }
+.cal-span-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cal-span-days { opacity: .9; font-size: 10.5px; }
+.cal-span-clip { opacity: .85; font-size: 9px; }
 
 /* 图例 */
 .cal-legend-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; }

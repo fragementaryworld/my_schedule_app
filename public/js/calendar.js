@@ -262,3 +262,49 @@ export function dateBoard(entries) {
   const done = list.filter((e) => e.done);
   return { pending, done, total: list.length };
 }
+
+// 跨多天的条目：每个任务只出一条（用于画连续 block，而不是每天放一个）
+export function multiDayEntries(projects, dates, today = todayStr()) {
+  const wanted = (dates || []).filter(Boolean).slice().sort();
+  if (!wanted.length) return [];
+  const from = wanted[0];
+  const to = wanted[wanted.length - 1];
+  return projectEntriesByDate(projects, today)
+    .filter((e) => e.spanDays > 1 && e.spanFrom <= to && e.spanTo >= from);
+}
+
+// 把跨天任务切成"某一周行"里的连续横条，并分配互不重叠的泳道
+export function spanBarLayout(entries, rowDates) {
+  const bars = [];
+  for (const e of entries || []) {
+    if (!e || !(e.spanDays > 1)) continue;
+    let startCol = -1;
+    let endCol = -1;
+    (rowDates || []).forEach((d, i) => {
+      if (d >= e.spanFrom && d <= e.spanTo) {
+        if (startCol < 0) startCol = i;
+        endCol = i;
+      }
+    });
+    if (startCol < 0) continue;
+    bars.push({
+      entry: e,
+      startCol,
+      endCol,
+      continuesLeft: e.spanFrom < rowDates[startCol],
+      continuesRight: e.spanTo > rowDates[endCol]
+    });
+  }
+  bars.sort((a, b) => a.startCol - b.startCol || b.endCol - a.endCol);
+  const lanes = [];
+  for (const bar of bars) {
+    let lane = lanes.findIndex((lastCol) => lastCol < bar.startCol);
+    if (lane < 0) {
+      lane = lanes.length;
+      lanes.push(-1);
+    }
+    lanes[lane] = bar.endCol;
+    bar.lane = lane;
+  }
+  return { bars, laneCount: lanes.length };
+}
