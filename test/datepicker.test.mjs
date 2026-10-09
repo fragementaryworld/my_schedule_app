@@ -282,4 +282,59 @@ test('组件：区间在日历上标出起止与中间范围', () => {
   assert.ok(findAllByClass(field, 'is-start').length === 1);
   assert.ok(findAllByClass(field, 'is-end').length === 1);
   assert.equal(findAllByClass(field, 'in-range').length, 3, '7/8/9 三天的范围高亮');
+  document.dispatchEvent('click', { target: document.createElement('i') });
+});
+
+// ——— 问题1：窗口关闭方式 ———
+
+function openField(value) {
+  const made = makeField(value);
+  document.body.append(made.field);
+  findAllByClass(made.field, 'date-trigger')[0].click();
+  return { ...made, pop: findAllByClass(made.field, 'datepicker-pop')[0] };
+}
+
+test('问题1：点击窗口外可关闭选择器', () => {
+  const { pop } = openField({ dueDate: '2024-05-11' });
+  assert.equal(pop.style.display, '', '已展开');
+  document.dispatchEvent('click', { target: document.createElement('div') });
+  assert.equal(pop.style.display, 'none', '点窗口外应关闭');
+});
+
+test('问题1：点窗口内部不会关闭', () => {
+  const { field, pop } = openField({ dueDate: '2024-05-11' });
+  document.dispatchEvent('click', { target: findAllByClass(field, 'dp-day')[0] });
+  assert.equal(pop.style.display, '', '点日历内部应保持展开');
+  document.dispatchEvent('click', { target: document.createElement('i') });
+});
+
+test('问题1：Esc 也能关闭', () => {
+  const { pop } = openField({ dueDate: '2024-05-11' });
+  document.dispatchEvent('keydown', { key: 'Escape' });
+  assert.equal(pop.style.display, 'none');
+});
+
+test('问题1：再次点按钮可收起', () => {
+  const { field, pop } = openField({ dueDate: '2024-05-11' });
+  findAllByClass(field, 'date-trigger')[0].click();
+  assert.equal(pop.style.display, 'none');
+});
+
+test('问题1：关闭后不残留全局监听', () => {
+  const before = document.listenerCount('click');
+  const { pop } = openField({ dueDate: '2024-05-11' });
+  assert.equal(document.listenerCount('click'), before + 1, '展开时应挂上监听');
+  document.dispatchEvent('click', { target: document.createElement('div') });
+  assert.equal(pop.style.display, 'none');
+  assert.equal(document.listenerCount('click'), before, '关闭后应摘掉监听');
+});
+
+test('问题1：选好日期后仍可点外部退出', async () => {
+  const { field, saved, pop } = openField({});
+  dayBtn(field, '2024-05-20').click();
+  await tick();
+  assert.equal(saved.length, 1, '日期已保存');
+  assert.equal(pop.style.display, '', '选完保持展开，方便继续调整区间');
+  document.dispatchEvent('click', { target: document.createElement('div') });
+  assert.equal(pop.style.display, 'none', '点窗口外退出');
 });

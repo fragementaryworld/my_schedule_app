@@ -100,12 +100,26 @@ export class Element {
 }
 
 export function makeDocument() {
+  const listeners = {};
   const document = {
     createElement: (t) => new Element(t),
     createTextNode: (t) => ({ nodeType: 3, text: String(t), children: [], parentNode: null }),
     body: new Element('body'),
     documentElement: new Element('html'),
-    getElementById: (id) => findById(document.body, id)
+    getElementById: (id) => findById(document.body, id),
+    addEventListener(type, fn) {
+      (listeners[type] ||= []).push(fn);
+    },
+    removeEventListener(type, fn) {
+      listeners[type] = (listeners[type] || []).filter((f) => f !== fn);
+    },
+    dispatchEvent(type, event = {}) {
+      const e = { type, preventDefault() {}, stopPropagation() {}, ...event };
+      for (const fn of [...(listeners[type] || [])]) fn(e);
+    },
+    listenerCount(type) {
+      return (listeners[type] || []).length;
+    }
   };
   return document;
 }

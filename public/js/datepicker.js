@@ -342,14 +342,40 @@ export function buildDateField({ value, onSave, placeholder = '选择时间', to
     pop.append(h('div', { class: 'dp-hint small muted' }, '可只选一天；开启「结束日期」即为时间区间'));
   };
 
-  trigger.addEventListener('click', () => {
-    if (pop.style.display === 'none') {
-      jumpToValue();
-      paintPop();
-      pop.style.display = '';
-    } else {
-      pop.style.display = 'none';
+  const isInside = (node, root) => {
+    let cur = node;
+    while (cur) {
+      if (cur === root) return true;
+      cur = cur.parentNode || null;
     }
+    return false;
+  };
+
+  // 关闭时同时摘掉全局监听，避免残留
+  const closePop = () => {
+    pop.style.display = 'none';
+    document.removeEventListener('click', onDocClick);
+    document.removeEventListener('keydown', onDocKey);
+  };
+  const onDocClick = (e) => {
+    if (e && isInside(e.target, wrap)) return; // 点窗口内部不关
+    closePop();
+  };
+  const onDocKey = (e) => {
+    if (e && e.key === 'Escape') closePop();
+  };
+
+  const openPop = () => {
+    jumpToValue();
+    paintPop();
+    pop.style.display = '';
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onDocKey);
+  };
+
+  trigger.addEventListener('click', () => {
+    if (pop.style.display === 'none') openPop();
+    else closePop();
   });
 
   paintTrigger();
