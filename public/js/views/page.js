@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, confirmDialog } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
@@ -25,24 +25,29 @@ export async function render(container, params = {}) {
 
 async function paint() {
   if (!el) return;
-  blockEls.clear();
-  titleEl = null;
-  el.innerHTML = '';
-  const projects = await api.get('/api/projects');
-  const page = projects.find((x) => x.id === pageId);
-  if (!page) {
-    el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
-    return;
-  }
-  el.append(buildBreadcrumb(page));
-  el.append(buildIconTitle(page));
-  el.append(buildPageProperties(projects, page));
-  el.append(h('div', { class: 'page-section' }, '📝 内容'));
-  el.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
-  el.append(h('div', { class: 'page-section' }, '✅ 任务'));
-  el.append(buildProjectTasksSection(page, paint));
+  const pos = scrollPos();
+  try {
+    blockEls.clear();
+    titleEl = null;
+    el.innerHTML = '';
+    const projects = await api.get('/api/projects');
+    const page = projects.find((x) => x.id === pageId);
+    if (!page) {
+      el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
+      return;
+    }
+    el.append(buildBreadcrumb(page));
+    el.append(buildIconTitle(page));
+    el.append(buildPageProperties(projects, page));
+    el.append(h('div', { class: 'page-section' }, '📝 内容'));
+    el.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
+    el.append(h('div', { class: 'page-section' }, '✅ 任务'));
+    el.append(buildProjectTasksSection(page, paint));
 
-  if (isFreshPage(page)) focusTitle();
+    if (isFreshPage(page)) focusTitle();
+  } finally {
+    restoreScroll(pos);
+  }
 }
 
 // 新建页面时自动聚焦标题，方便直接输入

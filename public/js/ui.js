@@ -18,6 +18,17 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
+// 重绘会先清空内容，浏览器会把滚动条弹回顶部；重绘前后保住滚动位置
+export function scrollPos() {
+  if (typeof window === 'undefined') return null;
+  return { x: window.scrollX || 0, y: window.scrollY || 0 };
+}
+
+export function restoreScroll(pos) {
+  if (!pos || typeof window === 'undefined' || typeof window.scrollTo !== 'function') return;
+  window.scrollTo(pos.x, pos.y);
+}
+
 export function toast(msg, type = 'info') {
   const box = document.getElementById('toast');
   if (!box) return;

@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, confirmDialog } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { escapeHtml } from '../utils.js';
 import { createTask, createSubtask, subtaskHref } from './projects.js';
 import { buildBlocksEditor } from './page.js';
@@ -28,23 +28,28 @@ export async function render(container, params = {}) {
 
 async function paint() {
   if (!el) return;
-  titleEl = null;
-  el.innerHTML = '';
-  const projects = await api.get('/api/projects');
-  const project = projects.find((x) => x.id === projectId);
-  const task = project ? (project.tasks || []).find((t) => t.id === taskId) : null;
-  if (!project || !task) {
-    el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📋'), h('p', {}, '任务不存在或已删除。')));
-    return;
+  const pos = scrollPos();
+  try {
+    titleEl = null;
+    el.innerHTML = '';
+    const projects = await api.get('/api/projects');
+    const project = projects.find((x) => x.id === projectId);
+    const task = project ? (project.tasks || []).find((t) => t.id === taskId) : null;
+    if (!project || !task) {
+      el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📋'), h('p', {}, '任务不存在或已删除。')));
+      return;
+    }
+    el.append(buildBreadcrumb(project, task));
+    el.append(buildTaskHead(project, task));
+    el.append(buildTaskProperties(project, task));
+    el.append(h('div', { class: 'page-section' }, '📝 内容'));
+    el.append(buildBlocksEditor(task, `/api/projects/${projectId}/tasks/${taskId}`, paint));
+    el.append(h('div', { class: 'page-section' }, '📄 子任务'));
+    el.append(buildSubtasks(project, task));
+    if (isFreshTask(task)) focusTitle();
+  } finally {
+    restoreScroll(pos);
   }
-  el.append(buildBreadcrumb(project, task));
-  el.append(buildTaskHead(project, task));
-  el.append(buildTaskProperties(project, task));
-  el.append(h('div', { class: 'page-section' }, '📝 内容'));
-  el.append(buildBlocksEditor(task, `/api/projects/${projectId}/tasks/${taskId}`, paint));
-  el.append(h('div', { class: 'page-section' }, '📄 子任务'));
-  el.append(buildSubtasks(project, task));
-  if (isFreshTask(task)) focusTitle();
 }
 
 function buildBreadcrumb(project, task) {

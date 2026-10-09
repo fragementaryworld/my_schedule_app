@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, confirmDialog } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { formatDateValue } from '../datepicker.js';
@@ -308,15 +308,20 @@ export async function render(container, params = {}) {
 
 async function paintList() {
   if (!el) return;
-  el.innerHTML = '';
-  const projects = await api.get('/api/projects');
-  el.append(buildViewBar());
-  const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
-  if (!shown.length) {
-    el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点右上角「＋ 新增项目」。')));
-    return;
+  const pos = scrollPos();
+  try {
+    el.innerHTML = '';
+    const projects = await api.get('/api/projects');
+    el.append(buildViewBar());
+    const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
+    if (!shown.length) {
+      el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点右上角「＋ 新增项目」。')));
+      return;
+    }
+    el.append(renderProjectView(shown));
+  } finally {
+    restoreScroll(pos);
   }
-  el.append(renderProjectView(shown));
 }
 
 function buildViewBar() {
