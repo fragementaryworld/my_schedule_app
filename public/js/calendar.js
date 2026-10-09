@@ -11,6 +11,14 @@ export const CALENDAR_VIEWS = [
 // 每日任务（不属于任何项目）的固定配色
 export const DAY_TASK_COLOR = '#8a919c';
 
+// '#rrggbb' → 半透明同色，用来把整块卡片背景染色（文字仍然清晰）
+export function tint(hex, alpha = 0.26) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex === null || hex === undefined ? '' : hex));
+  if (!m) return '';
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 const WD = ['日', '一', '二', '三', '四', '五', '六'];
 
 // 一周 7 天的标签，按「一周起始日」偏好排序

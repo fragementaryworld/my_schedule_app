@@ -5,7 +5,7 @@ import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '.
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
-  projectEntriesForDates, mergeEntries, legendFor, dateBoard, multiDayEntries, spanBarLayout
+  projectEntriesForDates, mergeEntries, legendFor, dateBoard, multiDayEntries, spanBarLayout, tint
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
 
@@ -200,7 +200,7 @@ function buildCard(e, compact) {
       + (e.spanDays > 1 ? ' spanning' : '')
       + (e.continued ? ' continued' : '')
       + (e.spanDays > 1 && e.spanEnd ? ' span-end' : ''),
-    style: `border-left: 3px solid ${e.color || DAY_TASK_COLOR}`,
+    style: `background:${tint(e.color || DAY_TASK_COLOR)};border-left: 3px solid ${e.color || DAY_TASK_COLOR}`,
     title: e.title
   });
   // 卡片上的点击不要冒泡到格子，避免"想点任务却变成选日期"
@@ -293,7 +293,7 @@ function boardCol(title, entries, doneFlag) {
   for (const e of entries) {
     const card = h('div', {
       class: 'kanban-card cal-board-card' + (e.done ? ' done' : ''),
-      style: `border-left: 3px solid ${e.color || DAY_TASK_COLOR}`
+      style: `background:${tint(e.color || DAY_TASK_COLOR)};border-left: 3px solid ${e.color || DAY_TASK_COLOR}`
     });
     const row = h('div', { class: 'row' });
     const cb = h('input', { type: 'checkbox', class: 'task-check cal-check' });
