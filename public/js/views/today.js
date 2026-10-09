@@ -1,11 +1,15 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, openModal, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '../utils.js';
 import {
   CALENDAR_VIEWS, weekdayLabels, visibleDates, rangeOf, groupByDate, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber
 } from '../calendar.js';
+import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
+
+// 兼容：这些纯函数仍从本模块导出（供既有测试与页面复用）
+export { repeatCode, decodeRepeat, repeatLabel, sourceLabel } from '../daytask.js';
 
 let el = null;
 let anchor = todayStr();
@@ -24,56 +28,6 @@ export function partitionTasks(tasks) {
   return { timed, untimed, done };
 }
 
-const REPEAT_OPTIONS = [
-  { value: '', label: '不重复' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekly', label: '每周' },
-  { value: 'd2', label: '每2天' },
-  { value: 'w2', label: '每2周' }
-];
-
-export function repeatCode(r) {
-  if (r === 'daily') return 'daily';
-  if (r === 'weekly') return 'weekly';
-  if (r && r.interval === 2 && r.unit === 'day') return 'd2';
-  if (r && r.interval === 2 && r.unit === 'week') return 'w2';
-  return '';
-}
-
-export function decodeRepeat(code) {
-  if (code === 'daily') return 'daily';
-  if (code === 'weekly') return 'weekly';
-  if (code === 'd2') return { interval: 2, unit: 'day' };
-  if (code === 'w2') return { interval: 2, unit: 'week' };
-  return null;
-}
-
-export function repeatLabel(r) {
-  if (r === 'daily') return '每天';
-  if (r === 'weekly') return '每周';
-  if (r && r.unit === 'day') return `每${r.interval}天`;
-  if (r && r.unit === 'week') return `每${r.interval}周`;
-  return '';
-}
-
-const SOURCE_MAP = { project: '📁 项目', book: '📚 阅读', workout: '💪 健身', idea: '💡 灵感' };
-export function sourceLabel(type) {
-  return SOURCE_MAP[type] || type || '';
-}
-
-const SOURCE_OPTIONS = [
-  { value: '', label: '无' },
-  { value: 'project', label: '工作项目' },
-  { value: 'book', label: '阅读' },
-  { value: 'workout', label: '健身' },
-  { value: 'idea', label: '灵感' }
-];
-const PRIORITY_OPTIONS = [
-  { value: 'high', label: '高' },
-  { value: 'medium', label: '中' },
-  { value: 'low', label: '低' }
-];
-
 async function paint() {
   if (!el) return;
   const pos = scrollPos();
@@ -86,13 +40,12 @@ async function paint() {
   try {
     el.append(buildToolbar());
     el.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
-    el.append(buildLegend());
+    el.append(h('div', { class: 'small muted cal-legend' }, '点标题进入任务页面；勾选框可直接完成/取消完成。'));
   } finally {
     restoreScroll(pos);
   }
 }
 
-// 日历条目：目前是每日计划里的独立任务（工作项目任务在后续增量并入）
 function toEntry(t) {
   return {
     kind: 'day',
@@ -115,7 +68,7 @@ function buildToolbar() {
   const wrap = h('div', { class: 'cal-toolbar' });
 
   const top = h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' });
-  const addBtn = h('button', { class: 'btn btn-primary btn-sm' }, '＋ 新增任务');
+  const addBtn = h('button', { class: 'btn btn-primary btn-sm add-day-task' }, '＋ 新增任务');
   addBtn.onclick = () => addTask();
   top.append(addBtn);
 
@@ -233,68 +186,18 @@ function buildCard(e, compact) {
   return card;
 }
 
-function buildLegend() {
-  return h('div', { class: 'small muted cal-legend' }, '点标题可编辑；勾选框可直接完成/取消完成。');
-}
-
 async function toggleEntry(e) {
   await api.put(`/api/tasks/${e.id}`, { done: !e.done });
   paint();
 }
 
+// 标题点进入任务页面（页面式编辑，不再弹窗）
 function openEntry(e) {
-  editTask(e.raw || e);
+  location.hash = dayTaskHref(e.id);
 }
 
-function taskFields(t) {
-  return [
-    { name: 'title', label: '标题', required: true, value: t ? t.title : '' },
-    { name: 'time', label: '时间（可留空）', type: 'time', value: t ? (t.time || '') : '' },
-    { name: 'priority', label: '优先级', type: 'select', value: t ? (t.priority || 'medium') : 'medium', options: PRIORITY_OPTIONS },
-    { name: 'repeat', label: '重复', type: 'select', value: t ? repeatCode(t.repeat) : '', options: REPEAT_OPTIONS },
-    { name: 'source', label: '来源（可选）', type: 'select', value: t ? ((t.source && t.source.type) || '') : '', options: SOURCE_OPTIONS },
-    { name: 'note', label: '备注', type: 'textarea', value: t ? (t.note || '') : '' }
-  ];
-}
-
-function editTask(t) {
-  openModal({
-    title: '编辑任务',
-    fields: taskFields(t),
-    onSubmit: async (v) => {
-      await api.put(`/api/tasks/${t.id}`, {
-        title: v.title.trim(),
-        time: v.time || null,
-        priority: v.priority,
-        repeat: decodeRepeat(v.repeat),
-        source: v.source ? { type: v.source, id: null } : null,
-        note: v.note
-      });
-      toast('已保存');
-      paint();
-    }
-  });
-}
-
-function addTask() {
-  openModal({
-    title: '新增任务',
-    fields: taskFields(null),
-    onSubmit: async (v) => {
-      await api.post('/api/tasks', {
-        title: v.title.trim(),
-        date: anchor,
-        time: v.time || null,
-        priority: v.priority,
-        repeat: decodeRepeat(v.repeat),
-        source: v.source ? { type: v.source, id: null } : null,
-        note: v.note,
-        order: Date.now()
-      });
-      toast('已添加');
-      paint();
-    }
-  });
+async function addTask() {
+  await createDayTask(anchor);
 }
 
 export async function render(container) {
@@ -310,5 +213,5 @@ export async function render(container) {
 }
 
 export function add() {
-  addTask();
+  return addTask();
 }

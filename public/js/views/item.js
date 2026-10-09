@@ -60,7 +60,8 @@ export async function render(container, params = {}) {
 }
 
 async function paint() {
-  if (!el) return;
+  const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
+  if (!container) return;
   const pos = scrollPos();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
   const projects = await api.get('/api/projects');
@@ -68,20 +69,20 @@ async function paint() {
   const nodes = chainNodes(project, chain);
   const item = nodes.length ? nodes[nodes.length - 1] : null;
   titleEl = null;
-  el.innerHTML = '';
+  container.innerHTML = '';
   try {
     if (!project || !item) {
-      el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📋'), h('p', {}, '内容不存在或已删除。')));
+      container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📋'), h('p', {}, '内容不存在或已删除。')));
       return;
     }
     const depth = chain.length;
-    el.append(buildBreadcrumb(project, nodes));
-    el.append(buildHead(project, item, chain));
-    el.append(buildItemProperties(project, item, chain));
-    el.append(h('div', { class: 'page-section' }, '📝 内容'));
-    el.append(buildBlocksEditor(item, itemBase(projectId, chain), paint));
-    el.append(h('div', { class: 'page-section' }, `📄 ${childLevelName(depth)}`));
-    el.append(buildChildren(project, item, chain, depth));
+    container.append(buildBreadcrumb(project, nodes));
+    container.append(buildHead(project, item, chain));
+    container.append(buildItemProperties(project, item, chain));
+    container.append(h('div', { class: 'page-section' }, '📝 内容'));
+    container.append(buildBlocksEditor(item, itemBase(projectId, chain), paint));
+    container.append(h('div', { class: 'page-section' }, `📄 ${childLevelName(depth)}`));
+    container.append(buildChildren(project, item, chain, depth));
     if (isFreshItem(item)) focusTitle();
   } finally {
     restoreScroll(pos);

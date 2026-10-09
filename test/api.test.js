@@ -456,6 +456,27 @@ test('任务支持开始/截止时间区间', async () => {
   assert.equal(task.dueDate, '2024-05-10');
 });
 
+test('任务：按 id 读取、按日期区间读取、日期格式可改', async () => {
+  const t = await api('POST', '/api/tasks', { title: '区间任务', date: '2024-05-10' });
+  const one = await api('GET', `/api/tasks/${t.json.id}`);
+  assert.equal(one.status, 200);
+  assert.equal(one.json.title, '区间任务');
+
+  assert.equal((await api('GET', '/api/tasks/nope')).status, 404);
+
+  await api('POST', '/api/tasks', { title: '区间任务2', date: '2024-05-12' });
+  const range = await api('GET', '/api/tasks?from=2024-05-10&to=2024-05-12');
+  assert.equal(range.status, 200);
+  assert.deepEqual(range.json.map((x) => x.date), ['2024-05-10', '2024-05-12']);
+
+  assert.equal((await api('GET', '/api/tasks?from=2024-05-12&to=2024-05-10')).status, 400, '起止颠倒应报错');
+  assert.equal((await api('GET', '/api/tasks?from=2024-01-01&to=2024-12-31')).status, 400, '区间过大应报错');
+
+  const upd = await api('PUT', `/api/tasks/${t.json.id}`, { date: '2024-05-11', dateFormat: 'iso' });
+  assert.equal(upd.json.date, '2024-05-11');
+  assert.equal(upd.json.dateFormat, 'iso');
+});
+
 test('任务层级：可嵌套 5 层，第 6 层被拒绝', async () => {
   const p = await api('POST', '/api/projects', { name: '多层项目' });
   const pid = p.json.id;

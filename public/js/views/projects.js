@@ -419,19 +419,20 @@ export async function render(container, params = {}) {
 }
 
 async function paintList() {
-  if (!el) return;
+  const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
+  if (!container) return;
   const pos = scrollPos();
   // 先取数据，再一次性重建：中间不出现空页面，滚动条就不会被弹回顶部
   const projects = await api.get('/api/projects');
-  el.innerHTML = '';
+  container.innerHTML = '';
   try {
-    el.append(buildViewBar());
+    container.append(buildViewBar());
     const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
     if (!shown.length) {
-      el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点右上角「＋ 新增项目」。')));
+      container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点右上角「＋ 新增项目」。')));
       return;
     }
-    el.append(renderProjectView(shown));
+    container.append(renderProjectView(shown));
   } finally {
     restoreScroll(pos);
   }

@@ -24,26 +24,27 @@ export async function render(container, params = {}) {
 }
 
 async function paint() {
-  if (!el) return;
+  const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
+  if (!container) return;
   const pos = scrollPos();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
   const projects = await api.get('/api/projects');
   const page = projects.find((x) => x.id === pageId);
   blockEls.clear();
   titleEl = null;
-  el.innerHTML = '';
+  container.innerHTML = '';
   try {
     if (!page) {
-      el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
+      container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
       return;
     }
-    el.append(buildBreadcrumb(page));
-    el.append(buildIconTitle(page));
-    el.append(buildPageProperties(projects, page));
-    el.append(h('div', { class: 'page-section' }, '📝 内容'));
-    el.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
-    el.append(h('div', { class: 'page-section' }, '✅ 任务'));
-    el.append(buildProjectTasksSection(page, paint));
+    container.append(buildBreadcrumb(page));
+    container.append(buildIconTitle(page));
+    container.append(buildPageProperties(projects, page));
+    container.append(h('div', { class: 'page-section' }, '📝 内容'));
+    container.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
+    container.append(h('div', { class: 'page-section' }, '✅ 任务'));
+    container.append(buildProjectTasksSection(page, paint));
 
     if (isFreshPage(page)) focusTitle();
   } finally {

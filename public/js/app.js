@@ -10,8 +10,9 @@ import * as ideas from './views/ideas.js';
 import * as settings from './views/settings.js';
 import * as page from './views/page.js';
 import * as task from './views/item.js';
+import * as plan from './views/plan.js';
 
-export const views = { home, today, projects, reading, fitness, ideas, settings, page, task };
+export const views = { home, today, projects, reading, fitness, ideas, settings, page, task, plan };
 
 export const titles = {
   home: '首页',
@@ -22,7 +23,8 @@ export const titles = {
   ideas: '灵感',
   settings: '数据与设置',
   page: '项目页面',
-  task: '任务'
+  task: '任务',
+  plan: '计划任务'
 };
 
 export async function saveNow() {
@@ -49,7 +51,7 @@ export async function navigate() {
   const view = views[route] || views.home;
   currentView = view;
   currentParams = { id, subId, subId2, chain };
-  const navRoute = (route === 'page' || route === 'task') ? 'projects' : route;
+  const navRoute = (route === 'page' || route === 'task') ? 'projects' : (route === 'plan' ? 'today' : route);
   document.querySelectorAll('#nav a, .sidebar-foot a').forEach((a) => {
     a.classList.toggle('active', a.dataset.route === navRoute);
   });
