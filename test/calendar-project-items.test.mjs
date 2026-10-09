@@ -65,6 +65,10 @@ async function renderToday() {
   dayTasks = DAY_TASKS;
   const el = document.createElement('div');
   await todayMod.render(el);
+  // 视图选择是全局状态，显式回到周视图，避免用例之间互相影响
+  const week = findAllByTag(el, 'button').find((b) => textOf(b) === '周视图');
+  if (week) week.click();
+  await tick();
   return el;
 }
 
@@ -135,10 +139,11 @@ test('问题3：日历里能看到工作项目的任务（含各级子任务）'
   const el = await renderToday();
   const todayCell = cellOf(el, TODAY);
   const names = findAllByClass(todayCell, 'cal-card-title').map((t) => textOf(t)).sort();
-  assert.deepEqual(names, ['子任务1', '子子任务', '每日任务'].sort(), '每日任务 + 项目任务一起显示');
+  // 项目任务1 跨 今天→明天，今天这一格也要出现
+  assert.deepEqual(names, ['子任务1', '子子任务', '每日任务', '项目任务1'].sort());
 
   const projectCards = findAllByClass(todayCell, 'cal-card').filter((c) => c.classList.contains('from-project'));
-  assert.equal(projectCards.length, 2, '两条来自工作项目');
+  assert.equal(projectCards.length, 3, '三条来自工作项目');
   assert.ok(textOf(todayCell).includes('📁 项目A'), '标出来自哪个项目');
 
   assert.deepEqual(findAllByClass(cellOf(el, TOMORROW), 'cal-card-title').map((t) => textOf(t)), ['项目任务1']);
@@ -176,5 +181,5 @@ test('问题3：项目任务与每日任务按时间混排', async () => {
   const el = await renderToday();
   const titles = findAllByClass(cellOf(el, TODAY), 'cal-card-title').map((t) => textOf(t));
   assert.equal(titles[0], '每日任务', '08:00 的每日任务排最前');
-  assert.equal(titles.length, 3);
+  assert.equal(titles.length, 4);
 });

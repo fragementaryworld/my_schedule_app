@@ -330,6 +330,16 @@
 .cal-month .cal-card-meta { display: none; }
 .cal-more { font-size: 11px; color: var(--muted); padding-left: 4px; }
 .cal-legend { margin-top: 10px; }
+
+/* 任务卡片标题行 */
+.cal-card-titlerow { align-items: center; gap: 5px; }
+.cal-card-title { flex: 1; min-width: 0; }
+.cal-cont { color: var(--muted); font-size: 11px; }
+
+/* 跨多天的任务：中间几天做"延续"处理 */
+.cal-card.spanning { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.cal-card.continued .cal-card-title { opacity: .92; }
+.cal-card.span-end { border-bottom-right-radius: 3px; }
 .block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
 .block-divider { border-top: 1px solid var(--border); height: 0; padding: 0; }
 

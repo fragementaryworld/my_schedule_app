@@ -140,12 +140,70 @@ export function itemCalendarDate(node) {
   return node.dueDate || node.startDate || null;
 }
 
-// 项目任务 → 日历条目（含接口地址与页面链接）
+export function daysBetween(a, b) {
+  const [y1, m1, d1] = a.split('-').map(Number);
+  const [y2, m2, d2] = b.split('-').map(Number);
+  return Math.round((new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1)) / 86400000);
+}
+
+// 任务的日期跨度（保证 from <= to）；只有一个日期时跨度就是那一天
+export function itemSpan(node) {
+  if (!node) return null;
+  const a = node.startDate || node.dueDate || null;
+  const b = node.dueDate || node.startDate || null;
+  if (!a || !b) return null;
+  return a <= b ? { from: a, to: b } : { from: b, to: a };
+}
+
+export function spanDays(span) {
+  if (!span) return 0;
+  return daysBetween(span.from, span.to) + 1;
+}
+
+// 项目任务铺到给定日期：跨多天的任务在每一天都出现（不是只放在开始/结束那天）
+export function projectEntriesForDates(projects, dates, today = todayStr()) {
+  const wanted = [...(dates || [])].sort();
+  if (!wanted.length) return [];
+  const out = [];
+  for (const { node, project, path, depth } of flattenProjectItems(projects)) {
+    const span = itemSpan(node);
+    if (!span) continue;
+    const total = spanDays(span);
+    for (const date of wanted) {
+      if (date < span.from || date > span.to) continue;
+      out.push({
+        kind: 'project',
+        id: node.id,
+        title: node.title,
+        date,
+        time: node.dueTime || '',
+        done: !!node.done,
+        projectId: project.id,
+        projectName: project.name,
+        path,
+        depth,
+        base: itemBase(project.id, path),
+        href: itemHref(project.id, path),
+        spanFrom: span.from,
+        spanTo: span.to,
+        spanDays: total,
+        spanStart: date === span.from,
+        spanEnd: date === span.to,
+        continued: date !== span.from,
+        overdue: !node.done && !!node.dueDate && node.dueDate < today
+      });
+    }
+  }
+  return out;
+}
+
+// 项目任务 → 日历条目（只落在一天：优先截止日）
 export function projectEntriesByDate(projects, today = todayStr()) {
   const out = [];
   for (const { node, project, path, depth } of flattenProjectItems(projects)) {
     const date = itemCalendarDate(node);
     if (!date) continue;
+    const span = itemSpan(node) || { from: date, to: date };
     out.push({
       kind: 'project',
       id: node.id,
@@ -159,6 +217,12 @@ export function projectEntriesByDate(projects, today = todayStr()) {
       depth,
       base: itemBase(project.id, path),
       href: itemHref(project.id, path),
+      spanFrom: span.from,
+      spanTo: span.to,
+      spanDays: spanDays(span),
+      spanStart: date === span.from,
+      spanEnd: date === span.to,
+      continued: date !== span.from,
       overdue: !node.done && !!node.dueDate && node.dueDate < today
     });
   }

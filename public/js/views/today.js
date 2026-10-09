@@ -5,7 +5,7 @@ import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '.
 import {
   CALENDAR_VIEWS, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
-  projectEntriesByDate, mergeEntries
+  projectEntriesForDates, mergeEntries
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
 
@@ -34,19 +34,19 @@ async function paint() {
   if (!container) return;
   const pos = scrollPos();
   const { from, to } = rangeOf(anchor, view, weekStartPref);
-  // 每日计划任务 + 工作项目里的所有任务（含各级子任务）
+  const dates = visibleDates(anchor, view, weekStartPref);
+  // 每日计划任务 + 工作项目里的所有任务（含各级子任务，跨多天的任务铺满整段）
   const [tasks, projects] = await Promise.all([
     api.get(`/api/tasks?from=${from}&to=${to}`),
     api.get('/api/projects').catch(() => [])
   ]);
-  const byDate = mergeEntries(tasks.map(toEntry), projectEntriesByDate(projects, todayStr()));
-  const dates = visibleDates(anchor, view, weekStartPref);
+  const projectEntries = projectEntriesForDates(projects, dates, todayStr());
+  const byDate = mergeEntries(tasks.map(toEntry), projectEntries);
 
   container.innerHTML = '';
   try {
     container.append(buildToolbar());
     container.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
-    container.append(h('div', { class: 'small muted cal-legend' }, '点标题进入对应页面；勾选框可直接完成/取消完成。📁 标记来自工作项目。'));
   } finally {
     restoreScroll(pos);
   }
@@ -114,7 +114,10 @@ function buildWeek(byDate, dates) {
 
   const row = h('div', { class: 'cal-week-row' });
   for (const d of dates) {
-    const col = h('div', { class: 'cal-col' + (isToday(d) ? ' today' : ''), dataset: { date: d } });
+    const col = h('div', {
+      class: 'cal-col' + (isToday(d) ? ' today' : ''),
+      dataset: { date: d }
+    });
     col.append(h('div', { class: 'cal-col-head' }, h('span', { class: 'cal-daynum' }, String(dayNumber(d)))));
     const list = h('div', { class: 'cal-cards' });
     for (const e of sortDayEntries(byDate.get(d) || [])) list.append(buildCard(e));
@@ -150,7 +153,12 @@ function buildMonth(byDate, dates) {
 
 function buildCard(e, compact) {
   const card = h('div', {
-    class: 'cal-card' + (e.done ? ' done' : '') + (e.kind === 'project' ? ' from-project' : ''),
+    class: 'cal-card'
+      + (e.done ? ' done' : '')
+      + (e.kind === 'project' ? ' from-project' : '')
+      + (e.spanDays > 1 ? ' spanning' : '')
+      + (e.continued ? ' continued' : '')
+      + (e.spanDays > 1 && e.spanEnd ? ' span-end' : ''),
     title: e.title
   });
 
@@ -163,13 +171,17 @@ function buildCard(e, compact) {
   card.append(cb);
 
   const body = h('div', { class: 'cal-card-body' });
-  const title = h('div', { class: 'cal-card-title row-link' }, escapeHtml(e.title));
+  const titleRow = h('div', { class: 'row cal-card-titlerow' });
+  if (e.continued) titleRow.append(h('span', { class: 'cal-cont', title: `延续自 ${e.spanFrom}` }, '↳'));
+  const title = h('span', { class: 'cal-card-title row-link' }, escapeHtml(e.title));
   title.onclick = () => openEntry(e);
-  body.append(title);
+  titleRow.append(title);
+  body.append(titleRow);
 
   const meta = h('div', { class: 'cal-card-meta' });
   if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
   if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
+  if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `${e.spanStart ? '起' : (e.spanEnd ? '止' : '续')} · 共 ${e.spanDays} 天`));
   if (e.sourceLabel) meta.append(h('span', { class: 'cal-chip' }, e.sourceLabel));
   if (e.repeat || e.repeatOf) meta.append(h('span', { class: 'cal-chip' }, '🔁'));
   if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
