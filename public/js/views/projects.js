@@ -10,7 +10,6 @@ let currentParams = {};
 let currentFilter = 'all';
 let listView = 'table';
 let taskView = 'table';
-const expandedTasks = new Set();
 
 // 任务时间展示（按该任务选定的日期格式）
 export function formatTaskDates(task) {
@@ -779,8 +778,37 @@ function refreshTasks() {
   if (refreshFn) refreshFn();
 }
 
+// 展开状态：默认收起时记"已展开"，默认展开时记"已收起"（id 全局唯一）
+const expandedItems = new Set();
+const collapsedItems = new Set();
+
+function isOpen(ctx, node) {
+  return ctx.defaultExpanded ? !collapsedItems.has(node.id) : expandedItems.has(node.id);
+}
+
+function toggleOpen(ctx, node) {
+  const set = ctx.defaultExpanded ? collapsedItems : expandedItems;
+  if (set.has(node.id)) set.delete(node.id);
+  else set.add(node.id);
+}
+
+// 把子树按深度优先摊平成 [{ node, path, depth }]；isExpanded 控制是否继续往下
+export function flattenSubtree(nodes, opts = {}) {
+  const { path = [], depth = 1, isExpanded } = opts;
+  const out = [];
+  for (const node of nodes || []) {
+    const nodePath = [...path, node.id];
+    out.push({ node, path: nodePath, depth });
+    const kids = node.subtasks || [];
+    if (kids.length && (!isExpanded || isExpanded(node))) {
+      out.push(...flattenSubtree(kids, { path: nodePath, depth: depth + 1, isExpanded }));
+    }
+  }
+  return out;
+}
+
 // 一个"层级"的视图上下文：项目页任务区（第 1 层）与任意层级的任务页共用同一套视图
-// opts: { projectId, parentChain, items, refresh, canAdd, addLabel, onAdd, rangeNode, emptyText, hint }
+// opts: { projectId, parentChain, items, refresh, canAdd, addLabel, onAdd, rangeNode, emptyText, hint, deep, defaultExpanded }
 function nodeCtx(opts = {}) {
   const projectId = opts.projectId;
   const parent = opts.parentChain || [];
@@ -794,11 +822,19 @@ function nodeCtx(opts = {}) {
     onAdd: opts.onAdd || (() => createTask(projectId)),
     rangeNode: opts.rangeNode || {},
     emptyText: opts.emptyText || '还没有内容，点右上角新增。',
-    hint: opts.hint || ''
+    hint: opts.hint || '',
+    deep: !!opts.deep,
+    defaultExpanded: !!opts.defaultExpanded
   };
-  const chainOf = (node, sub) => (sub ? [...parent, node.id, sub.id] : [...parent, node.id]);
-  ctx.base = (node, sub) => itemBase(projectId, chainOf(node, sub));
-  ctx.href = (node, sub) => itemHref(projectId, chainOf(node, sub));
+  // path 是相对"当前层"的 id 链，例如 ['t1','s1','s2']
+  ctx.deepBase = (path) => itemBase(projectId, [...parent, ...path]);
+  ctx.deepHref = (path) => itemHref(projectId, [...parent, ...path]);
+  ctx.base = (node, sub) => ctx.deepBase(sub ? [node.id, sub.id] : [node.id]);
+  ctx.href = (node, sub) => ctx.deepHref(sub ? [node.id, sub.id] : [node.id]);
+  // 需列出哪些条目：deep=整棵子树；否则只列直接下级
+  ctx.entries = () => (ctx.deep
+    ? flattenSubtree(ctx.items)
+    : ctx.items.map((node) => ({ node, path: [node.id], depth: 1 })));
   return ctx;
 }
 
@@ -853,7 +889,7 @@ function renderItemView(ctx) {
   return buildItemTable(ctx);
 }
 
-// 表格：完成 / 任务 / 时间 / 状态 / 下级，可展开下级（层级无关，ctx 决定是哪一层）
+// 表格：完成 / 任务 / 时间 / 状态 / 下级；展开后把下面所有层级都列出来
 export function buildItemTable(ctx) {
   const today = todayStr();
   const table = h('table', { class: 'task-table' });
@@ -864,19 +900,18 @@ export function buildItemTable(ctx) {
   const tbody = h('tbody', {});
   for (const t of ctx.items) {
     const subs = t.subtasks || [];
-    const isOpen = expandedTasks.has(t.id);
+    const open = isOpen(ctx, t);
 
     const tr = h('tr', {});
     const tdToggle = h('td', {});
     const toggle = h('button', {
       class: 'icon-btn',
       title: subs.length ? '展开/收起子任务' : '无子任务'
-    }, subs.length ? (isOpen ? '▾' : '▸') : '·');
+    }, subs.length ? (open ? '▾' : '▸') : '·');
     toggle.onclick = (e) => {
       e.stopPropagation();
       if (!subs.length) return;
-      if (expandedTasks.has(t.id)) expandedTasks.delete(t.id);
-      else expandedTasks.add(t.id);
+      toggleOpen(ctx, t);
       ctx.refresh();
     };
     tdToggle.append(toggle);
@@ -915,29 +950,72 @@ export function buildItemTable(ctx) {
     tr.append(tdOps);
     tbody.append(tr);
 
-    if (isOpen && subs.length) {
-      const list = h('div', { class: 'subtask-list' });
-      for (const st of subs) {
-        const scb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
-        scb.checked = !!st.done;
-        scb.onclick = async () => {
-          await api.put(ctx.base(t, st), { done: !st.done });
-          st.done = !st.done;
-          ctx.refresh();
-        };
-        const subLink = h('span', { class: 'row-link', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title));
-        subLink.onclick = () => { location.hash = ctx.href(t, st); };
-        list.append(h('div', { class: 'row', style: 'padding:2px 0' },
-          scb,
-          subLink,
-          h('span', { class: 'small muted' }, formatDateValue(st))
-        ));
-      }
-      tbody.append(h('tr', { class: 'subtask-row' }, h('td', { colspan: '7' }, list)));
-    }
+    if (open && subs.length) tbody.append(subtreeRow(ctx, t));
   }
   table.append(tbody);
   return table;
+}
+
+// 展开行：该任务下面**所有**层级（每层都能勾选 / 进入 / 删除）
+function subtreeRow(ctx, top) {
+  const list = h('div', { class: 'subtask-list' });
+  const entries = flattenSubtree(top.subtasks || [], {
+    path: [top.id],
+    depth: 1,
+    isExpanded: (n) => isOpen(ctx, n)
+  });
+  if (!entries.length) list.append(h('div', { class: 'small muted' }, '没有下级'));
+  for (const entry of entries) list.append(subtreeItemRow(ctx, entry));
+  return h('tr', { class: 'subtask-row' }, h('td', { colspan: '7' }, list));
+}
+
+function subtreeItemRow(ctx, entry) {
+  const { node, path, depth } = entry;
+  const kids = node.subtasks || [];
+  const row = h('div', { class: 'row', style: 'padding:2px 0' });
+
+  if (depth > 1) row.append(h('span', { style: `width:${(depth - 1) * 16}px;flex-shrink:0` }));
+
+  const toggle = h('button', {
+    class: 'icon-btn subtree-toggle',
+    title: kids.length ? '展开/收起下级' : '无下级'
+  }, kids.length ? (isOpen(ctx, node) ? '▾' : '▸') : '·');
+  toggle.onclick = (e) => {
+    e.stopPropagation();
+    if (!kids.length) return;
+    toggleOpen(ctx, node);
+    ctx.refresh();
+  };
+  row.append(toggle);
+
+  const cb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
+  cb.checked = !!node.done;
+  cb.onclick = async () => {
+    await api.put(ctx.deepBase(path), { done: !node.done });
+    node.done = !node.done;
+    ctx.refresh();
+  };
+  row.append(cb);
+
+  const link = h('span', {
+    class: 'row-link',
+    style: `flex:1;${node.done ? 'text-decoration:line-through;color:var(--muted)' : ''}`
+  }, escapeHtml(node.title));
+  link.onclick = () => { location.hash = ctx.deepHref(path); };
+  row.append(link);
+
+  row.append(h('span', { class: 'small muted' }, formatDateValue(node)));
+  if (kids.length) row.append(h('span', { class: 'small muted' }, `下级 ${kids.length}`));
+
+  const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
+  del.onclick = async () => {
+    if (await confirmDialog(`删除「${node.title}」及其下级？`, { danger: true })) {
+      await api.del(ctx.deepBase(path));
+      ctx.refresh();
+    }
+  };
+  row.append(del);
+  return row;
 }
 
 export function buildTaskTable(p) {
@@ -970,7 +1048,8 @@ export function shiftTaskDates(task, deltaDays) {
 // 时间线：日期刻度 + 今日红线 + 待办/已完成分组（可拖动改时间、拖名切换完成）
 export function buildItemTimeline(ctx) {
   const today = todayStr();
-  const dated = ctx.items.filter((t) => t.dueDate);
+  const all = ctx.entries();
+  const dated = all.filter((e) => e.node.dueDate);
   const wrap = h('div', { class: 'timeline' });
 
   if (!dated.length) {
@@ -978,7 +1057,7 @@ export function buildItemTimeline(ctx) {
     return wrap;
   }
 
-  const { start, end } = ganttRange(ctx.items, ctx.rangeNode);
+  const { start, end } = ganttRange(all.map((e) => e.node), ctx.rangeNode);
   const totalDays = Math.max(1, daysBetween(start, end));
   wrap.append(h('div', { class: 'row timeline-head' },
     h('span', { class: 'small muted' }, `时间轴：${start} ~ ${end}`),
@@ -996,8 +1075,8 @@ export function buildItemTimeline(ctx) {
 
   const tp = todayPct(start, end);
   const groups = [
-    { key: 'pending', label: '待办', cls: 'active', done: false, items: dated.filter((t) => !t.done) },
-    { key: 'done', label: '已完成', cls: 'done', done: true, items: dated.filter((t) => t.done) }
+    { key: 'pending', label: '待办', cls: 'active', done: false, items: dated.filter((e) => !e.node.done) },
+    { key: 'done', label: '已完成', cls: 'done', done: true, items: dated.filter((e) => e.node.done) }
   ];
 
   for (const grp of groups) {
@@ -1012,24 +1091,26 @@ export function buildItemTimeline(ctx) {
       e.preventDefault();
       box.classList.remove('drop-hover');
       const id = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
-      const node = ctx.items.find((x) => x.id === id);
-      if (!node) return;
-      await api.put(ctx.base(node), { done: grp.done });
+      const entry = all.find((x) => x.node.id === id);
+      if (!entry) return;
+      await api.put(ctx.deepBase(entry.path), { done: grp.done });
       toast('状态已更新');
       ctx.refresh();
     });
 
     if (!grp.items.length) box.append(h('div', { class: 'small muted', style: 'padding:2px 8px' }, '暂无'));
 
-    for (const t of grp.items) {
+    for (const entry of grp.items) {
+      const t = entry.node;
       const bar = taskTimelineBar(t, start, end);
       const row = h('div', { class: 'timeline-row' });
       const label = h('span', {
         class: 'timeline-label row-link',
+        style: entry.depth > 1 ? `padding-left:${(entry.depth - 1) * 14}px` : '',
         title: `${t.title}（拖到分组标题可切换完成）`,
         draggable: 'true'
       }, escapeHtml(t.title));
-      label.onclick = () => { location.hash = ctx.href(t); };
+      label.onclick = () => { location.hash = ctx.deepHref(entry.path); };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); };
       row.append(label);
 
@@ -1038,7 +1119,7 @@ export function buildItemTimeline(ctx) {
 
       const savePatch = async (patch) => {
         if (!patch) { ctx.refresh(); return; }
-        await api.put(ctx.base(t), patch);
+        await api.put(ctx.deepBase(entry.path), patch);
         toast('时间已更新');
         ctx.refresh();
       };
@@ -1049,7 +1130,7 @@ export function buildItemTimeline(ctx) {
         style: `left:${bar.left}%;width:${bar.width}%`,
         title: `${t.title}（${formatTaskDates(t)}）`
       }, h('span', { class: 'timeline-bar-label' }, formatTaskDates(t)));
-      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = ctx.href(t); };
+      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = ctx.deepHref(entry.path); };
       attachBarDrag(barEl, track, t, totalDays, savePatch);
 
       const leftH = h('div', { class: 'timeline-handle left', title: '拖动调整开始时间' });
@@ -1067,9 +1148,9 @@ export function buildItemTimeline(ctx) {
     wrap.append(box);
   }
 
-  const undated = ctx.items.filter((t) => !t.dueDate);
+  const undated = all.filter((e) => !e.node.dueDate);
   if (undated.length) {
-    wrap.append(h('div', { class: 'small muted', style: 'margin-top:8px' }, '未设置时间：' + undated.map((t) => t.title).join('、')));
+    wrap.append(h('div', { class: 'small muted', style: 'margin-top:8px' }, '未设置时间：' + undated.map((e) => e.node.title).join('、')));
   }
   return wrap;
 }
@@ -1080,11 +1161,11 @@ export function buildTaskTimeline(p) {
 
 // 看板：待办 / 已完成（可拖动卡片切换）
 export function buildItemBoard(ctx) {
-  const { pending, done } = groupTasksByDone(ctx.items);
+  const all = ctx.entries();
   const today = todayStr();
   const board = h('div', { class: 'kanban' });
-  board.append(itemCol(ctx, '待办', pending, today, false));
-  board.append(itemCol(ctx, '已完成', done, today, true));
+  board.append(itemCol(ctx, '待办', all.filter((e) => !e.node.done), today, false, all));
+  board.append(itemCol(ctx, '已完成', all.filter((e) => e.node.done), today, true, all));
   return board;
 }
 
@@ -1092,7 +1173,7 @@ export function buildTaskBoard(p) {
   return buildItemBoard(projectItemCtx(p));
 }
 
-function itemCol(ctx, title, items, today, doneFlag) {
+function itemCol(ctx, title, entries, today, doneFlag, all) {
   const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
   col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
   col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
@@ -1100,22 +1181,27 @@ function itemCol(ctx, title, items, today, doneFlag) {
     e.preventDefault();
     col.classList.remove('drop-hover');
     const id = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
-    const node = ctx.items.find((x) => x.id === id);
-    if (!node) return;
-    await api.put(ctx.base(node), { done: doneFlag });
+    const entry = all.find((x) => x.node.id === id);
+    if (!entry) return;
+    await api.put(ctx.deepBase(entry.path), { done: doneFlag });
     toast('状态已更新');
     ctx.refresh();
   });
 
-  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(items.length))));
-  if (!items.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
+  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(entries.length))));
+  if (!entries.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
 
-  for (const t of items) {
-    const card = h('div', { class: 'kanban-card', draggable: 'true' });
+  for (const entry of entries) {
+    const t = entry.node;
+    const card = h('div', {
+      class: 'kanban-card',
+      draggable: 'true',
+      style: entry.depth > 1 ? `margin-left:${(entry.depth - 1) * 12}px` : ''
+    });
     card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
 
     const titleEl = h('div', { class: 'title row-link' }, escapeHtml(t.title));
-    titleEl.onclick = () => { location.hash = ctx.href(t); };
+    titleEl.onclick = () => { location.hash = ctx.deepHref(entry.path); };
     card.append(titleEl);
 
     const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
@@ -1127,18 +1213,18 @@ function itemCol(ctx, title, items, today, doneFlag) {
     if (subs.length) {
       const list = h('div', { class: 'subtask-list', style: 'margin-top:6px' });
       for (const st of subs) {
+        const subEntry = { node: st, path: [...entry.path, st.id], depth: entry.depth + 1 };
         const scb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
         scb.checked = !!st.done;
         scb.onclick = async (e) => {
           if (e && e.stopPropagation) e.stopPropagation();
-          await api.put(ctx.base(t, st), { done: !st.done });
+          await api.put(ctx.deepBase(subEntry.path), { done: !st.done });
           st.done = !st.done;
           ctx.refresh();
         };
-        list.append(h('div', { class: 'row' },
-          scb,
-          h('span', { class: 'small', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title))
-        ));
+        const subLink = h('span', { class: 'small row-link', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title));
+        subLink.onclick = (e) => { if (e && e.stopPropagation) e.stopPropagation(); location.hash = ctx.deepHref(subEntry.path); };
+        list.append(h('div', { class: 'row' }, scb, subLink));
       }
       card.append(list);
     } else {
@@ -1151,8 +1237,11 @@ function itemCol(ctx, title, items, today, doneFlag) {
 
 // 信息流：每项一张卡片（标题就地编辑 + 下级看板可拖动）
 export function buildItemFeed(ctx) {
+  const all = ctx.entries();
+  const order = sortTasksForFeed(all.map((e) => e.node)).map((n) => n.id);
+  const sorted = order.map((id) => all.find((e) => e.node.id === id)).filter(Boolean);
   const feed = h('div', { class: 'feed' });
-  for (const t of sortTasksForFeed(ctx.items)) feed.append(buildItemPost(ctx, t));
+  for (const entry of sorted) feed.append(buildItemPost(ctx, entry));
   return feed;
 }
 
@@ -1160,14 +1249,20 @@ export function buildTaskFeed(p) {
   return buildItemFeed(projectItemCtx(p));
 }
 
-function buildItemPost(ctx, t) {
+function buildItemPost(ctx, entry) {
+  const t = entry.node;
   const today = todayStr();
   const post = h('div', { class: 'feed-post card' });
+  if (entry.depth > 1) post.style.marginLeft = `${(entry.depth - 1) * 16}px`;
 
   const head = h('div', { class: 'row', style: 'margin-bottom:6px' });
   const cb = h('input', { type: 'checkbox', class: 'task-check item-check' });
   cb.checked = !!t.done;
-  cb.onclick = async () => { await api.put(ctx.base(t), { done: !t.done }); t.done = !t.done; ctx.refresh(); };
+  cb.onclick = async () => {
+    await api.put(ctx.deepBase(entry.path), { done: !t.done });
+    t.done = !t.done;
+    ctx.refresh();
+  };
   head.append(cb);
 
   const title = h('h3', { class: 'feed-title', contenteditable: 'true', spellcheck: 'false', style: 'margin:0;flex:1' });
@@ -1176,7 +1271,7 @@ function buildItemPost(ctx, t) {
     const next = title.textContent.trim();
     if (!next) { title.textContent = t.title; return; }
     if (next !== t.title) {
-      await api.put(ctx.base(t), { title: next });
+      await api.put(ctx.deepBase(entry.path), { title: next });
       t.title = next;
       toast('已保存');
       ctx.refresh();
@@ -1187,6 +1282,7 @@ function buildItemPost(ctx, t) {
   post.append(head);
 
   const meta = h('div', { class: 'row', style: 'margin:6px 0;flex-wrap:wrap' });
+  if (entry.depth > 1) meta.append(h('span', { class: 'small muted' }, `第 ${entry.depth} 层`));
   meta.append(h('span', { class: 'small muted' }, `📅 ${formatTaskDates(t)}`));
   const subs = t.subtasks || [];
   meta.append(h('span', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
@@ -1212,7 +1308,7 @@ function buildItemPost(ctx, t) {
   descEdit.addEventListener('blur', async () => {
     const next = descEdit.textContent.trim();
     if (next !== (t.desc || '')) {
-      await api.put(ctx.base(t), { desc: next });
+      await api.put(ctx.deepBase(entry.path), { desc: next });
       t.desc = next;
       toast('已保存');
       ctx.refresh();
@@ -1221,38 +1317,39 @@ function buildItemPost(ctx, t) {
   post.append(descDisplay, descEdit);
 
   post.append(h('h4', { class: 'feed-sec' }, '子任务'));
-  post.append(buildItemSubBoard(ctx, t));
+  post.append(buildItemSubBoard(ctx, entry));
   return post;
 }
 
-function buildItemSubBoard(ctx, t) {
-  const subs = t.subtasks || [];
+function buildItemSubBoard(ctx, entry) {
+  const subs = entry.node.subtasks || [];
+  const subEntries = subs.map((s) => ({ node: s, path: [...entry.path, s.id], depth: entry.depth + 1 }));
   const board = h('div', { class: 'kanban' });
-  board.append(itemSubCol(ctx, '未完成', subs.filter((s) => !s.done), t, false));
-  board.append(itemSubCol(ctx, '已完成', subs.filter((s) => s.done), t, true));
+  board.append(itemSubCol(ctx, '未完成', subEntries.filter((e) => !e.node.done), false, subEntries));
+  board.append(itemSubCol(ctx, '已完成', subEntries.filter((e) => e.node.done), true, subEntries));
   return board;
 }
 
-function itemSubCol(ctx, title, subs, t, doneFlag) {
+function itemSubCol(ctx, title, entries, doneFlag, all) {
   const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
   col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
   col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
   col.addEventListener('drop', async (e) => {
     e.preventDefault();
     col.classList.remove('drop-hover');
-    const sid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
-    const sub = subs.find((s) => s.id === sid) || (t.subtasks || []).find((s) => s.id === sid);
-    if (!sub) return;
-    await api.put(ctx.base(t, sub), { done: doneFlag });
+    const id = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    const entry = all.find((x) => x.node.id === id);
+    if (!entry) return;
+    await api.put(ctx.deepBase(entry.path), { done: doneFlag });
     toast('子任务已更新');
     ctx.refresh();
   });
-  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(subs.length))));
-  if (!subs.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
-  for (const s of subs) {
+  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(entries.length))));
+  if (!entries.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
+  for (const entry of entries) {
     const card = h('div', { class: 'kanban-card', draggable: 'true' });
-    card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', s.id); });
-    card.append(h('div', { class: 'title' }, escapeHtml(s.title)));
+    card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', entry.node.id); });
+    card.append(h('div', { class: 'title' }, escapeHtml(entry.node.title)));
     col.append(card);
   }
   return col;

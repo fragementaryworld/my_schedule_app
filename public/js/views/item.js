@@ -200,6 +200,8 @@ export function buildChildren(project, item, itemChain, depth) {
     refresh: paint,
     rangeNode: item,
     canAdd,
+    deep: true,             // 列出下级以及所有更低级任务
+    defaultExpanded: true,  // 默认全部展开
     addLabel: `＋ 新增${childLevelName(depth)}`,
     onAdd: () => createChild(project.id, itemChain),
     emptyText: `还没有${childLevelName(depth)}。`,
