@@ -779,39 +779,82 @@ function refreshTasks() {
   if (refreshFn) refreshFn();
 }
 
-// 供页面视图复用：项目任务区（表格 / 甘特图 / 看板）
-export function buildProjectTasksSection(p, refresh) {
-  refreshFn = refresh;
-  return buildProjectTasks(p);
+// 一个"层级"的视图上下文：项目页任务区（第 1 层）与任意层级的任务页共用同一套视图
+// opts: { projectId, parentChain, items, refresh, canAdd, addLabel, onAdd, rangeNode, emptyText, hint }
+function nodeCtx(opts = {}) {
+  const projectId = opts.projectId;
+  const parent = opts.parentChain || [];
+  const ctx = {
+    projectId,
+    parentChain: parent,
+    items: opts.items || [],
+    refresh: typeof opts.refresh === 'function' ? opts.refresh : refreshTasks,
+    canAdd: opts.canAdd !== false,
+    addLabel: opts.addLabel || '＋ 新增任务',
+    onAdd: opts.onAdd || (() => createTask(projectId)),
+    rangeNode: opts.rangeNode || {},
+    emptyText: opts.emptyText || '还没有内容，点右上角新增。',
+    hint: opts.hint || ''
+  };
+  const chainOf = (node, sub) => (sub ? [...parent, node.id, sub.id] : [...parent, node.id]);
+  ctx.base = (node, sub) => itemBase(projectId, chainOf(node, sub));
+  ctx.href = (node, sub) => itemHref(projectId, chainOf(node, sub));
+  return ctx;
 }
 
-function buildProjectTasks(p) {
+// 项目页任务区（第 1 层，父级是项目）
+function projectItemCtx(p, refresh) {
+  return nodeCtx({
+    projectId: p.id,
+    parentChain: [],
+    items: p.tasks || [],
+    refresh,
+    rangeNode: p,
+    addLabel: '＋ 新增任务',
+    onAdd: () => createTask(p.id),
+    emptyText: '还没有任务，点右上角「＋ 新增任务」。'
+  });
+}
+
+// 供页面视图复用：项目任务区（表格 / 时间线 / 看板 / 信息流）
+export function buildProjectTasksSection(p, refresh) {
+  refreshFn = refresh;
+  return buildChildViews(projectItemCtx(p, refresh));
+}
+
+// 任意层级的"下级"区块：视图切换 + 四视图 + 新增下级按钮
+export function buildChildViews(opts) {
+  const ctx = typeof opts.base === 'function' ? opts : nodeCtx(opts);
   const wrap = h('div', { class: 'card', style: 'padding:12px 16px' });
 
   const bar = h('div', { class: 'row', style: 'margin-bottom:12px;flex-wrap:wrap' });
   const switcher = h('div', { class: 'tabbar', style: 'margin:0;border:none;flex-wrap:wrap' });
   for (const v of TASK_VIEWS) {
     const b = h('button', { class: 'tab' + (taskView === v.value ? ' active' : '') }, v.label);
-    b.onclick = () => { taskView = v.value; refreshTasks(); };
+    b.onclick = () => { taskView = v.value; ctx.refresh(); };
     switcher.append(b);
   }
   bar.append(switcher, h('span', { class: 'spacer' }));
-  bar.append(h('button', { class: 'btn btn-primary btn-sm', onclick: () => createTask(p.id) }, '＋ 新增任务'));
+  if (ctx.canAdd) {
+    bar.append(h('button', { class: 'btn btn-primary btn-sm add-child-btn', onclick: () => ctx.onAdd() }, ctx.addLabel));
+  }
   wrap.append(bar);
 
-  wrap.append(renderTaskView(p));
+  wrap.append(renderItemView(ctx));
+  if (ctx.hint) wrap.append(h('div', { class: 'small muted', style: 'margin-top:8px' }, ctx.hint));
   return wrap;
 }
 
-function renderTaskView(p) {
-  if (!(p.tasks || []).length) return h('p', { class: 'muted' }, '还没有任务，点右上角「＋ 新增任务」。');
-  if (taskView === 'timeline') return buildTaskTimeline(p);
-  if (taskView === 'board') return buildTaskBoard(p);
-  if (taskView === 'feed') return buildTaskFeed(p);
-  return buildTaskTable(p);
+function renderItemView(ctx) {
+  if (!ctx.items.length) return h('p', { class: 'muted' }, ctx.emptyText);
+  if (taskView === 'timeline') return buildItemTimeline(ctx);
+  if (taskView === 'board') return buildItemBoard(ctx);
+  if (taskView === 'feed') return buildItemFeed(ctx);
+  return buildItemTable(ctx);
 }
 
-export function buildTaskTable(p) {
+// 表格：完成 / 任务 / 时间 / 状态 / 下级，可展开下级（层级无关，ctx 决定是哪一层）
+export function buildItemTable(ctx) {
   const today = todayStr();
   const table = h('table', { class: 'task-table' });
   table.append(h('thead', {}, h('tr', {},
@@ -819,7 +862,7 @@ export function buildTaskTable(p) {
     h('th', {}, '时间'), h('th', {}, '状态'), h('th', {}, '子任务'), h('th', {}, '')
   )));
   const tbody = h('tbody', {});
-  for (const t of p.tasks) {
+  for (const t of ctx.items) {
     const subs = t.subtasks || [];
     const isOpen = expandedTasks.has(t.id);
 
@@ -834,20 +877,24 @@ export function buildTaskTable(p) {
       if (!subs.length) return;
       if (expandedTasks.has(t.id)) expandedTasks.delete(t.id);
       else expandedTasks.add(t.id);
-      refreshTasks();
+      ctx.refresh();
     };
     tdToggle.append(toggle);
     tr.append(tdToggle);
 
     const tdCb = h('td', {});
-    const cb = h('input', { type: 'checkbox', class: 'task-check' });
+    const cb = h('input', { type: 'checkbox', class: 'task-check item-check' });
     cb.checked = !!t.done;
-    cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
+    cb.onclick = async () => {
+      await api.put(ctx.base(t), { done: !t.done });
+      t.done = !t.done;
+      ctx.refresh();
+    };
     tdCb.append(cb);
     tr.append(tdCb);
 
     const titleSpan = h('span', { class: 'row-link' + (t.done ? ' muted' : '') }, escapeHtml(t.title));
-    titleSpan.onclick = () => { location.hash = taskHref(p, t); };
+    titleSpan.onclick = () => { location.hash = ctx.href(t); };
     tr.append(h('td', {}, titleSpan));
 
     tr.append(h('td', { class: 'small muted' }, formatTaskDates(t)));
@@ -856,12 +903,12 @@ export function buildTaskTable(p) {
 
     const tdOps = h('td', {});
     const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
-    edit.onclick = () => { location.hash = taskHref(p, t); };
+    edit.onclick = () => { location.hash = ctx.href(t); };
     const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
     del.onclick = async () => {
       if (await confirmDialog('删除这个任务及其子任务？', { danger: true })) {
-        await api.del(`/api/projects/${p.id}/tasks/${t.id}`);
-        refreshTasks();
+        await api.del(ctx.base(t));
+        ctx.refresh();
       }
     };
     tdOps.append(edit, del);
@@ -871,17 +918,17 @@ export function buildTaskTable(p) {
     if (isOpen && subs.length) {
       const list = h('div', { class: 'subtask-list' });
       for (const st of subs) {
-        const cb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
-        cb.checked = !!st.done;
-        cb.onclick = async () => {
-          await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${st.id}`, { done: !st.done });
+        const scb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
+        scb.checked = !!st.done;
+        scb.onclick = async () => {
+          await api.put(ctx.base(t, st), { done: !st.done });
           st.done = !st.done;
-          refreshTasks();
+          ctx.refresh();
         };
         const subLink = h('span', { class: 'row-link', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title));
-        subLink.onclick = () => { location.hash = subtaskHref(p, t, st); };
+        subLink.onclick = () => { location.hash = ctx.href(t, st); };
         list.append(h('div', { class: 'row', style: 'padding:2px 0' },
-          cb,
+          scb,
           subLink,
           h('span', { class: 'small muted' }, formatDateValue(st))
         ));
@@ -891,6 +938,10 @@ export function buildTaskTable(p) {
   }
   table.append(tbody);
   return table;
+}
+
+export function buildTaskTable(p) {
+  return buildItemTable(projectItemCtx(p));
 }
 
 // 任务在时间轴上的位置：有区间显示区间，只有截止时间则显示截止点
@@ -917,9 +968,9 @@ export function shiftTaskDates(task, deltaDays) {
 }
 
 // 时间线：日期刻度 + 今日红线 + 待办/已完成分组（可拖动改时间、拖名切换完成）
-export function buildTaskTimeline(p) {
+export function buildItemTimeline(ctx) {
   const today = todayStr();
-  const dated = (p.tasks || []).filter((t) => t.dueDate);
+  const dated = ctx.items.filter((t) => t.dueDate);
   const wrap = h('div', { class: 'timeline' });
 
   if (!dated.length) {
@@ -927,13 +978,13 @@ export function buildTaskTimeline(p) {
     return wrap;
   }
 
-  const { start, end } = ganttRange(p.tasks, p);
+  const { start, end } = ganttRange(ctx.items, ctx.rangeNode);
   const totalDays = Math.max(1, daysBetween(start, end));
   wrap.append(h('div', { class: 'row timeline-head' },
     h('span', { class: 'small muted' }, `时间轴：${start} ~ ${end}`),
     h('span', { class: 'spacer' }),
     h('span', { class: 'small muted' }, `${totalDays} 天`)));
-  wrap.append(h('div', { class: 'small muted', style: 'margin-bottom:4px' }, '拖动时间条可改时间、拖两端可改起止；把任务名拖到分组标题上可切换完成'));
+  wrap.append(h('div', { class: 'small muted', style: 'margin-bottom:4px' }, '拖动时间条可改时间、拖两端可改起止；把名称拖到分组标题上可切换完成'));
 
   const axis = h('div', { class: 'timeline-axis' });
   for (const tk of timelineTicks(start, end, 7)) {
@@ -960,11 +1011,12 @@ export function buildTaskTimeline(p) {
     box.addEventListener('drop', async (e) => {
       e.preventDefault();
       box.classList.remove('drop-hover');
-      const tid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
-      if (!tid) return;
-      await api.put(`/api/projects/${p.id}/tasks/${tid}`, { done: grp.done });
+      const id = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+      const node = ctx.items.find((x) => x.id === id);
+      if (!node) return;
+      await api.put(ctx.base(node), { done: grp.done });
       toast('状态已更新');
-      refreshTasks();
+      ctx.refresh();
     });
 
     if (!grp.items.length) box.append(h('div', { class: 'small muted', style: 'padding:2px 8px' }, '暂无'));
@@ -977,7 +1029,7 @@ export function buildTaskTimeline(p) {
         title: `${t.title}（拖到分组标题可切换完成）`,
         draggable: 'true'
       }, escapeHtml(t.title));
-      label.onclick = () => { location.hash = taskHref(p, t); };
+      label.onclick = () => { location.hash = ctx.href(t); };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); };
       row.append(label);
 
@@ -985,10 +1037,10 @@ export function buildTaskTimeline(p) {
       if (tp !== null) track.append(h('div', { class: 'timeline-today', style: `left:${tp}%` }));
 
       const savePatch = async (patch) => {
-        if (!patch) { refreshTasks(); return; }
-        await api.put(`/api/projects/${p.id}/tasks/${t.id}`, patch);
+        if (!patch) { ctx.refresh(); return; }
+        await api.put(ctx.base(t), patch);
         toast('时间已更新');
-        refreshTasks();
+        ctx.refresh();
       };
 
       const cls = t.done ? 'done' : (taskIsOverdue(t, today) ? 'paused' : 'active');
@@ -997,7 +1049,7 @@ export function buildTaskTimeline(p) {
         style: `left:${bar.left}%;width:${bar.width}%`,
         title: `${t.title}（${formatTaskDates(t)}）`
       }, h('span', { class: 'timeline-bar-label' }, formatTaskDates(t)));
-      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = taskHref(p, t); };
+      barEl.onclick = () => { if (!barEl.dataset || !barEl.dataset.dragged) location.hash = ctx.href(t); };
       attachBarDrag(barEl, track, t, totalDays, savePatch);
 
       const leftH = h('div', { class: 'timeline-handle left', title: '拖动调整开始时间' });
@@ -1015,46 +1067,55 @@ export function buildTaskTimeline(p) {
     wrap.append(box);
   }
 
-  const undated = (p.tasks || []).filter((t) => !t.dueDate);
+  const undated = ctx.items.filter((t) => !t.dueDate);
   if (undated.length) {
     wrap.append(h('div', { class: 'small muted', style: 'margin-top:8px' }, '未设置时间：' + undated.map((t) => t.title).join('、')));
   }
   return wrap;
 }
 
+export function buildTaskTimeline(p) {
+  return buildItemTimeline(projectItemCtx(p));
+}
+
 // 看板：待办 / 已完成（可拖动卡片切换）
-export function buildTaskBoard(p) {
-  const { pending, done } = groupTasksByDone(p.tasks || []);
+export function buildItemBoard(ctx) {
+  const { pending, done } = groupTasksByDone(ctx.items);
   const today = todayStr();
   const board = h('div', { class: 'kanban' });
-  board.append(taskCol('待办', pending, p, today, false));
-  board.append(taskCol('已完成', done, p, today, true));
+  board.append(itemCol(ctx, '待办', pending, today, false));
+  board.append(itemCol(ctx, '已完成', done, today, true));
   return board;
 }
 
-function taskCol(title, tasks, p, today, doneFlag) {
+export function buildTaskBoard(p) {
+  return buildItemBoard(projectItemCtx(p));
+}
+
+function itemCol(ctx, title, items, today, doneFlag) {
   const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
   col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
   col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
   col.addEventListener('drop', async (e) => {
     e.preventDefault();
     col.classList.remove('drop-hover');
-    const tid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
-    if (!tid) return;
-    await api.put(`/api/projects/${p.id}/tasks/${tid}`, { done: doneFlag });
+    const id = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    const node = ctx.items.find((x) => x.id === id);
+    if (!node) return;
+    await api.put(ctx.base(node), { done: doneFlag });
     toast('状态已更新');
-    refreshTasks();
+    ctx.refresh();
   });
 
-  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(tasks.length))));
-  if (!tasks.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
+  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(items.length))));
+  if (!items.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
 
-  for (const t of tasks) {
+  for (const t of items) {
     const card = h('div', { class: 'kanban-card', draggable: 'true' });
     card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
 
     const titleEl = h('div', { class: 'title row-link' }, escapeHtml(t.title));
-    titleEl.onclick = () => { location.hash = taskHref(p, t); };
+    titleEl.onclick = () => { location.hash = ctx.href(t); };
     card.append(titleEl);
 
     const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
@@ -1070,9 +1131,9 @@ function taskCol(title, tasks, p, today, doneFlag) {
         scb.checked = !!st.done;
         scb.onclick = async (e) => {
           if (e && e.stopPropagation) e.stopPropagation();
-          await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${st.id}`, { done: !st.done });
+          await api.put(ctx.base(t, st), { done: !st.done });
           st.done = !st.done;
-          refreshTasks();
+          ctx.refresh();
         };
         list.append(h('div', { class: 'row' },
           scb,
@@ -1088,21 +1149,25 @@ function taskCol(title, tasks, p, today, doneFlag) {
   return col;
 }
 
-// 信息流：每条任务一张卡片（标题就地编辑 + 子任务看板可拖动）
-export function buildTaskFeed(p) {
+// 信息流：每项一张卡片（标题就地编辑 + 下级看板可拖动）
+export function buildItemFeed(ctx) {
   const feed = h('div', { class: 'feed' });
-  for (const t of sortTasksForFeed(p.tasks || [])) feed.append(buildTaskPost(p, t));
+  for (const t of sortTasksForFeed(ctx.items)) feed.append(buildItemPost(ctx, t));
   return feed;
 }
 
-function buildTaskPost(p, t) {
+export function buildTaskFeed(p) {
+  return buildItemFeed(projectItemCtx(p));
+}
+
+function buildItemPost(ctx, t) {
   const today = todayStr();
   const post = h('div', { class: 'feed-post card' });
 
   const head = h('div', { class: 'row', style: 'margin-bottom:6px' });
-  const cb = h('input', { type: 'checkbox', class: 'task-check' });
+  const cb = h('input', { type: 'checkbox', class: 'task-check item-check' });
   cb.checked = !!t.done;
-  cb.onclick = async () => { await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { done: !t.done }); refreshTasks(); };
+  cb.onclick = async () => { await api.put(ctx.base(t), { done: !t.done }); t.done = !t.done; ctx.refresh(); };
   head.append(cb);
 
   const title = h('h3', { class: 'feed-title', contenteditable: 'true', spellcheck: 'false', style: 'margin:0;flex:1' });
@@ -1111,10 +1176,10 @@ function buildTaskPost(p, t) {
     const next = title.textContent.trim();
     if (!next) { title.textContent = t.title; return; }
     if (next !== t.title) {
-      await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { title: next });
+      await api.put(ctx.base(t), { title: next });
       t.title = next;
       toast('已保存');
-      refreshTasks();
+      ctx.refresh();
     }
   });
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); } });
@@ -1147,28 +1212,28 @@ function buildTaskPost(p, t) {
   descEdit.addEventListener('blur', async () => {
     const next = descEdit.textContent.trim();
     if (next !== (t.desc || '')) {
-      await api.put(`/api/projects/${p.id}/tasks/${t.id}`, { desc: next });
+      await api.put(ctx.base(t), { desc: next });
       t.desc = next;
       toast('已保存');
-      refreshTasks();
+      ctx.refresh();
     }
   });
   post.append(descDisplay, descEdit);
 
   post.append(h('h4', { class: 'feed-sec' }, '子任务'));
-  post.append(buildTaskSubBoard(p, t));
+  post.append(buildItemSubBoard(ctx, t));
   return post;
 }
 
-function buildTaskSubBoard(p, t) {
+function buildItemSubBoard(ctx, t) {
   const subs = t.subtasks || [];
   const board = h('div', { class: 'kanban' });
-  board.append(subCol('未完成', subs.filter((s) => !s.done), p, t, false));
-  board.append(subCol('已完成', subs.filter((s) => s.done), p, t, true));
+  board.append(itemSubCol(ctx, '未完成', subs.filter((s) => !s.done), t, false));
+  board.append(itemSubCol(ctx, '已完成', subs.filter((s) => s.done), t, true));
   return board;
 }
 
-function subCol(title, subs, p, t, doneFlag) {
+function itemSubCol(ctx, title, subs, t, doneFlag) {
   const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
   col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('drop-hover'); });
   col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
@@ -1176,10 +1241,11 @@ function subCol(title, subs, p, t, doneFlag) {
     e.preventDefault();
     col.classList.remove('drop-hover');
     const sid = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
-    if (!sid) return;
-    await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${sid}`, { done: doneFlag });
+    const sub = subs.find((s) => s.id === sid) || (t.subtasks || []).find((s) => s.id === sid);
+    if (!sub) return;
+    await api.put(ctx.base(t, sub), { done: doneFlag });
     toast('子任务已更新');
-    refreshTasks();
+    ctx.refresh();
   });
   col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(subs.length))));
   if (!subs.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));

@@ -107,7 +107,7 @@ test('问题3：每个层级都有面包屑，可回到任意上层', () => {
 test('问题3：每层下级列表可勾选完成、可进入该层页面', async () => {
   calls.length = 0;
   const section = itemMod.buildChildren(PROJECT, itemMod.resolveChain(PROJECT, ['t1']), ['t1'], 1);
-  const cb = findAllByClass(section, 'subtask-check')[0];
+  const cb = findAllByClass(section, 'item-check')[0];
   assert.equal(cb.getAttribute('type'), 'checkbox');
   cb.click();
   await tick();

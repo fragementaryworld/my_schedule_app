@@ -2,9 +2,9 @@
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { escapeHtml } from '../utils.js';
-import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild } from './projects.js';
+import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
 import { buildBlocksEditor } from './page.js';
-import { buildDateField, formatDateValue } from '../datepicker.js';
+import { buildDateField } from '../datepicker.js';
 
 // 任务最多 5 层：任务 → 子任务 → 子子任务 → …
 export const MAX_ITEM_DEPTH = 5;
@@ -190,60 +190,21 @@ export function buildItemProperties(project, item, itemChain) {
   return card;
 }
 
+// 下级区块：与项目页任务区一致的标准四视图（表格 / 时间线 / 看板 / 信息流）
 export function buildChildren(project, item, itemChain, depth) {
-  const wrap = h('div', { class: 'card', style: 'padding:12px 16px' });
-  const list = h('div', {});
-  const base = itemBase(project.id, itemChain);
-  const children = item.subtasks || [];
-
-  if (!children.length) list.append(h('p', { class: 'muted' }, `还没有${childLevelName(depth)}。`));
-
-  for (const child of children) {
-    const row = h('div', { class: 'row', style: 'padding:4px 0' });
-
-    const cb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
-    cb.checked = !!child.done;
-    cb.onclick = async () => {
-      await api.put(`${base}/subtasks/${child.id}`, { done: !child.done });
-      child.done = !child.done;
-      await paint();
-    };
-    row.append(cb);
-
-    const link = h('span', {
-      class: 'row-link',
-      style: `flex:1;${child.done ? 'text-decoration:line-through;color:var(--muted)' : ''}`
-    }, escapeHtml(child.title));
-    link.onclick = () => { location.hash = itemHref(project.id, [...itemChain, child.id]); };
-    row.append(link);
-
-    if (child.dueDate) row.append(h('span', { class: 'small muted' }, formatDateValue(child)));
-    const grand = (child.subtasks || []).length;
-    if (grand) row.append(h('span', { class: 'small muted' }, `下级 ${grand} 项`));
-
-    const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
-    del.onclick = async () => {
-      if (await confirmDialog(`删除「${child.title}」及其下级？`, { danger: true })) {
-        await api.del(`${base}/subtasks/${child.id}`);
-        item.subtasks = (item.subtasks || []).filter((x) => x.id !== child.id);
-        await paint();
-      }
-    };
-    row.append(del);
-    list.append(row);
-  }
-  wrap.append(list);
-
-  if (depth >= MAX_ITEM_DEPTH) {
-    wrap.append(h('div', { class: 'small muted', style: 'margin-top:8px' }, `已达最大层级（${MAX_ITEM_DEPTH} 层），不能再添加下级。`));
-  } else {
-    wrap.append(h('button', {
-      class: 'btn btn-primary btn-sm add-child-btn',
-      style: 'margin-top:8px',
-      onclick: () => createChild(project.id, itemChain)
-    }, `＋ 新增${childLevelName(depth)}`));
-  }
-  return wrap;
+  const canAdd = depth < MAX_ITEM_DEPTH;
+  return buildChildViews({
+    projectId: project.id,
+    parentChain: itemChain,
+    items: item.subtasks || [],
+    refresh: paint,
+    rangeNode: item,
+    canAdd,
+    addLabel: `＋ 新增${childLevelName(depth)}`,
+    onAdd: () => createChild(project.id, itemChain),
+    emptyText: `还没有${childLevelName(depth)}。`,
+    hint: canAdd ? '' : `已达最大层级（${MAX_ITEM_DEPTH} 层），不能再添加下级。`
+  });
 }
 
 function focusTitle() {
