@@ -6,7 +6,18 @@ import { makeDocument, findAllByClass, findAllByTag, textOf } from '../test-help
 
 globalThis.document = makeDocument();
 globalThis.location = { hash: '#/page/p1' };
-globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) });
+
+const calls = [];
+globalThis.fetch = async (url, opts = {}) => {
+  calls.push({
+    url: String(url),
+    method: opts.method || 'GET',
+    body: opts.body ? JSON.parse(opts.body) : null
+  });
+  return { ok: true, status: 200, json: async () => ({ ok: true }) };
+};
+
+const tick = () => new Promise((r) => setTimeout(r, 10));
 
 const projectsUrl = pathToFileURL(path.join(process.cwd(), 'public', 'js', 'views', 'projects.js')).href;
 const projects = await import(projectsUrl);
@@ -60,7 +71,9 @@ test('问题2：点击箭头展开子任务下拉', () => {
 
   assert.equal(findAllByClass(box, 'subtask-row').length, 1, '展开后应出现子任务行');
   assert.ok(textOf(box).includes('子任务1'), '应显示子任务内容');
-  assert.ok(textOf(box).includes('☑'), '已完成子任务应有勾选标记');
+  const subChecks = findAllByClass(box, 'subtask-check');
+  assert.equal(subChecks.length, 2, '每个子任务一个 checkbox');
+  assert.deepEqual(subChecks.map((c) => c.checked), [false, true], '勾选状态与数据一致');
 
   findAllByTag(box, 'button').find((b) => String(b.getAttribute('title')).includes('展开/收起')).click();
   assert.equal(findAllByClass(box, 'subtask-row').length, 0, '再次点击应收起');
@@ -73,4 +86,70 @@ test('问题2：无子任务的任务箭头不可展开', () => {
   assert.equal(textOf(toggle), '·');
   toggle.click();
   assert.equal(findAllByClass(table, 'subtask-row').length, 0);
+});
+
+// ——— 问题2：子任务 checkbox 可点击 ———
+
+function expandBox(p) {
+  const box = document.createElement('div');
+  const refresh = () => {
+    box.innerHTML = '';
+    box.append(projects.buildTaskTable(p));
+  };
+  projects.buildProjectTasksSection(p, refresh);
+  refresh();
+  findAllByTag(box, 'button').find((b) => String(b.getAttribute('title')).includes('展开/收起')).click();
+  return { box, refresh };
+}
+
+// 展开状态按任务 id 记忆，所以每个用例用独立 id，避免互相影响
+const mkP = (tid) => ({
+  id: 'p1',
+  name: 'P',
+  tasks: [{
+    id: tid, title: '任务A', done: false, dueDate: '2024-05-10',
+    subtasks: [{ id: 's1', title: '子任务1', done: false }, { id: 's2', title: '子任务2', done: true }]
+  }]
+});
+
+test('问题2：子任务是真正的 checkbox（不是文字符号）', () => {
+  const { box } = expandBox(mkP('t2'));
+  const checks = findAllByClass(box, 'subtask-check');
+  assert.equal(checks.length, 2);
+  for (const c of checks) {
+    assert.equal(c.getAttribute('type'), 'checkbox');
+    assert.equal(c.tagName, 'INPUT');
+  }
+  assert.ok(!textOf(box).includes('☐') && !textOf(box).includes('☑'), '不应再用文字符号代替复选框');
+});
+
+test('问题2：点击子任务 checkbox 可切换完成并保存', async () => {
+  calls.length = 0;
+  const { box } = expandBox(mkP('t3'));
+  findAllByClass(box, 'subtask-check')[0].click();
+  await tick();
+
+  const put = calls.find((c) => c.method === 'PUT' && c.url.includes('/api/projects/p1/tasks/t3/subtasks/s1'));
+  assert.ok(put, '应调用子任务接口');
+  assert.deepEqual(put.body, { done: true });
+  assert.equal(findAllByClass(box, 'subtask-check')[0].checked, true, '重渲染后保持勾选');
+});
+
+test('问题2：再次点击可取消完成', async () => {
+  calls.length = 0;
+  const { box } = expandBox(mkP('t4'));
+  findAllByClass(box, 'subtask-check')[1].click();
+  await tick();
+  const put = calls.find((c) => c.method === 'PUT' && c.url.includes('/subtasks/s2'));
+  assert.ok(put, '应更新第二个子任务');
+  assert.deepEqual(put.body, { done: false }, '已完成的子任务点一下变未完成');
+  assert.equal(findAllByClass(box, 'subtask-check')[1].checked, false);
+});
+
+test('问题2：子任务行显示自己的时间', () => {
+  const p = mkP('t5');
+  p.tasks[0].subtasks[0].dueDate = '2024-05-08';
+  p.tasks[0].subtasks[0].dateFormat = 'iso';
+  const { box } = expandBox(p);
+  assert.ok(textOf(box).includes('2024-05-08'), '子任务应显示其时间');
 });

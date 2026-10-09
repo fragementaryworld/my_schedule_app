@@ -851,10 +851,17 @@ export function buildTaskTable(p) {
     if (isOpen && subs.length) {
       const list = h('div', { class: 'subtask-list' });
       for (const st of subs) {
+        const cb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
+        cb.checked = !!st.done;
+        cb.onclick = async () => {
+          await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${st.id}`, { done: !st.done });
+          st.done = !st.done;
+          refreshTasks();
+        };
         list.append(h('div', { class: 'row', style: 'padding:2px 0' },
-          h('span', { class: 'small muted' }, st.done ? '☑' : '☐'),
+          cb,
           h('span', { style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title)),
-          h('span', { class: 'small muted' }, st.dueDate || '')
+          h('span', { class: 'small muted' }, formatDateValue(st))
         ));
       }
       tbody.append(h('tr', { class: 'subtask-row' }, h('td', { colspan: '7' }, list)));
