@@ -87,12 +87,37 @@ test('问题3：看板卡片可拖动切换完成', async () => {
   assert.deepEqual(put.body, { done: true });
 });
 
-test('问题4：看板卡片去掉 checkbox 并显示子任务', () => {
+test('问题4：看板任务卡片本体不再有 checkbox（改用拖动切换）', () => {
   const board = projects.buildTaskBoard(P);
-  assert.equal(findAllByTag(board, 'input').length, 0, '看板不应再有 checkbox');
-  assert.equal(findAllByClass(board, 'task-check').length, 0);
+  const checks = findAllByClass(board, 'task-check');
+  assert.equal(
+    checks.filter((c) => !String(c.className).includes('subtask-check')).length,
+    0,
+    '任务卡片本体不应再有 checkbox'
+  );
   assert.ok(textOf(board).includes('子任务'), '应直接列出子任务标题');
   assert.ok(textOf(board).includes('无子任务'), '无子任务的任务应有提示');
+});
+
+test('问题1：看板子任务 checkbox 可点击切换完成', async () => {
+  calls.length = 0;
+  const board = projects.buildTaskBoard(P);
+  const cb = findAllByClass(board, 'subtask-check')[0];
+  assert.ok(cb, '看板卡片上应有子任务 checkbox');
+  assert.equal(cb.getAttribute('type'), 'checkbox');
+  assert.equal(cb.tagName, 'INPUT');
+  assert.equal(cb.checked, false);
+
+  cb.click();
+  await tick();
+  const put = calls.find((c) => c.method === 'PUT' && c.url.includes('/subtasks/s1'));
+  assert.ok(put, '应调用子任务接口');
+  assert.deepEqual(put.body, { done: true });
+});
+
+test('问题1：看板子任务不再用文字符号代替复选框', () => {
+  const board = projects.buildTaskBoard(P);
+  assert.ok(!textOf(board).includes('☐') && !textOf(board).includes('☑'));
 });
 
 test('问题5：信息流显示任务描述（Markdown）并可就地编辑', async () => {

@@ -1044,8 +1044,16 @@ function taskCol(title, tasks, p, today, doneFlag) {
     if (subs.length) {
       const list = h('div', { class: 'subtask-list', style: 'margin-top:6px' });
       for (const st of subs) {
+        const scb = h('input', { type: 'checkbox', class: 'task-check subtask-check' });
+        scb.checked = !!st.done;
+        scb.onclick = async (e) => {
+          if (e && e.stopPropagation) e.stopPropagation();
+          await api.put(`/api/projects/${p.id}/tasks/${t.id}/subtasks/${st.id}`, { done: !st.done });
+          st.done = !st.done;
+          refreshTasks();
+        };
         list.append(h('div', { class: 'row' },
-          h('span', { class: 'small muted' }, st.done ? '☑' : '☐'),
+          scb,
           h('span', { class: 'small', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title))
         ));
       }
