@@ -1,12 +1,15 @@
 'use strict';
 // 今日计划（日历）用到的纯计算：周/月网格、分组、排序、工作项目任务并入
 import { addDays, weekdayIndex, todayStr } from './utils.js';
-import { itemBase, itemHref } from './views/projects.js';
+import { itemBase, itemHref, timelineColor } from './views/projects.js';
 
 export const CALENDAR_VIEWS = [
   { value: 'week', label: '周视图' },
   { value: 'month', label: '月视图' }
 ];
+
+// 每日任务（不属于任何项目）的固定配色
+export const DAY_TASK_COLOR = '#8a919c';
 
 const WD = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -180,6 +183,7 @@ export function projectEntriesForDates(projects, dates, today = todayStr()) {
         done: !!node.done,
         projectId: project.id,
         projectName: project.name,
+        color: timelineColor(project.id),
         path,
         depth,
         base: itemBase(project.id, path),
@@ -213,6 +217,7 @@ export function projectEntriesByDate(projects, today = todayStr()) {
       done: !!node.done,
       projectId: project.id,
       projectName: project.name,
+      color: timelineColor(project.id),
       path,
       depth,
       base: itemBase(project.id, path),
@@ -232,4 +237,20 @@ export function projectEntriesByDate(projects, today = todayStr()) {
 // 合并每日任务与项目任务后按日期分组
 export function mergeEntries(dayEntries, projectEntries) {
   return groupByDate([...(dayEntries || []), ...(projectEntries || [])]);
+}
+
+// 图例：当前范围里出现的「颜色 → 来源」
+export function legendFor(entries) {
+  const seen = new Map();
+  for (const e of entries || []) {
+    const key = e.kind === 'project' ? `p:${e.projectId}` : 'day';
+    if (seen.has(key)) continue;
+    seen.set(key, {
+      key,
+      kind: e.kind,
+      label: e.kind === 'project' ? e.projectName : '每日任务',
+      color: e.color || DAY_TASK_COLOR
+    });
+  }
+  return [...seen.values()];
 }

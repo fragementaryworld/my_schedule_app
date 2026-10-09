@@ -3,9 +3,9 @@ import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
 import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '../utils.js';
 import {
-  CALENDAR_VIEWS, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
+  CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber,
-  projectEntriesForDates, mergeEntries
+  projectEntriesForDates, mergeEntries, legendFor
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel } from '../daytask.js';
 
@@ -47,6 +47,7 @@ async function paint() {
   try {
     container.append(buildToolbar());
     container.append(view === 'month' ? buildMonth(byDate, dates) : buildWeek(byDate, dates));
+    container.append(buildLegend(byDate, dates));
   } finally {
     restoreScroll(pos);
   }
@@ -65,6 +66,7 @@ function toEntry(t) {
     repeatOf: t.repeatOf || null,
     source: t.source || null,
     sourceLabel: t.source && t.source.type ? sourceLabel(t.source.type) : '',
+    color: DAY_TASK_COLOR,
     overdue: isOverdue(t, todayStr()),
     raw: t
   };
@@ -159,6 +161,7 @@ function buildCard(e, compact) {
       + (e.spanDays > 1 ? ' spanning' : '')
       + (e.continued ? ' continued' : '')
       + (e.spanDays > 1 && e.spanEnd ? ' span-end' : ''),
+    style: `border-left: 3px solid ${e.color || DAY_TASK_COLOR}`,
     title: e.title
   });
 
@@ -172,6 +175,7 @@ function buildCard(e, compact) {
 
   const body = h('div', { class: 'cal-card-body' });
   const titleRow = h('div', { class: 'row cal-card-titlerow' });
+  titleRow.append(h('i', { class: 'cal-dot', style: `background:${e.color || DAY_TASK_COLOR}` }));
   if (e.continued) titleRow.append(h('span', { class: 'cal-cont', title: `延续自 ${e.spanFrom}` }, '↳'));
   const title = h('span', { class: 'cal-card-title row-link' }, escapeHtml(e.title));
   title.onclick = () => openEntry(e);
@@ -204,12 +208,29 @@ function buildCard(e, compact) {
   return card;
 }
 
+// 图例：颜色 → 来源
+function buildLegend(byDate, dates) {
+  const all = [];
+  for (const d of dates) all.push(...(byDate.get(d) || []));
+  const items = legendFor(all);
+  const row = h('div', { class: 'cal-legend-row' });
+  if (!items.length) {
+    row.append(h('span', { class: 'small muted' }, '当前范围还没有任务'));
+    return row;
+  }
+  for (const it of items) {
+    row.append(h('span', { class: 'cal-legend-item' },
+      h('i', { class: 'cal-dot', style: `background:${it.color}` }),
+      it.label));
+  }
+  return row;
+}
+
 async function toggleEntry(e) {
   if (e.kind === 'project') await api.put(e.base, { done: !e.done });
   else await api.put(`/api/tasks/${e.id}`, { done: !e.done });
   paint();
 }
-
 // 标题点进入对应页面（页面式编辑，不再弹窗）
 function openEntry(e) {
   location.hash = e.kind === 'project' ? e.href : dayTaskHref(e.id);

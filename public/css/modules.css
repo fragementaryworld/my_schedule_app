@@ -331,7 +331,8 @@
 .cal-more { font-size: 11px; color: var(--muted); padding-left: 4px; }
 .cal-legend { margin-top: 10px; }
 
-/* 任务卡片标题行 */
+/* 任务颜色：左侧色条 + 小圆点 */
+.cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .cal-card-titlerow { align-items: center; gap: 5px; }
 .cal-card-title { flex: 1; min-width: 0; }
 .cal-cont { color: var(--muted); font-size: 11px; }
@@ -340,6 +341,10 @@
 .cal-card.spanning { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
 .cal-card.continued .cal-card-title { opacity: .92; }
 .cal-card.span-end { border-bottom-right-radius: 3px; }
+
+/* 图例 */
+.cal-legend-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; }
+.cal-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 .block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
 .block-divider { border-top: 1px solid var(--border); height: 0; padding: 0; }
 
