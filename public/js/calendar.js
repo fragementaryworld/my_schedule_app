@@ -1,6 +1,6 @@
 'use strict';
 // 今日计划（日历）用到的纯计算：周/月网格、分组、排序、工作项目任务并入
-import { addDays, weekdayIndex, todayStr } from './utils.js';
+import { addDays, weekdayIndex, todayStr, isOverdue } from './utils.js';
 import { itemBase, itemHref, timelineColor } from './views/projects.js';
 
 export const CALENDAR_VIEWS = [
@@ -206,7 +206,7 @@ export function projectEntriesByDate(projects, today = todayStr()) {
       detail: detailText(node),
       subtaskCount: (node.subtasks || []).length,
       subtaskDone: (node.subtasks || []).filter((s) => s && s.done).length,
-      overdue: !node.done && !!node.dueDate && node.dueDate < today
+      overdue: isOverdue(node, today)
     });
   }
   return out;
