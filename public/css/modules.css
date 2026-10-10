@@ -298,6 +298,7 @@
 
 /* 今日计划：日历（周视图 / 月视图） */
 .cal-toolbar { margin-bottom: 10px; }
+.cal-toolbar-top .cal-toolbar-gap { min-width: 16px; }
 .cal-nav { gap: 8px; align-items: center; margin: 10px 0; }
 .cal-period { font-weight: 600; font-size: 15px; }
 .cal { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; box-shadow: var(--shadow); }

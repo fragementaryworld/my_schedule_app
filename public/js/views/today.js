@@ -88,18 +88,23 @@ function toEntry(t) {
 function buildToolbar() {
   const wrap = h('div', { class: 'cal-toolbar' });
 
-  const top = h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' });
-  const addBtn = h('button', { class: 'btn btn-primary btn-sm add-day-task' }, '＋ 新增任务');
-  addBtn.onclick = () => addTask();
-  top.append(addBtn);
+  // 第一行：左边视图切换，右边新增任务，中间用分隔撑开
+  const top = h('div', { class: 'row cal-toolbar-top', style: 'flex-wrap:wrap;gap:8px' });
 
-  const tabs = h('div', { class: 'tabbar', style: 'margin:0;border:none' });
+  const tabs = h('div', { class: 'tabbar cal-views', style: 'margin:0;border:none' });
   for (const v of CALENDAR_VIEWS) {
     const b = h('button', { class: 'tab' + (view === v.value ? ' active' : '') }, v.label);
     b.onclick = () => { view = v.value; paint(); };
     tabs.append(b);
   }
   top.append(tabs);
+
+  // 分隔：把新增任务推到最右边，与视图窗口分开
+  top.append(h('span', { class: 'spacer cal-toolbar-gap' }));
+
+  const addBtn = h('button', { class: 'btn btn-primary btn-sm add-day-task cal-add' }, '＋ 新增任务');
+  addBtn.onclick = () => addTask();
+  top.append(addBtn);
   wrap.append(top);
 
   const nav = h('div', { class: 'row cal-nav' });
