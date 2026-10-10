@@ -76,6 +76,43 @@ export const IDEA_STATUS = {
 };
 export const IDEA_ORDER = ['idea', 'planning', 'doing', 'done', 'dropped'];
 
+// ——— 预计用时（存分钟数）———
+export const ESTIMATE_OPTIONS = [
+  { value: 0, label: '未设置' },
+  { value: 15, label: '15 分钟' },
+  { value: 30, label: '30 分钟' },
+  { value: 60, label: '1 小时' },
+  { value: 120, label: '2 小时' },
+  { value: 240, label: '半天' },
+  { value: 480, label: '1 天' }
+];
+
+// 分钟 → 展示文案
+export function estimateLabel(minutes) {
+  const n = Number(minutes);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const hit = ESTIMATE_OPTIONS.find((o) => o.value === n);
+  if (hit) return hit.label;
+  if (n < 60) return `${Math.round(n)} 分钟`;
+  const hours = n / 60;
+  return Number.isInteger(hours) ? `${hours} 小时` : `${hours.toFixed(1)} 小时`;
+}
+
+// 任意输入 → 存储值（分钟数或 null）
+export function normalizeEstimate(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const rounded = Math.round(n);
+  return rounded > 0 ? rounded : null;
+}
+
+// 展示用（没有就不显示）
+export function estimateText(item) {
+  const label = estimateLabel(item && item.estimate);
+  return label ? `⏱ ${label}` : '';
+}
+
 // 条目的时间区间终点：优先结束日期/时间（项目任务用 dueDate/dueTime）
 export function rangeEnd(item) {
   const it = item || {};

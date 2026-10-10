@@ -1,7 +1,7 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel } from '../utils.js';
+import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber, groupByDate, spanDays,
@@ -74,6 +74,7 @@ function toEntry(t) {
     sourceLabel: t.source && t.source.type ? sourceLabel(t.source.type) : '',
     color: DAY_TASK_COLOR,
     detail: (t.note || '').trim(),
+    estimate: t.estimate || null,
     spanFrom: span.from,
     spanTo: span.to,
     spanDays: spanDays(span),
@@ -240,6 +241,7 @@ function buildCard(e, compact) {
 
   const meta = h('div', { class: 'cal-card-meta' });
   if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
+  if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
   if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
   if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `${e.spanStart ? '起' : (e.spanEnd ? '止' : '续')} · 共 ${e.spanDays} 天`));
   if (e.sourceLabel) meta.append(h('span', { class: 'cal-chip' }, e.sourceLabel));
@@ -360,6 +362,7 @@ function boardCol(title, entries, doneFlag, all) {
 
     const meta = h('div', { class: 'row cal-card-meta' });
     if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
+    if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
     meta.append(h('span', { class: 'cal-chip' }, e.kind === 'project' ? `📁 ${escapeHtml(e.projectName)}` : '每日任务'));
     if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `跨 ${e.spanDays} 天`));
     if (e.subtaskCount) meta.append(h('span', { class: 'cal-chip' }, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));

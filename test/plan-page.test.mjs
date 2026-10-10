@@ -108,24 +108,32 @@ test('问题2：日期选择器写回 date/time/dateFormat', async () => {
 
 test('问题2：状态/优先级/重复/来源 都能改', async () => {
   const el = await renderPlan();
-  const selects = findAllByClass(el, 'inline-select');
-  assert.equal(selects.length, 4, '状态 / 优先级 / 重复 / 来源');
+  // 按标签定位，避免属性行顺序变化影响断言
+  const propSelect = (label) => {
+    const row = findAllByClass(el, 'prop-row').find((r) => textOf(r).startsWith(label));
+    assert.ok(row, `应有「${label}」属性行`);
+    return findAllByTag(row, 'select')[0];
+  };
+  assert.equal(findAllByClass(el, 'inline-select').length, 5, '状态 / 预计用时 / 优先级 / 重复 / 来源');
 
   calls.length = 0;
-  selects[0].value = 'yes';
-  selects[0].fire('change');
+  const doneSel = propSelect('状态');
+  doneSel.value = 'yes';
+  doneSel.fire('change');
   await tick();
   assert.deepEqual(calls.find((c) => c.method === 'PUT').body, { done: true });
 
   calls.length = 0;
-  selects[2].value = 'd2';
-  selects[2].fire('change');
+  const repeatSel = propSelect('重复');
+  repeatSel.value = 'd2';
+  repeatSel.fire('change');
   await tick();
   assert.deepEqual(calls.find((c) => c.method === 'PUT').body, { repeat: { interval: 2, unit: 'day' } });
 
   calls.length = 0;
-  selects[3].value = '';
-  selects[3].fire('change');
+  const sourceSel = propSelect('来源');
+  sourceSel.value = '';
+  sourceSel.fire('change');
   await tick();
   assert.deepEqual(calls.find((c) => c.method === 'PUT').body, { source: null });
 });

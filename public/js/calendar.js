@@ -204,6 +204,7 @@ export function projectEntriesByDate(projects, today = todayStr()) {
       spanEnd: date === span.to,
       continued: date !== span.from,
       detail: detailText(node),
+      estimate: node.estimate || null,
       subtaskCount: (node.subtasks || []).length,
       subtaskDone: (node.subtasks || []).filter((s) => s && s.done).length,
       overdue: isOverdue(node, today)

@@ -1,7 +1,7 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { escapeHtml } from '../utils.js';
+import { escapeHtml, ESTIMATE_OPTIONS, normalizeEstimate } from '../utils.js';
 import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
 import { buildBlocksEditor } from './page.js';
 import { buildDateField } from '../datepicker.js';
@@ -185,10 +185,26 @@ export function buildItemProperties(project, item, itemChain) {
   card.append(
     row('状态', doneSel),
     row('时间', dateField),
+    row('预计用时', estimateSelect(item, base)),
     row('层级', h('span', { class: 'small muted' }, `${itemChain.length} / ${MAX_ITEM_DEPTH}`)),
     row('下级', h('span', { class: 'small muted' }, kids ? `${kids} 项` : '无'))
   );
   return card;
+}
+
+// 预计用时下拉（所有任务/子任务通用）
+export function estimateSelect(item, base) {
+  const sel = h('select', { class: 'input inline-select estimate-select' });
+  for (const o of ESTIMATE_OPTIONS) sel.append(h('option', { value: String(o.value) }, o.label));
+  sel.value = String(normalizeEstimate(item && item.estimate) || 0);
+  sel.onchange = async () => {
+    const value = normalizeEstimate(sel.value);
+    await api.put(base, { estimate: value });
+    if (item) item.estimate = value;
+    toast('已保存');
+    await paint();
+  };
+  return sel;
 }
 
 // 下级区块：与项目页任务区一致的标准四视图（表格 / 时间线 / 看板 / 信息流）

@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
 import {
   todayStr, fmtDate, escapeHtml, isOverdue, weekdayIndex, weekStartDate,
-  priorityClass, priorityLabel, PROJECT_STATUS, BOOK_STATUS
+  priorityClass, priorityLabel, PROJECT_STATUS, BOOK_STATUS, estimateText
 } from '../utils.js';
 
 const WEEK_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -116,6 +116,7 @@ function buildTodayCard(s, today) {
       const row = h('div', { class: 'row', style: 'padding:4px 0' });
       row.append(h('span', { class: `badge ${priorityClass(t.priority)}` }, priorityLabel(t.priority)));
       row.append(h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(t.title)));
+      if (estimateText(t)) row.append(h('span', { class: 'small muted estimate-chip' }, estimateText(t)));
       if (isOverdue(t, today)) row.append(h('span', { class: 'badge overdue' }, '逾期'));
       list.append(row);
     }

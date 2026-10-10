@@ -1,7 +1,7 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays } from '../utils.js';
+import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays, estimateText } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { formatDateValue } from '../datepicker.js';
 
@@ -995,7 +995,7 @@ export function buildItemTable(ctx) {
   const table = h('table', { class: 'task-table' });
   table.append(h('thead', {}, h('tr', {},
     h('th', { style: 'width:28px' }, ''), h('th', {}, '完成'), h('th', {}, '任务'),
-    h('th', {}, '时间'), h('th', {}, '状态'), h('th', {}, '子任务'), h('th', {}, '')
+    h('th', {}, '时间'), h('th', {}, '预计'), h('th', {}, '状态'), h('th', {}, '子任务'), h('th', {}, '')
   )));
   const tbody = h('tbody', {});
   for (const t of ctx.items) {
@@ -1033,6 +1033,7 @@ export function buildItemTable(ctx) {
     tr.append(h('td', {}, titleSpan));
 
     tr.append(h('td', { class: 'small muted' }, formatTaskDates(t)));
+    tr.append(h('td', { class: 'small muted estimate-cell' }, estimateText(t) || '—'));
     tr.append(h('td', {}, taskStatusBadge(t, today)));
     tr.append(h('td', { class: 'small muted' }, `${subs.filter((s) => s.done).length}/${subs.length}`));
 
@@ -1207,6 +1208,7 @@ export function buildItemTimeline(ctx) {
         title: `${t.title}（拖到分组标题可切换完成）`,
         draggable: 'true'
       }, h('i', { class: 'timeline-dot', style: `background:${color}` }), escapeHtml(t.title));
+      if (estimateText(t)) label.append(h('span', { class: 'small muted estimate-chip' }, estimateText(t)));
       label.onclick = () => { location.hash = ctx.deepHref(entry.path); };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); };
       row.append(label);
@@ -1304,6 +1306,7 @@ function itemCol(ctx, title, entries, today, doneFlag, all) {
 
     const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
     metaRow.append(h('span', { class: 'small muted' }, `📅 ${formatTaskDates(t)}`));
+    if (estimateText(t)) metaRow.append(h('span', { class: 'small muted estimate-chip' }, estimateText(t)));
     if (!t.done && taskIsOverdue(t, today)) metaRow.append(h('span', { class: 'badge overdue' }, '已逾期'));
     card.append(metaRow);
 
@@ -1382,6 +1385,7 @@ function buildItemPost(ctx, entry) {
   const meta = h('div', { class: 'row', style: 'margin:6px 0;flex-wrap:wrap' });
   if (entry.depth > 1) meta.append(h('span', { class: 'small muted' }, `第 ${entry.depth} 层`));
   meta.append(h('span', { class: 'small muted' }, `📅 ${formatTaskDates(t)}`));
+  if (estimateText(t)) meta.append(h('span', { class: 'small muted estimate-chip' }, estimateText(t)));
   const subs = t.subtasks || [];
   meta.append(h('span', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
   if (t.createdAt) meta.append(h('span', { class: 'small muted' }, `创建于 ${String(t.createdAt).slice(0, 10)}`));
