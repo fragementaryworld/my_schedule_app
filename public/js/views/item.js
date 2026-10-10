@@ -1,7 +1,8 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { escapeHtml, ESTIMATE_OPTIONS, normalizeEstimate } from '../utils.js';
+import { escapeHtml } from '../utils.js';
+import { buildEstimateField } from '../estimate.js';
 import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
 import { buildBlocksEditor } from './page.js';
 import { buildDateField } from '../datepicker.js';
@@ -192,19 +193,17 @@ export function buildItemProperties(project, item, itemChain) {
   return card;
 }
 
-// 预计用时下拉（所有任务/子任务通用）
+// 预计用时（预设 + 手填小时），所有任务/子任务通用
 export function estimateSelect(item, base) {
-  const sel = h('select', { class: 'input inline-select estimate-select' });
-  for (const o of ESTIMATE_OPTIONS) sel.append(h('option', { value: String(o.value) }, o.label));
-  sel.value = String(normalizeEstimate(item && item.estimate) || 0);
-  sel.onchange = async () => {
-    const value = normalizeEstimate(sel.value);
-    await api.put(base, { estimate: value });
-    if (item) item.estimate = value;
-    toast('已保存');
-    await paint();
-  };
-  return sel;
+  return buildEstimateField({
+    value: item && item.estimate,
+    onSave: async (minutes) => {
+      await api.put(base, { estimate: minutes });
+      if (item) item.estimate = minutes;
+      toast('已保存');
+      await paint();
+    }
+  });
 }
 
 // 下级区块：与项目页任务区一致的标准四视图（表格 / 时间线 / 看板 / 信息流）

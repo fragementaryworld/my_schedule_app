@@ -113,6 +113,19 @@ export function estimateText(item) {
   return label ? `⏱ ${label}` : '';
 }
 
+// 分钟 ↔ 小时（手动填写用小时）
+export function estimateHours(minutes) {
+  const n = Number(minutes);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round((n / 60) * 100) / 100;
+}
+
+export function hoursToMinutes(hours) {
+  const n = Number(hours);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 60);
+}
+
 // 条目的时间区间终点：优先结束日期/时间（项目任务用 dueDate/dueTime）
 export function rangeEnd(item) {
   const it = item || {};

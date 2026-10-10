@@ -57,6 +57,12 @@ export class Element {
   getAttribute(k) {
     return this.attrs[k];
   }
+  hasAttribute(k) {
+    return Object.prototype.hasOwnProperty.call(this.attrs, k);
+  }
+  removeAttribute(k) {
+    delete this.attrs[k];
+  }
 
   addEventListener(type, fn) {
     (this._listeners[type] ||= []).push(fn);

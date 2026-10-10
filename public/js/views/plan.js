@@ -1,7 +1,8 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { escapeHtml, todayStr, ESTIMATE_OPTIONS, normalizeEstimate } from '../utils.js';
+import { escapeHtml, todayStr } from '../utils.js';
+import { buildEstimateField } from '../estimate.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
 import {
@@ -149,16 +150,15 @@ function buildProperties(task) {
     await paint();
   };
 
-  const estimateSel = h('select', { class: 'input inline-select estimate-select' });
-  for (const o of ESTIMATE_OPTIONS) estimateSel.append(h('option', { value: String(o.value) }, o.label));
-  estimateSel.value = String(normalizeEstimate(task.estimate) || 0);
-  estimateSel.onchange = async () => {
-    const value = normalizeEstimate(estimateSel.value);
-    await api.put(`/api/tasks/${task.id}`, { estimate: value });
-    task.estimate = value;
-    toast('已保存');
-    await paint();
-  };
+  const estimateSel = buildEstimateField({
+    value: task.estimate,
+    onSave: async (minutes) => {
+      await api.put(`/api/tasks/${task.id}`, { estimate: minutes });
+      task.estimate = minutes;
+      toast('已保存');
+      await paint();
+    }
+  });
 
   card.append(
     row('状态', doneSel),
