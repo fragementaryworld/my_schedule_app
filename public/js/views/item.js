@@ -4,7 +4,7 @@ import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focus
 import { escapeHtml } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
-import { buildBlocksEditor } from './page.js';
+import { buildBlocksEditor, restoreBlockEditing } from './page.js';
 import { buildDateField } from '../datepicker.js';
 
 // 任务最多 5 层：任务 → 子任务 → 子子任务 → …
@@ -89,6 +89,7 @@ async function paint() {
   } finally {
     restoreScroll(pos);
     focusRestore(focus);
+    restoreBlockEditing(); // 内容区：重绘后回到刚才那块并恢复光标
   }
 }
 

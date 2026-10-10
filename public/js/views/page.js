@@ -11,6 +11,49 @@ let pageId = null;
 let titleEl = null;
 const blockEls = new Map();
 
+// 内容编辑状态：正在编辑哪一块、光标在哪 —— 用来在整页重绘后接着编辑
+const editState = { key: null, caret: null };
+
+// 取当前光标在节点内的字符偏移（拿不到就返回 null）
+export function caretOffset(node, win = typeof window === 'undefined' ? null : window) {
+  const sel = win && win.getSelection ? win.getSelection() : null;
+  if (!sel || !sel.rangeCount || !node || !node.contains || !node.contains(sel.anchorNode)) return null;
+  const range = sel.getRangeAt(0);
+  const pre = range.cloneRange();
+  pre.selectNodeContents(node);
+  pre.setEnd(range.startContainer, range.startOffset);
+  return pre.toString().length;
+}
+
+// 把光标放回指定偏移（offset 为空则放到末尾）
+export function setCaret(node, offset, win = typeof window === 'undefined' ? null : window) {
+  const doc = typeof document === 'undefined' ? null : document;
+  const sel = win && win.getSelection ? win.getSelection() : null;
+  if (!sel || !doc || !doc.createRange || !node) return;
+  const len = String(node.textContent || '').length;
+  const at = Math.max(0, Math.min(typeof offset === 'number' ? offset : len, len));
+  const range = doc.createRange();
+  const text = node.firstChild;
+  if (text && text.nodeType === 3) range.setStart(text, Math.min(at, text.textContent.length));
+  else range.setStart(node, 0);
+  range.collapse(true);
+  if (sel.removeAllRanges) sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// 重绘后：回到刚才正在编辑的那一块，并把光标放回原处
+export function restoreBlockEditing() {
+  if (!editState.key) return;
+  const pair = blockEls.get(editState.key);
+  if (!pair) { editState.key = null; return; }
+  if (pair.display) pair.display.style.display = 'none';
+  if (pair.editable) {
+    pair.editable.style.display = '';
+    if (pair.editable.focus) pair.editable.focus();
+    setCaret(pair.editable, editState.caret);
+  }
+}
+
 // 新建后尚未填写内容的页面
 export function isFreshPage(page) {
   if (!page) return false;
@@ -51,6 +94,7 @@ async function paint() {
   } finally {
     restoreScroll(pos);
     focusRestore(focus);
+    restoreBlockEditing(); // 内容区：重绘后回到刚才那块并恢复光标，避免"字丢了/要刷新才显示"
   }
 }
 
@@ -303,18 +347,43 @@ function buildBlockEl(owner, block, index, blocks, base, refresh) {
     display.style.display = 'none';
     editable.style.display = '';
     editable.textContent = block.text || '';
+    editState.key = block.id;
+    editState.caret = null;
     if (editable.focus) editable.focus();
   };
   display.onclick = enterEdit;
   blockEls.set(block.id, { display, editable });
 
-  editable.addEventListener('blur', async () => {
+  // 边打字边保存：页面里任何别的保存都会整页重绘，
+  // 只靠失焦保存的话，重绘会把还没保存的字直接丢掉。
+  let saveTimer = null;
+  const saveText = async (silent = true) => {
     const next = editable.textContent;
-    if (next !== (block.text || '')) {
-      await api.put(`${base}/blocks/${block.id}`, { text: next });
-      block.text = next;
-      toast('已保存');
+    if (next === (block.text || '')) return;
+    await api.put(`${base}/blocks/${block.id}`, { text: next });
+    block.text = next;
+    if (!silent) toast('已保存');
+  };
+  const cancelSave = () => {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
     }
+  };
+
+  editable.addEventListener('input', () => {
+    editState.caret = caretOffset(editable);
+    cancelSave();
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      saveText(true);
+    }, 700);
+  });
+
+  editable.addEventListener('blur', async () => {
+    cancelSave();
+    await saveText(false);
+    editState.key = null;
     display.innerHTML = renderMarkdown(block.text || '');
     editable.style.display = 'none';
     display.style.display = '';

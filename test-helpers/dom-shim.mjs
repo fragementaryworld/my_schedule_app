@@ -27,6 +27,18 @@ export class Element {
     this._class = String(v);
   }
 
+  // 是否还挂在文档上（重绘会把旧节点摘掉，用它判断元素有没有被换掉）
+  get isConnected() {
+    const doc = typeof document === 'undefined' ? null : document;
+    if (!doc) return false;
+    let node = this;
+    while (node) {
+      if (node === doc.body || node === doc.documentElement) return true;
+      node = node.parentNode || null;
+    }
+    return false;
+  }
+
   get classList() {
     const self = this;
     const set = () => new Set(self._class.split(/\s+/).filter(Boolean));

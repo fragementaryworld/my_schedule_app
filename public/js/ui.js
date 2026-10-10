@@ -95,9 +95,10 @@ export function focusRestore(snap) {
   }
 }
 
-// 只有真正能接收焦点的元素才值得恢复（容器 div 不行）
+// 只有真正能接收焦点的元素才值得恢复（容器 div、隐藏元素都不行）
 function isFocusable(el) {
   if (!el || typeof el.focus !== 'function') return false;
+  if (el.style && el.style.display === 'none') return false;
   const tag = String(el.tagName || '').toUpperCase();
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'A') return true;
   if (typeof el.getAttribute !== 'function') return false;
