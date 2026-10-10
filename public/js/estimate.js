@@ -1,70 +1,50 @@
 'use strict';
-// 预计用时输入：预设下拉（快速选）+ 手动按小时填写
+// 预计用时输入：手动填写小时数
+// 用文本输入而不是 type="number"：number 输入框会静默丢弃中文输入法打出的全角数字，
+// 导致"输不进数字"。这里改成文本 + decimal 键盘 + 宽容解析（全角/单位后缀都能认）。
 import { h } from './ui.js';
-import {
-  ESTIMATE_OPTIONS, estimateLabel, estimateHours, hoursToMinutes, normalizeEstimate
-} from './utils.js';
+import { estimateHours, normalizeEstimate, parseEstimateInput } from './utils.js';
 
 export function buildEstimateField({ value, onSave }) {
+  let current = normalizeEstimate(value);
+
   const wrap = h('div', { class: 'row estimate-field' });
-
-  const sel = h('select', { class: 'input inline-select estimate-select' });
-  for (const o of ESTIMATE_OPTIONS) sel.append(h('option', { value: String(o.value) }, o.label));
-  // 手动填了非预设值时，用它显示实际值
-  const custom = h('option', { value: 'custom', hidden: 'hidden' });
-  sel.append(custom);
-
   const num = h('input', {
-    type: 'number',
+    type: 'text',
+    inputmode: 'decimal',
+    autocomplete: 'off',
+    spellcheck: 'false',
     class: 'input estimate-hours',
-    step: '0.5',
-    min: '0',
-    placeholder: '手填',
+    placeholder: '0',
     title: '手动输入预计用时（小时）',
     'aria-label': '预计用时（小时）'
   });
   const unit = h('span', { class: 'small muted estimate-unit' }, 'h');
 
-  function syncSelect(minutes) {
-    const preset = ESTIMATE_OPTIONS.find((o) => o.value === minutes);
-    if (preset) {
-      custom.setAttribute('hidden', 'hidden');
-      sel.value = String(preset.value);
-      return;
-    }
-    if (!minutes) {
-      custom.setAttribute('hidden', 'hidden');
-      sel.value = '0';
-      return;
-    }
-    custom.textContent = estimateLabel(minutes);
-    custom.removeAttribute('hidden');
-    sel.value = 'custom';
-  }
-
-  function syncInput(minutes) {
+  const syncInput = (minutes) => {
     num.value = minutes ? String(estimateHours(minutes)) : '';
-  }
+  };
+  syncInput(current);
 
-  const initial = normalizeEstimate(value);
-  syncSelect(initial);
-  syncInput(initial);
-
-  sel.onchange = async () => {
-    if (sel.value === 'custom') return; // 自定义值由输入框负责
-    const minutes = normalizeEstimate(sel.value);
+  const commit = async () => {
+    const minutes = parseEstimateInput(num.value);
+    if (minutes === undefined) {
+      syncInput(current); // 看不懂的输入就还原，不要写坏数据
+      return;
+    }
+    current = minutes;
     syncInput(minutes);
     await onSave(minutes);
   };
 
-  num.addEventListener('change', async () => {
-    const raw = String(num.value).trim();
-    const minutes = raw === '' ? null : normalizeEstimate(hoursToMinutes(Number(raw)));
-    syncInput(minutes);
-    syncSelect(minutes);
-    await onSave(minutes);
+  num.addEventListener('change', commit);
+  num.addEventListener('keydown', (ev) => {
+    if (ev && ev.key === 'Enter') {
+      if (ev.preventDefault) ev.preventDefault();
+      commit();
+    }
   });
 
-  wrap.append(sel, num, unit);
+  wrap.append(num, unit);
   return wrap;
 }

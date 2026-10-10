@@ -126,6 +126,22 @@ export function hoursToMinutes(hours) {
   return Math.round(n * 60);
 }
 
+// 手填输入 → 分钟。容忍全角数字（中文输入法）、空格、以及 "h/小时" 后缀。
+// 返回 null = 清空；返回 undefined = 非法输入（调用方应还原，不要写库）
+export function parseEstimateInput(raw) {
+  const text = String(raw === null || raw === undefined ? '' : raw).trim();
+  if (!text) return null;
+  const half = text
+    .replace(/[\uFF10-\uFF19]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[\uFF0E\u3002\uFF0C]/g, '.')
+    .replace(/\s+/g, '')
+    .replace(/(小时|時|时|hours|hour|hrs|hr|h|H)$/, '');
+  if (!/^\d*\.?\d+$/.test(half)) return undefined;
+  const hours = Number(half);
+  if (!Number.isFinite(hours) || hours <= 0) return null;
+  return hoursToMinutes(hours);
+}
+
 // 条目的时间区间终点：优先结束日期/时间（项目任务用 dueDate/dueTime）
 export function rangeEnd(item) {
   const it = item || {};

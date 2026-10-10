@@ -2,13 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { makeDocument, findAllByClass, findAllByTag, textOf } from '../test-helpers/dom-shim.mjs';
-import { todayStr, estimateHours, hoursToMinutes } from '../public/js/utils.js';
+import { makeDocument, findAllByClass, textOf } from '../test-helpers/dom-shim.mjs';
+import { todayStr, estimateHours, hoursToMinutes, parseEstimateInput } from '../public/js/utils.js';
 
 globalThis.document = makeDocument();
 globalThis.location = { hash: '#/plan/t1' };
 
-const nodeFetchUnused = globalThis.fetch;
 const calls = [];
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
@@ -26,9 +25,9 @@ function makeField(value) {
   const saved = [];
   const el = estimateMod.buildEstimateField({ value, onSave: (m) => saved.push(m) });
   document.body.append(el);
-  return { el, saved, num: findAllByClass(el, 'estimate-hours')[0], sel: findAllByClass(el, 'estimate-select')[0] };
+  return { el, saved, num: findAllByClass(el, 'estimate-hours')[0] };
 }
-const customOption = (sel) => findAllByTag(sel, 'option').find((o) => o.getAttribute('value') === 'custom');
+const type = (num, text) => { num.value = text; num.fire('change'); };
 
 // ══════════ 纯函数 ══════════
 
@@ -46,12 +45,10 @@ test('问题2：estimateHours 把分钟换成小时', () => {
 test('问题2：hoursToMinutes 把小时换成分钟', () => {
   assert.equal(hoursToMinutes(2), 120);
   assert.equal(hoursToMinutes(0.5), 30);
-  assert.equal(hoursToMinutes(3), 180);
   assert.equal(hoursToMinutes(2.5), 150);
   assert.equal(hoursToMinutes(0.3), 18);
   assert.equal(hoursToMinutes(0), null);
   assert.equal(hoursToMinutes(''), null);
-  assert.equal(hoursToMinutes('abc'), null);
   assert.equal(hoursToMinutes(-1), null);
 });
 
@@ -61,16 +58,48 @@ test('问题2：小时与分钟可以来回换算', () => {
   }
 });
 
+test('问题2【回归】：中文输入法的全角数字也能识别', () => {
+  // 这正是"手动输入无法输入数字"的原因：type=number 会把全角数字整段丢掉
+  assert.equal(parseEstimateInput('３'), 180);
+  assert.equal(parseEstimateInput('３．５'), 210);
+  assert.equal(parseEstimateInput('０．５'), 30);
+  assert.equal(parseEstimateInput('１２'), 720);
+});
+
+test('问题2：解析容忍空格与 h／小时后缀', () => {
+  assert.equal(parseEstimateInput('3'), 180);
+  assert.equal(parseEstimateInput(' 3 '), 180);
+  assert.equal(parseEstimateInput('3h'), 180);
+  assert.equal(parseEstimateInput('3H'), 180);
+  assert.equal(parseEstimateInput('3 小时'), 180);
+  assert.equal(parseEstimateInput('2.5小时'), 150);
+});
+
+test('问题2：空 = 清空，非法 = 交给调用方还原', () => {
+  assert.equal(parseEstimateInput(''), null);
+  assert.equal(parseEstimateInput('   '), null);
+  assert.equal(parseEstimateInput(null), null);
+  assert.equal(parseEstimateInput('0'), null);
+  assert.equal(parseEstimateInput('abc'), undefined, '非法输入用 undefined 区分');
+  assert.equal(parseEstimateInput('-3'), undefined);
+  assert.equal(parseEstimateInput('3.5.5'), undefined);
+});
+
 // ══════════ 输入控件 ══════════
 
-test('问题2：预计用时行有手动输入框，单位是 h', () => {
+test('问题2：预计用时只保留手动输入框（没有下拉框）', () => {
   const { el, num } = makeField(null);
   assert.ok(num, '应有手填输入框');
-  assert.equal(num.getAttribute('type'), 'number');
-  assert.equal(num.getAttribute('step'), '0.5');
-  assert.equal(num.getAttribute('min'), '0');
+  assert.equal(findAllByClass(el, 'estimate-select').length, 0, '下拉框应已移除');
+  assert.equal(el.children.length, 2, '只剩输入框与单位');
   assert.equal(textOf(findAllByClass(el, 'estimate-unit')[0]), 'h', '单位标为 h');
-  assert.ok(findAllByClass(el, 'estimate-select')[0], '预设下拉仍在');
+});
+
+test('问题2【回归】：输入框不是 type=number（否则全角数字输不进去）', () => {
+  const { num } = makeField(null);
+  assert.equal(num.getAttribute('type'), 'text');
+  assert.equal(num.getAttribute('inputmode'), 'decimal', '移动端弹数字键盘');
+  assert.equal(num.getAttribute('autocomplete'), 'off');
 });
 
 test('问题2：手填框回填已存的预计用时（小时）', () => {
@@ -82,8 +111,7 @@ test('问题2：手填框回填已存的预计用时（小时）', () => {
 
 test('问题2：手动输入 3 小时 → 存 180 分钟', async () => {
   const { saved, num } = makeField(null);
-  num.value = '3';
-  num.fire('change');
+  type(num, '3');
   await tick();
   assert.deepEqual(saved, [180]);
   assert.equal(num.value, '3', '输入框保留用户输入');
@@ -91,67 +119,43 @@ test('问题2：手动输入 3 小时 → 存 180 分钟', async () => {
 
 test('问题2：手动输入小数小时也对', async () => {
   const { saved, num } = makeField(null);
-  num.value = '0.5';
-  num.fire('change');
+  type(num, '0.5');
   await tick();
-  num.value = '2.5';
-  num.fire('change');
+  type(num, '2.5');
   await tick();
   assert.deepEqual(saved, [30, 150]);
 });
 
-test('问题2：清空手填框 = 取消预计用时', async () => {
-  const { saved, num, sel } = makeField(120);
-  num.value = '';
-  num.fire('change');
+test('问题2：手打全角数字同样生效（真机回归）', async () => {
+  const { saved, num } = makeField(null);
+  type(num, '３');
+  await tick();
+  assert.deepEqual(saved, [180]);
+  assert.equal(num.value, '3', '存完归一成半角显示');
+});
+
+test('问题2：回车也能提交', async () => {
+  const { saved, num } = makeField(null);
+  num.value = '2';
+  num.fire('keydown', { key: 'Enter' });
+  await tick();
+  assert.deepEqual(saved, [120]);
+});
+
+test('问题2：清空输入框 = 取消预计用时', async () => {
+  const { saved, num } = makeField(120);
+  type(num, '');
   await tick();
   assert.deepEqual(saved, [null]);
-  assert.equal(sel.value, '0', '下拉回到未设置');
+  assert.equal(num.value, '');
 });
 
-test('问题2：填非预设值时，下拉显示实际值而不是瞎标', async () => {
-  const { sel, num } = makeField(null);
-  num.value = '3';
-  num.fire('change');
+test('问题2：乱输不会写坏数据，会自动还原', async () => {
+  const { saved, num } = makeField(120);
+  type(num, 'abc');
   await tick();
-  assert.equal(sel.value, 'custom', '下拉切到自定义项');
-  assert.equal(textOf(customOption(sel)), '3 小时');
-  assert.equal(customOption(sel).hasAttribute('hidden'), false, '自定义项要可见');
-});
-
-test('问题2：填的值正好是预设档位时，下拉选中该档位', async () => {
-  const { sel, num } = makeField(180);
-  num.value = '2';
-  num.fire('change');
-  await tick();
-  assert.equal(sel.value, '120', '2 小时对应预设 120');
-  assert.equal(customOption(sel).hasAttribute('hidden'), true, '自定义项应隐藏');
-});
-
-test('问题2：从下拉选预设会同步到手填框', async () => {
-  const { saved, sel, num } = makeField(null);
-  sel.value = '240';
-  sel.fire('change');
-  await tick();
-  assert.deepEqual(saved, [240]);
-  assert.equal(num.value, '4', '半天 = 4 小时');
-
-  sel.value = '0';
-  sel.fire('change');
-  await tick();
-  assert.deepEqual(saved, [240, null]);
-  assert.equal(num.value, '', '未设置清空输入框');
-});
-
-test('问题2：下拉停在自定义项时不再重复提交', async () => {
-  const { saved, sel, num } = makeField(null);
-  num.value = '3';
-  num.fire('change');
-  await tick();
-  saved.length = 0;
-  sel.fire('change');
-  await tick();
-  assert.deepEqual(saved, [], '自定义值不会被下拉再次写一遍');
+  assert.deepEqual(saved, [], '不应提交');
+  assert.equal(num.value, '2', '还原成原来的 2 小时');
 });
 
 // ══════════ 页面接入 ══════════
@@ -160,11 +164,11 @@ test('问题2：任务页面可以用手填小时保存', async () => {
   calls.length = 0;
   const props = itemMod.buildItemProperties({ id: 'p1' }, { id: 't1', title: 'A', estimate: 60, subtasks: [] }, ['t1']);
   const row = findAllByClass(props, 'prop-row').find((r) => textOf(r).startsWith('预计用时'));
+  assert.equal(findAllByClass(row, 'estimate-select').length, 0, '任务页面也不再有下拉框');
   const num = findAllByClass(row, 'estimate-hours')[0];
   assert.equal(num.value, '1', '回填 1 小时');
 
-  num.value = '3';
-  num.fire('change');
+  type(num, '3');
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/projects/p1/tasks/t1');
@@ -184,12 +188,12 @@ test('问题2：每日任务页面可以用手填小时保存', async () => {
   const el = document.createElement('div');
   await planMod.render(el, { id: 't1' });
   const row = findAllByClass(el, 'prop-row').find((r) => textOf(r).startsWith('预计用时'));
+  assert.equal(findAllByClass(row, 'estimate-select').length, 0);
   const num = findAllByClass(row, 'estimate-hours')[0];
   assert.equal(num.value, '1.5', '回填 1.5 小时');
 
   calls.length = 0;
-  num.value = '0.5';
-  num.fire('change');
+  type(num, '0.5');
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/tasks/t1');

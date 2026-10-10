@@ -114,7 +114,7 @@ test('问题2：状态/优先级/重复/来源 都能改', async () => {
     assert.ok(row, `应有「${label}」属性行`);
     return findAllByTag(row, 'select')[0];
   };
-  assert.equal(findAllByClass(el, 'inline-select').length, 5, '状态 / 预计用时 / 优先级 / 重复 / 来源');
+  assert.equal(findAllByClass(el, 'inline-select').length, 4, '状态 / 优先级 / 重复 / 来源（预计用时是手填框，不是下拉）');
 
   calls.length = 0;
   const doneSel = propSelect('状态');

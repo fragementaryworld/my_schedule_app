@@ -177,25 +177,25 @@ test('问题1：时间线上显示预计用时', () => {
   assert.deepEqual(chips, ['⏱ 半天']);
 });
 
-test('问题1：任务页面有「预计用时」下拉并能保存', async () => {
+test('问题1：任务页面能设置「预计用时」并保存', async () => {
   calls.length = 0;
   const props = itemMod.buildItemProperties({ id: 'p1' }, { id: 't1', title: 'A', estimate: 60, subtasks: [] }, ['t1']);
   const row = findAllByClass(props, 'prop-row').find((r) => textOf(r).startsWith('预计用时'));
   assert.ok(row, '应有预计用时属性行');
 
-  const sel = findAllByClass(row, 'estimate-select')[0];
-  assert.ok(sel, '应能设置预计用时');
-  assert.equal(sel.value, '60', '回填已存的值');
+  const num = findAllByClass(row, 'estimate-hours')[0];
+  assert.ok(num, '应能设置预计用时');
+  assert.equal(num.value, '1', '回填已存的值（60 分钟 = 1 小时）');
 
-  sel.value = '240';
-  sel.fire('change');
+  num.value = '4';
+  num.fire('change');
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/projects/p1/tasks/t1');
   assert.deepEqual(put.body, { estimate: 240 });
 });
 
-test('问题1：每日任务页面有「预计用时」下拉并能保存', async () => {
+test('问题1：每日任务页面能设置「预计用时」并保存', async () => {
   const backup = globalThis.fetch;
   const task = { id: 't1', title: '每日任务', date: TODAY, time: null, estimate: 120, dateFormat: 'ymd' };
   globalThis.fetch = async (url, opts = {}) => {
@@ -210,11 +210,11 @@ test('问题1：每日任务页面有「预计用时」下拉并能保存', asyn
   const row = findAllByClass(el, 'prop-row').find((r) => textOf(r).startsWith('预计用时'));
   assert.ok(row, '每日任务页也应有预计用时');
 
-  const sel = findAllByClass(row, 'estimate-select')[0];
-  assert.equal(sel.value, '120');
+  const num = findAllByClass(row, 'estimate-hours')[0];
+  assert.equal(num.value, '2', '120 分钟 = 2 小时');
   calls.length = 0;
-  sel.value = '480';
-  sel.fire('change');
+  num.value = '8';
+  num.fire('change');
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/tasks/t1');
