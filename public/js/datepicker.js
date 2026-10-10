@@ -225,12 +225,16 @@ function switchRow(label, cls, on, onclick) {
 }
 
 // 日期字段：点一下展开选择器（单日期 / 时间区间 + 日期格式 + 包含时间）
-export function buildDateField({ value, onSave, placeholder = '选择时间', today = todayStr() }) {
+export function buildDateField({ value, onSave, placeholder = '选择时间', today = todayStr(), key }) {
   let state = toPickerState(value);
   let view = { y: 0, m: 0 };
 
   const wrap = h('div', { class: 'date-field' });
-  const trigger = h('button', { type: 'button', class: 'btn btn-sm date-trigger' });
+  const trigger = h('button', {
+    type: 'button',
+    class: 'btn btn-sm date-trigger',
+    'data-focus-key': key
+  });
   const pop = h('div', { class: 'datepicker-pop' });
   pop.style.display = 'none';
 

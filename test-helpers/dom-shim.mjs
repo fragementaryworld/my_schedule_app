@@ -125,6 +125,35 @@ export class Element {
   click() {
     this.fire('click');
   }
+
+  // 焦点跟踪：焦点在哪个元素上，跨"重绘"恢复焦点要用到
+  focus() {
+    const doc = typeof document === 'undefined' ? null : document;
+    if (doc && doc.activeElement && doc.activeElement !== this && typeof doc.activeElement.fire === 'function') {
+      doc.activeElement.fire('blur');
+    }
+    if (doc) doc.activeElement = this;
+    this.fire('focus');
+  }
+  blur() {
+    const doc = typeof document === 'undefined' ? null : document;
+    this.fire('blur');
+    if (doc && doc.activeElement === this) doc.activeElement = doc.body;
+  }
+}
+
+// 极简选择器：支持 tag、.class、#id、[attr="value"] 组合（够本项目测试用）
+export function matchesSelector(node, selector) {
+  const sel = String(selector || '').trim();
+  if (!sel || !node || !node.tagName) return false;
+  const attrMatch = /^\[([\w-]+)="([^"]*)"\]$/.exec(sel);
+  if (attrMatch) {
+    const got = node.getAttribute ? node.getAttribute(attrMatch[1]) : undefined;
+    return String(got) === attrMatch[2];
+  }
+  if (sel.startsWith('.')) return String(node.className || '').split(/\s+/).includes(sel.slice(1));
+  if (sel.startsWith('#')) return String(node.id || '') === sel.slice(1);
+  return (node.tagName || '') === sel.toUpperCase();
 }
 
 export function makeDocument() {
@@ -134,7 +163,21 @@ export function makeDocument() {
     createTextNode: (t) => ({ nodeType: 3, text: String(t), children: [], parentNode: null }),
     body: new Element('body'),
     documentElement: new Element('html'),
+    activeElement: null,
     getElementById: (id) => findById(document.body, id),
+    querySelector(selector) {
+      const found = document.querySelectorAll(selector);
+      return found.length ? found[0] : null;
+    },
+    querySelectorAll(selector) {
+      const out = [];
+      const walk = (n) => {
+        if (matchesSelector(n, selector)) out.push(n);
+        for (const c of n.children || []) walk(c);
+      };
+      walk(document.body);
+      return out;
+    },
     addEventListener(type, fn) {
       (listeners[type] ||= []).push(fn);
     },

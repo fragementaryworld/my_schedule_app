@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { escapeHtml } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
@@ -64,6 +64,7 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   if (!container) return;
   const pos = scrollPos();
+  const focus = focusSnapshot();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
   const projects = await api.get('/api/projects');
   const project = projects.find((x) => x.id === projectId);
@@ -87,6 +88,7 @@ async function paint() {
     if (isFreshItem(item)) focusTitle();
   } finally {
     restoreScroll(pos);
+    focusRestore(focus);
   }
 }
 
@@ -139,7 +141,8 @@ function buildHead(project, item, itemChain) {
     class: 'page-title' + (item.done ? ' done-title' : ''),
     contenteditable: 'true',
     spellcheck: 'false',
-    title: '点击直接编辑'
+    title: '点击直接编辑',
+    'data-focus-key': `${base}:title`
   });
   title.textContent = item.title;
   title.addEventListener('blur', async () => {
@@ -160,8 +163,12 @@ function buildHead(project, item, itemChain) {
 
 export function buildItemProperties(project, item, itemChain) {
   const card = h('div', { class: 'page-props' });
-  const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
   const base = itemBase(project.id, itemChain);
+  // 第三参是"重绘后要恢复焦点"的稳定键
+  const row = (label, ctrl, key) => {
+    if (key && ctrl && ctrl.setAttribute) ctrl.setAttribute('data-focus-key', key);
+    return h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
+  };
 
   const doneSel = h('select', { class: 'input inline-select' });
   doneSel.append(h('option', { value: 'no' }, '未完成'));
@@ -175,6 +182,7 @@ export function buildItemProperties(project, item, itemChain) {
 
   const dateField = buildDateField({
     value: item,
+    key: `${base}:date`,
     onSave: async (patch) => {
       await api.put(base, patch);
       Object.assign(item, patch);
@@ -184,7 +192,7 @@ export function buildItemProperties(project, item, itemChain) {
 
   const kids = (item.subtasks || []).length;
   card.append(
-    row('状态', doneSel),
+    row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
     row('预计用时', estimateSelect(item, base)),
     row('层级', h('span', { class: 'small muted' }, `${itemChain.length} / ${MAX_ITEM_DEPTH}`)),
@@ -193,10 +201,11 @@ export function buildItemProperties(project, item, itemChain) {
   return card;
 }
 
-// 预计用时（预设 + 手填小时），所有任务/子任务通用
+// 预计用时（手填小时），所有任务/子任务通用
 export function estimateSelect(item, base) {
   return buildEstimateField({
     value: item && item.estimate,
+    key: `${base}:estimate`,
     onSave: async (minutes) => {
       await api.put(base, { estimate: minutes });
       if (item) item.estimate = minutes;

@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
@@ -27,6 +27,7 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   if (!container) return;
   const pos = scrollPos();
+  const focus = focusSnapshot();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
   const projects = await api.get('/api/projects');
   const page = projects.find((x) => x.id === pageId);
@@ -49,6 +50,7 @@ async function paint() {
     if (isFreshPage(page)) focusTitle();
   } finally {
     restoreScroll(pos);
+    focusRestore(focus);
   }
 }
 

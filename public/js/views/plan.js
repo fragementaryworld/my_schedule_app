@@ -1,6 +1,6 @@
 'use strict';
 import { api } from '../api.js';
-import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
+import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { escapeHtml, todayStr } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { renderMarkdown } from '../markdown.js';
@@ -26,6 +26,7 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   if (!container) return;
   const pos = scrollPos();
+  const focus = focusSnapshot();
   titleEl = null;
   const task = await api.get(`/api/tasks/${encodeURIComponent(taskId)}`);
   container.innerHTML = '';
@@ -42,6 +43,7 @@ async function paint() {
     if (isFreshDayTask(task)) focusTitle();
   } finally {
     restoreScroll(pos);
+    focusRestore(focus);
   }
 }
 
@@ -80,7 +82,8 @@ function buildHead(task) {
     class: 'page-title' + (task.done ? ' done-title' : ''),
     contenteditable: 'true',
     spellcheck: 'false',
-    title: '点击直接编辑'
+    title: '点击直接编辑',
+    'data-focus-key': `/api/tasks/${task.id}:title`
   });
   title.textContent = task.title;
   title.addEventListener('blur', async () => {
@@ -101,23 +104,29 @@ function buildHead(task) {
 
 function buildProperties(task) {
   const card = h('div', { class: 'page-props' });
-  const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
+  const base = `/api/tasks/${task.id}`;
+  // 第三参是"重绘后要恢复焦点"的稳定键
+  const row = (label, ctrl, key) => {
+    if (key && ctrl && ctrl.setAttribute) ctrl.setAttribute('data-focus-key', key);
+    return h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
+  };
 
   const doneSel = h('select', { class: 'input inline-select' });
   doneSel.append(h('option', { value: 'no' }, '未完成'));
   doneSel.append(h('option', { value: 'yes' }, '已完成'));
   doneSel.value = task.done ? 'yes' : 'no';
   doneSel.onchange = async () => {
-    await api.put(`/api/tasks/${task.id}`, { done: doneSel.value === 'yes' });
+    await api.put(base, { done: doneSel.value === 'yes' });
     toast('已保存');
     await paint();
   };
 
   const dateField = buildDateField({
     value: taskDateValue(task),
+    key: `${base}:date`,
     onSave: async (patch) => {
       const next = taskDatePatch(patch, task);
-      await api.put(`/api/tasks/${task.id}`, next);
+      await api.put(base, next);
       Object.assign(task, next);
       toast('时间已更新');
     }
@@ -127,7 +136,7 @@ function buildProperties(task) {
   for (const o of PRIORITY_OPTIONS) prioSel.append(h('option', { value: o.value }, o.label));
   prioSel.value = task.priority || 'medium';
   prioSel.onchange = async () => {
-    await api.put(`/api/tasks/${task.id}`, { priority: prioSel.value });
+    await api.put(base, { priority: prioSel.value });
     toast('已保存');
     await paint();
   };
@@ -136,7 +145,7 @@ function buildProperties(task) {
   for (const o of REPEAT_OPTIONS) repeatSel.append(h('option', { value: o.value }, o.label));
   repeatSel.value = repeatCode(task.repeat);
   repeatSel.onchange = async () => {
-    await api.put(`/api/tasks/${task.id}`, { repeat: decodeRepeat(repeatSel.value) });
+    await api.put(base, { repeat: decodeRepeat(repeatSel.value) });
     toast('已保存');
     await paint();
   };
@@ -145,15 +154,16 @@ function buildProperties(task) {
   for (const o of SOURCE_OPTIONS) sourceSel.append(h('option', { value: o.value }, o.label));
   sourceSel.value = (task.source && task.source.type) || '';
   sourceSel.onchange = async () => {
-    await api.put(`/api/tasks/${task.id}`, { source: sourceSel.value ? { type: sourceSel.value, id: null } : null });
+    await api.put(base, { source: sourceSel.value ? { type: sourceSel.value, id: null } : null });
     toast('已保存');
     await paint();
   };
 
   const estimateSel = buildEstimateField({
     value: task.estimate,
+    key: `${base}:estimate`,
     onSave: async (minutes) => {
-      await api.put(`/api/tasks/${task.id}`, { estimate: minutes });
+      await api.put(base, { estimate: minutes });
       task.estimate = minutes;
       toast('已保存');
       await paint();
@@ -161,12 +171,12 @@ function buildProperties(task) {
   });
 
   card.append(
-    row('状态', doneSel),
+    row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
     row('预计用时', estimateSel),
-    row('优先级', prioSel),
-    row('重复', repeatSel),
-    row('来源', sourceSel)
+    row('优先级', prioSel, `${base}:priority`),
+    row('重复', repeatSel, `${base}:repeat`),
+    row('来源', sourceSel, `${base}:source`)
   );
   return card;
 }

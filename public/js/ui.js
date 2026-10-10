@@ -40,6 +40,48 @@ export function restoreScroll(pos) {
   }
 }
 
+// 整页重绘会把 DOM 全换掉，焦点也随之丢失：
+// 例如"改完标题再点预计用时输入框"——标题失焦触发保存→重绘→刚点进去的输入框被换掉、
+// 焦点掉到 body，之后敲键盘全都落空。这里和滚动位置一样：重绘前记录、重绘后恢复。
+// 需要被记住的控件加一个稳定的 data-focus-key 即可。
+export function focusSnapshot() {
+  if (typeof document === 'undefined' || !document.activeElement) return null;
+  const el = document.activeElement;
+  if (!el || !el.tagName || el === document.body) return null;
+  const key = typeof el.getAttribute === 'function' ? el.getAttribute('data-focus-key') : null;
+  if (!key) return null;
+  return { key };
+}
+
+export function focusRestore(snap) {
+  if (!snap || typeof document === 'undefined') return;
+  const selector = `[data-focus-key="${snap.key}"]`;
+  let target = null;
+  if (typeof document.querySelectorAll === 'function') {
+    target = [...document.querySelectorAll(selector)].find(isFocusable) || null;
+  } else if (typeof document.querySelector === 'function') {
+    const one = document.querySelector(selector);
+    target = isFocusable(one) ? one : null;
+  }
+  if (!target) return;
+  target.focus();
+  // 光标移到末尾，接着敲键盘就接在已有内容后面
+  if (typeof target.setSelectionRange === 'function' && typeof target.value === 'string') {
+    try { target.setSelectionRange(target.value.length, target.value.length); } catch (err) { /* 该控件不支持选区 */ }
+  }
+}
+
+// 只有真正能接收焦点的元素才值得恢复（容器 div 不行）
+function isFocusable(el) {
+  if (!el || typeof el.focus !== 'function') return false;
+  const tag = String(el.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'A') return true;
+  if (typeof el.getAttribute !== 'function') return false;
+  if (el.getAttribute('contenteditable') === 'true') return true;
+  const tabindex = el.getAttribute('tabindex');
+  return tabindex !== null && tabindex !== undefined && tabindex !== '-1';
+}
+
 export function toast(msg, type = 'info') {
   const box = document.getElementById('toast');
   if (!box) return;

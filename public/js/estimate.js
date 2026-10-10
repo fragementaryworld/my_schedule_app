@@ -5,7 +5,7 @@
 import { h } from './ui.js';
 import { estimateHours, normalizeEstimate, parseEstimateInput } from './utils.js';
 
-export function buildEstimateField({ value, onSave }) {
+export function buildEstimateField({ value, onSave, key }) {
   let current = normalizeEstimate(value);
 
   const wrap = h('div', { class: 'row estimate-field' });
@@ -17,7 +17,8 @@ export function buildEstimateField({ value, onSave }) {
     class: 'input estimate-hours',
     placeholder: '0',
     title: '手动输入预计用时（小时）',
-    'aria-label': '预计用时（小时）'
+    'aria-label': '预计用时（小时）',
+    'data-focus-key': key
   });
   const unit = h('span', { class: 'small muted estimate-unit' }, 'h');
 
