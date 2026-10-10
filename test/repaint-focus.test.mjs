@@ -69,8 +69,11 @@ test('问题1：focusSnapshot 只记住带焦点键的控件', () => {
   const keyed = document.createElement('input');
   keyed.setAttribute('data-focus-key', 'k:estimate');
   document.body.append(keyed);
+  keyed.value = '5';
   keyed.focus();
-  assert.deepEqual(ui.focusSnapshot(), { key: 'k:estimate' });
+  const snap = ui.focusSnapshot();
+  assert.equal(snap.key, 'k:estimate');
+  assert.equal(snap.value, '5', '正在输入的内容也要带进快照');
 });
 
 test('问题1：focusRestore 能在重绘后的新 DOM 里找回同一个控件', () => {
@@ -158,6 +161,68 @@ test('问题1【回归】：改完标题再点时间字段，焦点同样能恢�
   const newTrigger = findAllByClass(el, 'date-trigger')[0];
   assert.notEqual(newTrigger, trigger, '页面重绘过');
   assert.equal(document.activeElement, newTrigger, '时间字段也要恢复焦点');
+});
+
+test('问题1【回归】：正在输入用时的时候页面重绘，敲进去的内容不能丢', async () => {
+  reset();
+  const el = mount();
+  await planMod.render(el, { id: 't1' });
+
+  const title = findAllByClass(el, 'page-title')[0];
+  const est = findAllByClass(el, 'estimate-hours')[0];
+  assert.ok(title && est);
+
+  // 用户改标题 → 点进用时 → 在保存+重绘还没走完的时候就敲了 5
+  title.focus();
+  title.textContent = '改过的标题';
+  est.focus();
+  est.value = '5';
+  await twice();
+
+  const est2 = findAllByClass(el, 'estimate-hours')[0];
+  assert.notEqual(est2, est, '页面确实重绘过');
+  assert.equal(est2.value, '5', '重绘不能把用户敲进去的 5 丢掉（否则会出现"输入完变成 0"）');
+
+  // 用户敲完离开 → 应该存 5 小时（300 分钟），而不是被当成清空
+  calls.length = 0;
+  est2.fire('change');
+  await twice();
+  const puts = calls.filter((c) => c.method === 'PUT');
+  assert.equal(puts.length, 1, '只应提交一次');
+  assert.deepEqual(puts[0].body, { estimate: 300 });
+});
+
+test('问题1【回归】：用时输入框清空后离开，不会把已有值误清掉', async () => {
+  reset();
+  const el = mount();
+  await planMod.render(el, { id: 't1' });
+
+  const est = findAllByClass(el, 'estimate-hours')[0];
+  assert.equal(est.value, '2', '原本 120 分钟 = 2 小时');
+
+  calls.length = 0;
+  est.value = '';
+  est.fire('change');
+  await twice();
+
+  assert.equal(calls.filter((c) => c.method === 'PUT').length, 0, '空输入不提交');
+  assert.equal(est.value, '2', '界面还原成已有的 2 小时');
+});
+
+test('问题1：改完用时不再整页重绘（输入框保持同一个元素）', async () => {
+  reset();
+  const el = mount();
+  await planMod.render(el, { id: 't1' });
+
+  const est = findAllByClass(el, 'estimate-hours')[0];
+  calls.length = 0;
+  est.value = '3';
+  est.fire('change');
+  await twice();
+
+  assert.equal(findAllByClass(el, 'estimate-hours')[0], est, '不该被重绘换掉');
+  const puts = calls.filter((c) => c.method === 'PUT');
+  assert.deepEqual(puts[0].body, { estimate: 180 });
 });
 
 // ══════════ 真机场景：项目任务页 ══════════

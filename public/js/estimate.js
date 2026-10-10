@@ -15,8 +15,8 @@ export function buildEstimateField({ value, onSave, key }) {
     autocomplete: 'off',
     spellcheck: 'false',
     class: 'input estimate-hours',
-    placeholder: '0',
-    title: '手动输入预计用时（小时）',
+    placeholder: '未设置',
+    title: '手动输入预计用时（小时）；输入 0 取消设置',
     'aria-label': '预计用时（小时）',
     'data-focus-key': key
   });
@@ -28,7 +28,14 @@ export function buildEstimateField({ value, onSave, key }) {
   syncInput(current);
 
   const commit = async () => {
-    const minutes = parseEstimateInput(num.value);
+    const raw = String(num.value).trim();
+    // 留空 = 不改动（输入 0 才是取消）。
+    // 这样即使重绘把输入框清空过一次，也不会把已有值误清掉。
+    if (!raw) {
+      syncInput(current);
+      return;
+    }
+    const minutes = parseEstimateInput(raw);
     if (minutes === undefined) {
       syncInput(current); // 看不懂的输入就还原，不要写坏数据
       return;

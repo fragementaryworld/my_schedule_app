@@ -210,7 +210,7 @@ export function estimateSelect(item, base) {
       await api.put(base, { estimate: minutes });
       if (item) item.estimate = minutes;
       toast('已保存');
-      await paint();
+      // 这一页没有别处显示预计用时，无需整页重绘（重绘会打断正在输入的手感）
     }
   });
 }

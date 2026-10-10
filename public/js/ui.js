@@ -50,7 +50,17 @@ export function focusSnapshot() {
   if (!el || !el.tagName || el === document.body) return null;
   const key = typeof el.getAttribute === 'function' ? el.getAttribute('data-focus-key') : null;
   if (!key) return null;
-  return { key };
+  const snap = { key };
+  // 重点：把"用户已经敲进去的内容"一起带走。
+  // 否则保存引起的重绘会把正在输入的字丢掉，输入框看起来被清空/变成 0。
+  if (typeof el.value === 'string') snap.value = el.value;
+  if (typeof el.selectionStart === 'number') snap.start = el.selectionStart;
+  if (typeof el.selectionEnd === 'number') snap.end = el.selectionEnd;
+  if (typeof el.getAttribute === 'function' && el.getAttribute('contenteditable') === 'true'
+    && typeof el.textContent === 'string') {
+    snap.text = el.textContent;
+  }
+  return snap;
 }
 
 export function focusRestore(snap) {
@@ -64,10 +74,24 @@ export function focusRestore(snap) {
     target = isFocusable(one) ? one : null;
   }
   if (!target) return;
+
+  // 先把内容接回去，再聚焦，保证光标落在正确位置
+  if (typeof snap.value === 'string' && typeof target.value === 'string' && target.value !== snap.value) {
+    target.value = snap.value;
+  }
+  if (typeof snap.text === 'string' && typeof target.textContent === 'string' && target.textContent !== snap.text) {
+    target.textContent = snap.text;
+  }
   target.focus();
-  // 光标移到末尾，接着敲键盘就接在已有内容后面
-  if (typeof target.setSelectionRange === 'function' && typeof target.value === 'string') {
-    try { target.setSelectionRange(target.value.length, target.value.length); } catch (err) { /* 该控件不支持选区 */ }
+
+  const len = typeof target.value === 'string' ? target.value.length : null;
+  if (typeof snap.start === 'number' && typeof target.setSelectionRange === 'function' && len !== null) {
+    try {
+      target.setSelectionRange(Math.min(snap.start, len), Math.min(typeof snap.end === 'number' ? snap.end : snap.start, len));
+    } catch (err) { /* 该控件不支持选区 */ }
+  } else if (typeof target.setSelectionRange === 'function' && len !== null) {
+    // 光标移到末尾，接着敲键盘就接在已有内容后面
+    try { target.setSelectionRange(len, len); } catch (err) { /* 该控件不支持选区 */ }
   }
 }
 

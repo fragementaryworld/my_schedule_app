@@ -93,6 +93,7 @@ test('问题2：预计用时只保留手动输入框（没有下拉框）', () =
   assert.equal(findAllByClass(el, 'estimate-select').length, 0, '下拉框应已移除');
   assert.equal(el.children.length, 2, '只剩输入框与单位');
   assert.equal(textOf(findAllByClass(el, 'estimate-unit')[0]), 'h', '单位标为 h');
+  assert.equal(num.getAttribute('placeholder'), '未设置', '占位符不能写成 0，容易被误读成值');
 });
 
 test('问题2【回归】：输入框不是 type=number（否则全角数字输不进去）', () => {
@@ -142,12 +143,27 @@ test('问题2：回车也能提交', async () => {
   assert.deepEqual(saved, [120]);
 });
 
-test('问题2：清空输入框 = 取消预计用时', async () => {
+test('问题2：输入 0 = 取消预计用时', async () => {
   const { saved, num } = makeField(120);
-  type(num, '');
+  type(num, '0');
   await tick();
   assert.deepEqual(saved, [null]);
   assert.equal(num.value, '');
+});
+
+test('问题2【回归】：留空不改动已有值（避免输入被清空后误存成 0）', async () => {
+  const { saved, num } = makeField(120);
+  type(num, '');
+  await tick();
+  assert.deepEqual(saved, [], '空输入不提交');
+  assert.equal(num.value, '2', '还原成已有的 2 小时');
+});
+
+test('问题2：从未设置过时留空也不提交', async () => {
+  const { saved, num } = makeField(null);
+  type(num, '');
+  await tick();
+  assert.deepEqual(saved, []);
 });
 
 test('问题2：乱输不会写坏数据，会自动还原', async () => {
