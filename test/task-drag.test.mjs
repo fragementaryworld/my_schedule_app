@@ -154,7 +154,8 @@ test('问题5：信息流同时显示子任务', () => {
     tasks: [{ id: 't1', title: '任务', done: false, dueDate: '2024-05-10', desc: '描述', subtasks: [{ id: 's1', title: '子任务A', done: false }] }]
   };
   const feed = projects.buildTaskFeed(p);
-  assert.ok(textOf(feed).includes('描述'));
+  assert.ok(textOf(feed).includes('描述'), '显示内容本身');
+  assert.equal(findAllByClass(feed, 'feed-sec').map((s) => textOf(s)).includes('描述'), false, '栏名不叫描述');
   assert.ok(textOf(feed).includes('子任务A'), '应显示子任务内容');
 });
 

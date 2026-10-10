@@ -1393,14 +1393,18 @@ function buildItemPost(ctx, entry) {
   if (t.createdAt) meta.append(h('span', { class: 'small muted' }, `创建于 ${String(t.createdAt).slice(0, 10)}`));
   post.append(meta);
 
-  // 描述：Markdown 展示，点击就地编辑
-  post.append(h('h4', { class: 'feed-sec' }, '描述'));
+  // 内容：整篇 Markdown 展示，点击就地编辑；边打字边自动保存
+  post.append(h('h4', { class: 'feed-sec' }, '内容'));
   const descDisplay = h('div', {
     class: 'feed-goal-md',
     html: renderMarkdown(t.desc || ''),
-    'data-placeholder': '点击这里编辑任务描述，支持 Markdown…'
+    'data-placeholder': '点击这里编辑内容，支持 Markdown…'
   });
-  const descEdit = h('div', { class: 'feed-goal', contenteditable: 'true' });
+  const descEdit = h('div', {
+    class: 'feed-goal',
+    contenteditable: 'true',
+    'data-focus-key': `${ctx.deepBase(entry.path)}:content`
+  });
   descEdit.textContent = t.desc || '';
   descEdit.style.display = 'none';
   descDisplay.onclick = () => {
@@ -1409,14 +1413,33 @@ function buildItemPost(ctx, entry) {
     descEdit.textContent = t.desc || '';
     if (descEdit.focus) descEdit.focus();
   };
-  descEdit.addEventListener('blur', async () => {
-    const next = descEdit.textContent.trim();
-    if (next !== (t.desc || '')) {
-      await api.put(ctx.deepBase(entry.path), { desc: next });
-      t.desc = next;
-      toast('已保存');
-      ctx.refresh();
+
+  let descTimer = null;
+  const cancelDescTimer = () => {
+    if (descTimer) {
+      clearTimeout(descTimer);
+      descTimer = null;
     }
+  };
+  const saveDesc = async (silent) => {
+    const next = descEdit.textContent.trim();
+    if (next === (t.desc || '')) return;
+    await api.put(ctx.deepBase(entry.path), { desc: next });
+    t.desc = next;
+    if (!silent) toast('已保存');
+  };
+  // 边打字边保存：别的保存会触发整页重绘，只靠失焦会丢掉还没保存的字
+  descEdit.addEventListener('input', () => {
+    cancelDescTimer();
+    descTimer = setTimeout(() => {
+      descTimer = null;
+      saveDesc(true);
+    }, 700);
+  });
+  descEdit.addEventListener('blur', async () => {
+    cancelDescTimer();
+    await saveDesc(false);
+    ctx.refresh();
   });
   post.append(descDisplay, descEdit);
 
