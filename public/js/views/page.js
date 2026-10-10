@@ -54,10 +54,92 @@ export function restoreBlockEditing() {
   }
 }
 
+// ——— 内容：整篇一个 Markdown 编辑框 ———
+const contentEls = new Map();
+const contentEdit = { key: null, caret: null };
+
+export function clearContentEditors() {
+  contentEls.clear();
+}
+
+// 重绘后：如果刚才正在写内容，回到编辑态并恢复光标
+export function restoreContentEditing() {
+  if (!contentEdit.key) return;
+  const item = contentEls.get(contentEdit.key);
+  if (!item) { contentEdit.key = null; return; }
+  item.enterEdit();
+}
+
+// 单个 Markdown 编辑框：平时渲染 Markdown，点击进入编辑；边打字边自动保存
+export function buildContentEditor({ value, onSave, key, placeholder = '写点什么，支持 Markdown…', debounceMs = 700 }) {
+  let current = value || '';
+  const wrap = h('div', { class: 'md-content' });
+  const display = h('div', {
+    class: 'feed-goal-md md-content-view',
+    html: renderMarkdown(current),
+    'data-placeholder': placeholder
+  });
+  const edit = h('div', {
+    class: 'feed-goal md-content-input',
+    contenteditable: 'true',
+    spellcheck: 'false',
+    'data-focus-key': key
+  });
+  edit.textContent = current;
+  edit.style.display = 'none';
+
+  let timer = null;
+  const cancel = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  const save = async (silent) => {
+    const next = edit.textContent;
+    if (next === current) return;
+    await onSave(next);
+    current = next;
+    if (!silent) toast('已保存');
+  };
+
+  const enterEdit = () => {
+    display.style.display = 'none';
+    edit.style.display = '';
+    edit.textContent = current;
+    contentEdit.key = key;
+    if (edit.focus) edit.focus();
+    setCaret(edit, contentEdit.caret);
+  };
+  display.onclick = enterEdit;
+  contentEls.set(key, { enterEdit, edit, display });
+
+  edit.addEventListener('input', () => {
+    contentEdit.caret = caretOffset(edit);
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      save(true);
+    }, debounceMs);
+  });
+  edit.addEventListener('blur', async () => {
+    cancel();
+    await save(false);
+    contentEdit.key = null;
+    contentEdit.caret = null;
+    display.innerHTML = renderMarkdown(current);
+    edit.style.display = 'none';
+    display.style.display = '';
+  });
+
+  wrap.append(display, edit);
+  return wrap;
+}
+
 // 新建后尚未填写内容的页面
 export function isFreshPage(page) {
   if (!page) return false;
-  return page.name === DEFAULT_PAGE_NAME && !(page.blocks || []).length && !String(page.goal || '').trim();
+  return page.name === DEFAULT_PAGE_NAME && !String(page.desc || '').trim() && !String(page.goal || '').trim();
 }
 
 export async function render(container, params = {}) {
@@ -75,6 +157,7 @@ async function paint() {
   const projects = await api.get('/api/projects');
   const page = projects.find((x) => x.id === pageId);
   blockEls.clear();
+  clearContentEditors();
   titleEl = null;
   container.innerHTML = '';
   try {
@@ -86,7 +169,14 @@ async function paint() {
     container.append(buildIconTitle(page));
     container.append(buildPageProperties(projects, page));
     container.append(h('div', { class: 'page-section' }, '📝 内容'));
-    container.append(buildBlocksEditor(page, `/api/projects/${page.id}`, paint));
+    container.append(buildContentEditor({
+      value: page.desc,
+      key: `project:${page.id}:content`,
+      onSave: async (text) => {
+        await api.put(`/api/projects/${page.id}`, { desc: text });
+        page.desc = text;
+      }
+    }));
     container.append(h('div', { class: 'page-section' }, '✅ 任务'));
     container.append(buildProjectTasksSection(page, paint));
 
@@ -94,7 +184,8 @@ async function paint() {
   } finally {
     restoreScroll(pos);
     focusRestore(focus);
-    restoreBlockEditing(); // 内容区：重绘后回到刚才那块并恢复光标，避免"字丢了/要刷新才显示"
+    restoreBlockEditing();
+    restoreContentEditing(); // 内容区：重绘后回到刚在写的地方并恢复光标
   }
 }
 

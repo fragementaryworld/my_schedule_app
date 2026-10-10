@@ -130,7 +130,7 @@ test('问题3：每层都有和任务页一样的功能（内容模块 + 时间�
   assert.ok(textOf(bar).includes('删除子任务'), '删除按钮标明当前层级');
 
   const src = fs.readFileSync(path.join(process.cwd(), 'public', 'js', 'views', 'item.js'), 'utf8');
-  assert.ok(src.includes('buildBlocksEditor'), '每层都有内容模块');
+  assert.ok(src.includes('buildContentEditor'), '每层都有内容模块（整篇 Markdown）');
   assert.ok(src.includes('buildDateField'), '每层都有时间字段');
   assert.ok(src.includes('buildHead'), '每层都有标题与完成勾选');
   assert.ok(src.includes('buildBreadcrumb'), '每层都有面包屑');

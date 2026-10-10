@@ -155,6 +155,11 @@
 .feed-title:hover { background: var(--panel-2); }
 .feed-title:focus { background: var(--panel-2); box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.25); }
 .feed-sec { margin: 14px 0 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
+
+/* 内容：整篇一个 Markdown 编辑框 */
+.md-content { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; box-shadow: var(--shadow); }
+.md-content-view, .md-content-input { min-height: 120px; }
+.md-content-input { border-style: solid; border-color: transparent; }
 .feed-list { margin: 0; padding-left: 20px; }
 .feed-list li { margin: 3px 0; }
 .feed-goal { min-height: 26px; padding: 6px 8px; border-radius: 6px; white-space: pre-wrap; outline: none; cursor: text; border: 1px dashed transparent; }

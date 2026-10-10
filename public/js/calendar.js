@@ -309,14 +309,10 @@ export function truncate(text, max = 90) {
   return `${s.slice(0, max)}…`;
 }
 
-// 任务详情预览：描述 + 内容块
+// 任务详情预览：内容（整篇 Markdown）
 export function detailText(node) {
   if (!node) return '';
-  const parts = [];
-  if (node.desc && String(node.desc).trim()) parts.push(String(node.desc).trim());
-  const bt = blocksText(node.blocks);
-  if (bt) parts.push(bt);
-  return parts.join(' · ');
+  return String(node.desc || '').trim();
 }
 
 // 把「带跨度的条目」铺到每一天（项目任务与每日任务通用）

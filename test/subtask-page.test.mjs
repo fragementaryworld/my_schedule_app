@@ -54,7 +54,7 @@ test('问题6：子任务页面导出 render/add 并与任务页一致（含内�
   assert.equal(typeof itemMod.render, 'function');
   assert.equal(typeof itemMod.add, 'function');
   const src = fs.readFileSync(path.join(process.cwd(), 'public', 'js', 'views', 'item.js'), 'utf8');
-  assert.ok(src.includes('buildBlocksEditor'), '子任务页应有内容模块');
+  assert.ok(src.includes('buildContentEditor'), '子任务页应有内容模块（整篇 Markdown）');
   assert.ok(src.includes('isFreshItem'), '应有新建聚焦判断');
   assert.ok(src.includes('删除'), '应有删除入口');
   assert.ok(src.includes('isFreshItem') && src.includes('buildDateField'), '应有时间字段');

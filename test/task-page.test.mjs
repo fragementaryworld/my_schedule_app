@@ -65,11 +65,12 @@ test('问题1：任务页面（第 1 层）导出 render/add', () => {
 
 test('问题1：isFreshItem 判定新建任务', () => {
   const NAME = projects.DEFAULT_TASK_NAME;
-  assert.equal(itemMod.isFreshItem({ title: NAME, subtasks: [], blocks: [], dueDate: null }), true);
-  assert.equal(itemMod.isFreshItem({ title: '有名字', subtasks: [], blocks: [] }), false);
+  assert.equal(itemMod.isFreshItem({ title: NAME, subtasks: [], desc: '', dueDate: null }), true);
+  assert.equal(itemMod.isFreshItem({ title: '有名字', subtasks: [], desc: '' }), false);
   assert.equal(itemMod.isFreshItem({ title: NAME, subtasks: [{ id: 's' }] }), false);
   assert.equal(itemMod.isFreshItem({ title: NAME, dueDate: '2024-01-01' }), false);
-  assert.equal(itemMod.isFreshItem({ title: NAME, blocks: [{ id: 'b' }] }), false);
+  assert.equal(itemMod.isFreshItem({ title: NAME, desc: '写了内容' }), false);
+  assert.equal(itemMod.isFreshItem({ title: NAME, blocks: [{ id: 'b' }] }), true, '旧内容块不再算内容');
   assert.equal(itemMod.isFreshItem(null), false);
 });
 

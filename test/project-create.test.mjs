@@ -40,9 +40,10 @@ test('问题2：新建页面无需打开任何弹窗', () => {
 });
 
 test('问题2：isFreshPage 判定未填写内容的新页面', () => {
-  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, blocks: [], goal: '' }), true);
-  assert.equal(isFreshPage({ name: '已命名', blocks: [], goal: '' }), false);
-  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, blocks: [{ id: 'b1' }], goal: '' }), false);
-  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, blocks: [], goal: '有描述' }), false);
+  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, desc: '', goal: '' }), true);
+  assert.equal(isFreshPage({ name: '已命名', desc: '', goal: '' }), false);
+  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, desc: '写了内容', goal: '' }), false);
+  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, desc: '', goal: '有目标' }), false);
+  assert.equal(isFreshPage({ name: DEFAULT_PAGE_NAME, blocks: [{ id: 'b1' }], goal: '' }), true, '旧内容块不算内容了');
   assert.equal(isFreshPage(null), false);
 });

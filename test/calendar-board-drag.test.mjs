@@ -85,18 +85,18 @@ test('问题3：truncate 超长才截断', () => {
   assert.equal(cal.truncate(null), '');
 });
 
-test('问题3：detailText 合并描述与内容块', () => {
-  assert.equal(cal.detailText({ desc: '描述', blocks: [{ text: '正文' }] }), '描述 · 正文');
-  assert.equal(cal.detailText({ blocks: [{ text: '正文' }] }), '正文');
+test('问题3：detailText 用内容（整篇 Markdown）', () => {
   assert.equal(cal.detailText({ desc: '描述' }), '描述');
-  assert.equal(cal.detailText({ blocks: [] }), '');
+  assert.equal(cal.detailText({ desc: '  第一行\n第二行  ' }), '第一行\n第二行');
+  assert.equal(cal.detailText({ desc: '' }), '');
+  assert.equal(cal.detailText({ blocks: [{ text: '旧的多行内容块' }] }), '', '内容已统一到 desc，不再读旧内容块');
   assert.equal(cal.detailText(null), '');
 });
 
 test('问题3：条目上带详情与子任务统计', () => {
   const entries = cal.projectEntriesByDate(PROJECTS, TODAY);
   const t1 = entries.find((e) => e.id === 't1');
-  assert.equal(t1.detail, '这是描述 · 内容块里的文字 小标题');
+  assert.equal(t1.detail, '这是描述', '只取内容，不再拼接旧内容块');
   assert.equal(t1.subtaskCount, 2);
   assert.equal(t1.subtaskDone, 1);
 
@@ -159,7 +159,7 @@ test('问题3：有详细内容的任务在看板上显示详情', async () => {
   const projectCard = cardIn(el, 0, '有内容的项目任务');
   const detail = findAllByClass(projectCard, 'cal-board-detail')[0];
   assert.ok(detail, '项目任务应显示详情');
-  assert.equal(textOf(detail), '这是描述 · 内容块里的文字 小标题');
+  assert.equal(textOf(detail), '这是描述', '只显示内容（不再拼旧内容块）');
 
   const dayCard = cardIn(el, 0, '有备注的每日任务');
   const dayDetail = findAllByClass(dayCard, 'cal-board-detail')[0];

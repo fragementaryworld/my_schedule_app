@@ -4,7 +4,7 @@ import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focus
 import { escapeHtml } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
-import { buildBlocksEditor, restoreBlockEditing } from './page.js';
+import { restoreBlockEditing, buildContentEditor, restoreContentEditing, clearContentEditors } from './page.js';
 import { buildDateField } from '../datepicker.js';
 
 // 任务最多 5 层：任务 → 子任务 → 子子任务 → …
@@ -24,7 +24,7 @@ export function isFreshItem(item) {
   if (!item) return false;
   return item.title === DEFAULT_TASK_NAME
     && !(item.subtasks || []).length
-    && !(item.blocks || []).length
+    && !String(item.desc || '').trim()
     && !item.startDate
     && !item.dueDate;
 }
@@ -71,6 +71,7 @@ async function paint() {
   const nodes = chainNodes(project, chain);
   const item = nodes.length ? nodes[nodes.length - 1] : null;
   titleEl = null;
+  clearContentEditors();
   container.innerHTML = '';
   try {
     if (!project || !item) {
@@ -82,14 +83,22 @@ async function paint() {
     container.append(buildHead(project, item, chain));
     container.append(buildItemProperties(project, item, chain));
     container.append(h('div', { class: 'page-section' }, '📝 内容'));
-    container.append(buildBlocksEditor(item, itemBase(projectId, chain), paint));
+    container.append(buildContentEditor({
+      value: item.desc,
+      key: `${itemBase(projectId, chain)}:content`,
+      onSave: async (text) => {
+        await api.put(itemBase(projectId, chain), { desc: text });
+        item.desc = text;
+      }
+    }));
     container.append(h('div', { class: 'page-section' }, `📄 ${childLevelName(depth)}`));
     container.append(buildChildren(project, item, chain, depth));
     if (isFreshItem(item)) focusTitle();
   } finally {
     restoreScroll(pos);
     focusRestore(focus);
-    restoreBlockEditing(); // 内容区：重绘后回到刚才那块并恢复光标
+    restoreBlockEditing();
+    restoreContentEditing(); // 内容区：重绘后回到刚在写的地方并恢复光标
   }
 }
 
