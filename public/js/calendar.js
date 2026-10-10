@@ -193,6 +193,8 @@ export function projectEntriesByDate(projects, today = todayStr()) {
       projectId: project.id,
       projectName: project.name,
       color: timelineColor(project.id),
+      startDate: node.startDate || null,
+      dueDate: node.dueDate || null,
       path,
       depth,
       base: itemBase(project.id, path),
@@ -216,6 +218,57 @@ export function projectEntriesByDate(projects, today = todayStr()) {
 // 合并每日任务与项目任务后按日期分组
 export function mergeEntries(dayEntries, projectEntries) {
   return groupByDate([...(dayEntries || []), ...(projectEntries || [])]);
+}
+
+// ——— 日历里拖动任务（以"列=天"吸附）———
+
+// 把拖动位移限制在本行内，避免拖出可视范围后任务"消失"
+export function clampColDelta(mode, startCol, endCol, delta, cols) {
+  const d = Number(delta) || 0;
+  if (mode === 'start') return Math.max(-startCol, Math.min(endCol - startCol, d));
+  if (mode === 'end') return Math.max(startCol - endCol, Math.min(cols - 1 - endCol, d));
+  return Math.max(-startCol, Math.min(cols - 1 - endCol, d));
+}
+
+// 单日条目平移：只动它已有的日期字段
+export function dragSinglePatch(entry, deltaDays) {
+  if (!entry || !deltaDays) return null;
+  if (entry.kind !== 'project') {
+    const date = entry.date || entry.spanFrom;
+    if (!date) return null;
+    return { date: addDays(date, deltaDays) };
+  }
+  const patch = {};
+  if (entry.startDate) patch.startDate = addDays(entry.startDate, deltaDays);
+  if (entry.dueDate) patch.dueDate = addDays(entry.dueDate, deltaDays);
+  return Object.keys(patch).length ? patch : null;
+}
+
+// 跨天条目：整体平移 / 只调开始 / 只调结束
+export function dragRangePatch(entry, deltaDays, mode = 'move') {
+  if (!entry || !deltaDays) return null;
+  const from = entry.spanFrom || entry.date;
+  const to = entry.spanTo || entry.date;
+  if (!from || !to) return null;
+
+  let nextFrom = from;
+  let nextTo = to;
+  if (mode === 'start') {
+    nextFrom = addDays(from, deltaDays);
+    if (nextFrom > to) nextFrom = to;
+  } else if (mode === 'end') {
+    nextTo = addDays(to, deltaDays);
+    if (nextTo < from) nextTo = from;
+  } else {
+    nextFrom = addDays(from, deltaDays);
+    nextTo = addDays(to, deltaDays);
+  }
+  if (nextFrom === from && nextTo === to) return null;
+
+  if (entry.kind !== 'project') {
+    return { date: nextFrom, endDate: nextTo === nextFrom ? null : nextTo };
+  }
+  return { startDate: nextFrom, dueDate: nextTo };
 }
 
 // 图例：当前范围里出现的「颜色 → 来源」

@@ -5,7 +5,8 @@ import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel, estimate
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber, groupByDate, spanDays,
-  projectEntriesByDate, legendFor, dateBoard, expandEntries, spanningEntries, spanBarLayout, tint, truncate
+  projectEntriesByDate, legendFor, dateBoard, expandEntries, spanningEntries, spanBarLayout, tint, truncate,
+  clampColDelta, dragRangePatch, dragSinglePatch
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, sourceLabel, timeRangeLabel } from '../daytask.js';
 
@@ -132,6 +133,66 @@ function buildWeekdays() {
 // 跨天任务用连续 block 画在顶部，单日任务仍放在当天格子里
 const SPAN_TOP = 28;
 const SPAN_LANE_H = 22;
+const DRAG_THRESHOLD = 4; // 抖动阈值，避免点一下就当成拖动
+
+function rowWidthPx(rowEl) {
+  const rect = rowEl && rowEl.getBoundingClientRect ? rowEl.getBoundingClientRect() : null;
+  const w = (rect && rect.width) || (rowEl && rowEl.offsetWidth) || 0;
+  return w > 0 ? w : 0;
+}
+
+// 拖动期间抑制随之而来的 click（否则会顺手把日期选中/打开页面）
+let suppressClick = false;
+function suppressNextClick() {
+  suppressClick = true;
+  setTimeout(() => { suppressClick = false; }, 0);
+}
+
+async function saveEntryPatch(entry, patch) {
+  if (!patch) return;
+  if (entry.kind === 'project') await api.put(entry.base, patch);
+  else await api.put(`/api/tasks/${entry.id}`, patch);
+  toast('时间已更新');
+  paint();
+}
+
+// 通用拖动：按住把手左右移动，松手按"列 = 天"吸附
+function attachDrag(handleEl, opts) {
+  // 把手上的普通点击不要冒泡（避免顺手打开任务页面）
+  handleEl.addEventListener('click', (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); });
+  handleEl.addEventListener('mousedown', (ev) => {
+    if (ev && ev.button !== undefined && ev.button !== 0) return;
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+
+    const cols = opts.dates.length;
+    const width = rowWidthPx(opts.row);
+    if (!width || !cols) return;
+    const colW = width / cols;
+    const startX = (ev && ev.clientX) || 0;
+    let applied = 0;
+    let moved = false;
+
+    const onMove = (e2) => {
+      const dx = ((e2 && e2.clientX) || 0) - startX;
+      if (!moved && Math.abs(dx) < DRAG_THRESHOLD) return;
+      moved = true;
+      applied = opts.clamp(Math.round(dx / colW));
+      if (opts.onPreview) opts.onPreview(applied, colW);
+    };
+    const onUp = async () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!moved) return;
+      suppressNextClick();
+      if (opts.onEnd) opts.onEnd();
+      if (!applied) return;
+      await saveEntryPatch(opts.entry, opts.patchOf(applied));
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
 
 function buildRow(rowDates, byDate, opts) {
   const { month, y, m, multiDay } = opts;
@@ -139,7 +200,8 @@ function buildRow(rowDates, byDate, opts) {
   const padTop = layout.laneCount * SPAN_LANE_H;
 
   const row = h('div', { class: 'cal-row ' + (month ? 'cal-month-row' : 'cal-week-row') });
-  for (const d of rowDates) {
+  for (let col = 0; col < rowDates.length; col += 1) {
+    const d = rowDates[col];
     const cell = h('div', {
       class: (month ? 'cal-cell' : 'cal-col')
         + (month && !sameMonth(d, y, m) ? ' outside' : '')
@@ -154,35 +216,76 @@ function buildRow(rowDates, byDate, opts) {
     // 跨天任务由上面的连续 block 表示，这里只列当天的单日任务
     const entries = sortDayEntries(byDate.get(d) || []).filter((e) => !(e.spanDays > 1));
     const max = month ? 3 : entries.length;
-    for (const e of entries.slice(0, max)) list.append(buildCard(e, month));
+    for (const e of entries.slice(0, max)) list.append(buildCard(e, month, { row, dates: rowDates, col }));
     if (entries.length > max) list.append(h('div', { class: 'cal-more' }, `+${entries.length - max}`));
     cell.append(list);
 
     cell.onclick = () => selectDate(d);
     row.append(cell);
   }
-  if (layout.bars.length) row.append(buildSpanLayer(layout, rowDates.length));
+  if (layout.bars.length) row.append(buildSpanLayer(layout, rowDates.length, row, rowDates));
   return row;
 }
 
-function buildSpanLayer(layout, cols) {
+function buildSpanLayer(layout, cols, row, dates) {
   const layer = h('div', { class: 'cal-span-layer' });
   for (const bar of layout.bars) {
     const e = bar.entry;
+    const pct = (n) => `${(n / cols) * 100}%`;
     const el = h('div', {
       class: 'cal-span'
         + (bar.continuesLeft ? ' clip-left' : '')
         + (bar.continuesRight ? ' clip-right' : '')
         + (e.done ? ' done' : ''),
-      style: `left:${(bar.startCol / cols) * 100}%;width:${((bar.endCol - bar.startCol + 1) / cols) * 100}%;`
+      style: `left:${pct(bar.startCol)};width:${pct(bar.endCol - bar.startCol + 1)};`
         + `top:${SPAN_TOP + bar.lane * SPAN_LANE_H}px;background:${e.color || DAY_TASK_COLOR}`,
       title: `${e.title}（${e.spanFrom} → ${e.spanTo}，共 ${e.spanDays} 天）`
     });
-    el.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
+    el.onclick = (ev) => {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      if (suppressClick) return;
+      openEntry(e);
+    };
+
+    // 整体平移
+    attachDrag(el, {
+      entry: e,
+      row,
+      dates,
+      clamp: (delta) => clampColDelta('move', bar.startCol, bar.endCol, delta, cols),
+      onPreview: (delta) => { el.style.left = pct(bar.startCol + delta); },
+      patchOf: (delta) => dragRangePatch(e, delta, 'move')
+    });
+
+    // 两端把手：单独调整开始 / 结束
+    const leftH = h('span', { class: 'cal-span-handle left', title: '拖动调整开始日期' });
+    const rightH = h('span', { class: 'cal-span-handle right', title: '拖动调整结束日期' });
+    attachDrag(leftH, {
+      entry: e,
+      row,
+      dates,
+      clamp: (delta) => clampColDelta('start', bar.startCol, bar.endCol, delta, cols),
+      onPreview: (delta) => {
+        el.style.left = pct(bar.startCol + delta);
+        el.style.width = pct(bar.endCol - (bar.startCol + delta) + 1);
+      },
+      patchOf: (delta) => dragRangePatch(e, delta, 'start')
+    });
+    attachDrag(rightH, {
+      entry: e,
+      row,
+      dates,
+      clamp: (delta) => clampColDelta('end', bar.startCol, bar.endCol, delta, cols),
+      onPreview: (delta) => { el.style.width = pct(bar.endCol + delta - bar.startCol + 1); },
+      patchOf: (delta) => dragRangePatch(e, delta, 'end')
+    });
+    el.append(leftH);
+
     if (bar.continuesLeft) el.append(h('span', { class: 'cal-span-clip' }, '◀'));
     el.append(h('span', { class: 'cal-span-title' }, escapeHtml(e.title)));
     el.append(h('span', { class: 'cal-span-days' }, `${e.spanDays} 天`));
     if (bar.continuesRight) el.append(h('span', { class: 'cal-span-clip' }, '▶'));
+    el.append(rightH);
     layer.append(el);
   }
   return layer;
@@ -208,7 +311,7 @@ function buildMonth(byDate, dates, multiDay) {
   return wrap;
 }
 
-function buildCard(e, compact) {
+function buildCard(e, compact, ctx) {
   const card = h('div', {
     class: 'cal-card'
       + (e.done ? ' done' : '')
@@ -237,6 +340,37 @@ function buildCard(e, compact) {
   const title = h('span', { class: 'cal-card-title row-link' }, escapeHtml(e.title));
   title.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
   titleRow.append(title);
+
+  // 单日任务也能拖动：⠿ 改期，右边缘拉伸等于改结束日期（拉长后就是跨天 block）
+  if (ctx) {
+    const move = h('span', { class: 'cal-grip cal-card-move', title: '拖动改期' }, '⠿');
+    attachDrag(move, {
+      entry: e,
+      row: ctx.row,
+      dates: ctx.dates,
+      clamp: (delta) => clampColDelta('move', ctx.col, ctx.col, delta, ctx.dates.length),
+      onPreview: (delta, colW) => {
+        card.classList.add('dragging');
+        card.style.transform = `translateX(${delta * colW}px)`;
+      },
+      onEnd: () => { card.style.transform = ''; card.classList.remove('dragging'); },
+      patchOf: (delta) => dragSinglePatch(e, delta)
+    });
+    titleRow.append(move);
+
+    const stretch = h('span', { class: 'cal-grip cal-card-stretch', title: '拖动调整结束日期' });
+    attachDrag(stretch, {
+      entry: e,
+      row: ctx.row,
+      dates: ctx.dates,
+      clamp: (delta) => clampColDelta('end', ctx.col, ctx.col, delta, ctx.dates.length),
+      onPreview: () => card.classList.add('dragging'),
+      onEnd: () => card.classList.remove('dragging'),
+      patchOf: (delta) => dragRangePatch(e, delta, 'end')
+    });
+    card.append(stretch);
+  }
+
   body.append(titleRow);
 
   const meta = h('div', { class: 'cal-card-meta' });
@@ -400,6 +534,7 @@ function selectedLabel() {
 }
 
 function selectDate(date) {
+  if (suppressClick) return; // 刚拖完不顺手改选中日期
   selectedDate = date;
   paint();
 }
