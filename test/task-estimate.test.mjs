@@ -128,6 +128,22 @@ test('问题1：每日任务能存下/改掉/清空预计用时', async () => {
   });
 });
 
+test('问题2：重复任务生成的实例要带上预计用时与日期格式', async () => {
+  await withServer(async (call) => {
+    const root = (await call('POST', '/api/tasks', {
+      title: '每天的任务', date: '2024-05-01', repeat: 'daily',
+      estimate: 90, dateFormat: 'iso', endDate: '2024-05-01', endTime: '18:00'
+    })).json;
+
+    const list = await call('GET', '/api/tasks?from=2024-05-02&to=2024-05-02');
+    const inst = list.json.find((t) => t.repeatOf === root.id);
+    assert.ok(inst, '应生成重复实例');
+    assert.equal(inst.estimate, 90, '实例要继承预计用时');
+    assert.equal(inst.dateFormat, 'iso', '实例要继承日期格式');
+    assert.equal(inst.endTime, '18:00', '实例要继承结束时间');
+  });
+});
+
 test('问题1：项目任务与任意层级子任务都能存预计用时', async () => {
   await withServer(async (call) => {
     const p = (await call('POST', '/api/projects', { name: 'P' })).json;

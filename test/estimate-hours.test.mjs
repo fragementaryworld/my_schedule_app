@@ -21,13 +21,14 @@ const planMod = await import(pathToFileURL(path.join(process.cwd(), 'public', 'j
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
-function makeField(value) {
+function makeField(value, debounceMs = 10) {
   const saved = [];
-  const el = estimateMod.buildEstimateField({ value, onSave: (m) => saved.push(m) });
+  const el = estimateMod.buildEstimateField({ value, onSave: (m) => saved.push(m), debounceMs });
   document.body.append(el);
   return { el, saved, num: findAllByClass(el, 'estimate-hours')[0] };
 }
 const type = (num, text) => { num.value = text; num.fire('change'); };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ══════════ 纯函数 ══════════
 
@@ -108,6 +109,51 @@ test('问题2：手填框回填已存的预计用时（小时）', () => {
   assert.equal(makeField(30).num.value, '0.5');
   assert.equal(makeField(90).num.value, '1.5');
   assert.equal(makeField(null).num.value, '');
+});
+
+test('问题2【回归】：边输入边自动保存，不依赖失焦（用返回键离开也不丢值）', async () => {
+  const { saved, num } = makeField(null);
+  num.value = '5';
+  num.fire('input'); // 只是敲键盘：没有失焦，也没有 change
+  await wait(40);
+  assert.deepEqual(saved, [300], '应该已经自动保存');
+  assert.equal(num.value, '5', '不打断用户正在敲的内容');
+});
+
+test('问题2：连续输入时不会把没敲完的内容改掉', async () => {
+  const { saved, num } = makeField(null);
+  num.value = '5';
+  num.fire('input');
+  await wait(3);
+  num.value = '5.';
+  num.fire('input'); // 还没敲完
+  await wait(40);
+  assert.equal(num.value, '5.', '不能把用户正在敲的 5. 改掉');
+  assert.deepEqual(saved, [], '没敲完的 5. 不提交');
+
+  num.value = '5.5';
+  num.fire('input');
+  await wait(40);
+  assert.deepEqual(saved, [330], '敲完才提交 5.5 小时');
+});
+
+test('问题2：change 与 blur 一起发生也只提交一次', async () => {
+  const { saved, num } = makeField(null);
+  num.value = '3';
+  num.fire('change');
+  num.fire('blur');
+  await wait(40);
+  assert.deepEqual(saved, [180]);
+});
+
+test('问题2：值没变就不重复提交', async () => {
+  const { saved, num } = makeField(120);
+  num.value = '2';
+  num.fire('change');
+  await wait(40);
+  num.fire('blur');
+  await wait(40);
+  assert.deepEqual(saved, [], '还是 2 小时，无需写库');
 });
 
 test('问题2：手动输入 3 小时 → 存 180 分钟', async () => {
