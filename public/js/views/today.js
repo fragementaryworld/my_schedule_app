@@ -1,7 +1,8 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
+import { todayStr, addDays, escapeHtml, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
+import { dailyEntries, filterDailyEntries, buildDailyFilters, buildDailyList } from '../daily.js';
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber, groupByDate, spanDays,
@@ -15,7 +16,9 @@ export { repeatCode, decodeRepeat, repeatLabel, sourceLabel } from '../daytask.j
 
 let el = null;
 let anchor = todayStr();
-let view = 'week';
+let view = 'list';
+let filters = {};
+let paintVersion = 0;
 let weekStartPref = 'mon';
 let selectedDate = todayStr();
 
@@ -35,23 +38,43 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   if (!container) return;
   const pos = scrollPos();
-  const { from, to } = rangeOf(anchor, view, weekStartPref);
-  const dates = visibleDates(anchor, view, weekStartPref);
+  const version = ++paintVersion;
+  const { from, to } = view === 'list' ? { from: anchor, to: anchor } : rangeOf(anchor, view, weekStartPref);
+  const dates = view === 'list' ? [anchor] : visibleDates(anchor, view, weekStartPref);
   // 每日计划任务 + 工作项目里的所有任务（含各级子任务，跨多天的任务铺满整段）
   const [tasks, projects] = await Promise.all([
     api.get(`/api/tasks?from=${from}&to=${to}`),
-    api.get('/api/projects').catch(() => [])
+    api.get('/api/projects')
   ]);
-  const items = [...(tasks || []).map(toEntry), ...projectEntriesByDate(projects, todayStr())];
-  const byDate = groupByDate(expandEntries(items, dates));
-  const multiDay = spanningEntries(items, dates);
+  if (version !== paintVersion || container !== el) return;
+  const allDaily = dailyEntries(tasks, projects);
+  const key = e => `${e.kind}:${e.kind === 'project' ? e.projectId : ''}:${e.id}`;
+  const dailyByKey = new Map(dailyEntries(tasks, projects, true).map(e => [key(e), e]));
+  const items = [...(tasks || []).map(toEntry), ...projectEntriesByDate(projects, todayStr())].map(e => {
+    // 每日任务的归属来自独立字段；日历仍保留原有拖动所需的数据。
+    const daily = dailyByKey.get(key(e));
+    return { ...e, category: daily?.category || 'work', projectId: daily?.projectId || null,
+      projectName: daily?.projectName || '', sourceType: daily?.sourceType || '', ancestors: daily?.ancestors || [],
+      note: daily?.note || '', desc: daily?.desc || '' };
+  });
 
   container.innerHTML = '';
   try {
     container.append(buildToolbar());
-    container.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
-    container.append(buildLegend(byDate, dates));
-    container.append(buildSelectedBoard(byDate));
+    const content = h('div', { class: 'daily-content' });
+    const update = () => {
+      content.innerHTML = '';
+      if (view === 'list') content.append(buildDailyList(filterDailyEntries(allDaily, filters), anchor, paint));
+      else {
+        const filtered = filterDailyEntries(items, filters);
+        const byDate = groupByDate(expandEntries(filtered, dates));
+        const multiDay = spanningEntries(filtered, dates);
+        content.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
+        content.append(buildLegend(byDate, dates), buildSelectedBoard(byDate));
+      }
+    };
+    container.append(buildDailyFilters(projects, filters, update), content);
+    update();
   } finally {
     restoreScroll(pos);
   }
@@ -94,7 +117,7 @@ function buildToolbar() {
   const top = h('div', { class: 'row cal-toolbar-top', style: 'flex-wrap:wrap;gap:8px' });
 
   const tabs = h('div', { class: 'tabbar cal-views', style: 'margin:0;border:none' });
-  for (const v of CALENDAR_VIEWS) {
+  for (const v of [{ value: 'list', label: '今日清单' }, ...CALENDAR_VIEWS]) {
     const b = h('button', { class: 'tab' + (view === v.value ? ' active' : '') }, v.label);
     b.onclick = () => { view = v.value; paint(); };
     tabs.append(b);
@@ -110,14 +133,19 @@ function buildToolbar() {
   wrap.append(top);
 
   const nav = h('div', { class: 'row cal-nav' });
-  nav.append(h('span', { class: 'cal-period' }, periodTitle(anchor, view)));
+  nav.append(h('span', { class: 'cal-period' }, view === 'list' ? `${anchor} 的清单` : periodTitle(anchor, view)));
+  if (view === 'list') {
+    const date = h('input', { class: 'input daily-date', type: 'date', value: anchor, 'aria-label': '清单日期' });
+    date.onchange = () => { if (date.value) { anchor = date.value; selectedDate = anchor; paint(); } };
+    nav.append(date);
+  }
   nav.append(h('span', { class: 'spacer' }));
   const prev = h('button', { class: 'icon-btn cal-prev', title: '上一页' }, '‹');
   const todayBtn = h('button', { class: 'btn btn-sm' }, '今天');
   const next = h('button', { class: 'icon-btn cal-next', title: '下一页' }, '›');
-  prev.onclick = () => { anchor = shiftAnchor(anchor, view, -1); paint(); };
-  next.onclick = () => { anchor = shiftAnchor(anchor, view, 1); paint(); };
-  todayBtn.onclick = () => { anchor = todayStr(); paint(); };
+  prev.onclick = () => { anchor = view === 'list' ? addDays(anchor, -1) : shiftAnchor(anchor, view, -1); selectedDate = anchor; paint(); };
+  next.onclick = () => { anchor = view === 'list' ? addDays(anchor, 1) : shiftAnchor(anchor, view, 1); selectedDate = anchor; paint(); };
+  todayBtn.onclick = () => { anchor = todayStr(); selectedDate = anchor; paint(); };
   nav.append(prev, todayBtn, next);
   wrap.append(nav);
 

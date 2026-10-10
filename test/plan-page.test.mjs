@@ -114,7 +114,7 @@ test('问题2：状态/优先级/重复/来源 都能改', async () => {
     assert.ok(row, `应有「${label}」属性行`);
     return findAllByTag(row, 'select')[0];
   };
-  assert.equal(findAllByClass(el, 'inline-select').length, 4, '状态 / 优先级 / 重复 / 来源（预计用时是手填框，不是下拉）');
+  assert.equal(findAllByClass(el, 'inline-select').length, 6, '归属 / 事务标签 / 状态 / 优先级 / 重复 / 来源');
 
   calls.length = 0;
   const doneSel = propSelect('状态');
@@ -188,6 +188,8 @@ test('问题2：点日历卡片标题进入任务页面', async () => {
   globalThis.location.hash = '#/today';
   const el = document.createElement('div');
   await todayMod.render(el);
+  findAllByTag(el, 'button').find(b => textOf(b) === '周视图').click();
+  await tick();
   const title = findAllByClass(el, 'cal-card-title')[0];
   assert.ok(title, '日历里应有条目');
   title.click();

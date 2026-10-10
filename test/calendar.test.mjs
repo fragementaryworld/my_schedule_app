@@ -106,14 +106,16 @@ async function renderToday() {
   calls.length = 0;
   const el = document.createElement('div');
   await todayMod.render(el);
+  tabBtn(el, '周视图').click();
+  await tick();
   return el;
 }
 
-test('问题1：今日计划默认周视图，7 列 + 星期表头', async () => {
+test('问题1：今日计划可切到周视图，7 列 + 星期表头', async () => {
   const el = await renderToday();
   assert.deepEqual(findAllByClass(el, 'cal-wd').map((x) => textOf(x)), ['一', '二', '三', '四', '五', '六', '日']);
   assert.equal(findAllByClass(el, 'cal-col').length, 7, '一周 7 列');
-  assert.deepEqual(findAllByClass(el, 'tab').map((t) => textOf(t)), ['周视图', '月视图']);
+  assert.deepEqual(findAllByClass(el, 'tab').map((t) => textOf(t)), ['今日清单', '周视图', '月视图']);
   const req = calls.find((c) => c.url.includes('/api/tasks?from='));
   assert.ok(req, '应按日期区间一次性取数据');
 });
@@ -125,6 +127,7 @@ test('问题1：今天的列高亮，任务落在对应那一天', async () => {
   const names = findAllByClass(todayCol, 'cal-card-title').map((t) => textOf(t));
   assert.deepEqual(names.sort(), ['今天的事', '已完成的事'].sort());
 
+  if (!colOf(el, addDays(TODAY, 1))) { findAllByClass(el, 'cal-next')[0].click(); await tick(); }
   const tomorrowCol = colOf(el, addDays(TODAY, 1));
   assert.deepEqual(findAllByClass(tomorrowCol, 'cal-card-title').map((t) => textOf(t)), ['明天的事']);
   assert.ok(!tomorrowCol.classList.contains('today'));
@@ -139,6 +142,7 @@ test('问题1：卡片显示时间/来源/重复，完成项划线', async () =>
   const cards = findAllByClass(todayCol, 'cal-card');
   const done = cards.find((c) => c.classList.contains('done'));
   assert.ok(done, '完成项应有 done 样式');
+  if (!colOf(el, addDays(TODAY, 1))) { findAllByClass(el, 'cal-next')[0].click(); await tick(); }
   assert.equal(findAllByClass(findAllByClass(el, 'cal-col').find((c) => c.dataset.date === addDays(TODAY, 1)), 'cal-card-act').length, 1, '重复任务有完成系列按钮');
 });
 

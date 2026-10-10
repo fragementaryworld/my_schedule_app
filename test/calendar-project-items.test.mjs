@@ -147,7 +147,8 @@ test('问题3：日历里能看到工作项目的任务（含各级子任务）'
   assert.ok(textOf(todayCell).includes('📁 项目A'), '标出来自哪个项目');
   assert.ok(findAllByClass(el, 'cal-span').some((s) => textOf(s).includes('项目任务1')), '跨天的项目任务画成 block');
 
-  assert.equal(findAllByClass(cellOf(el, TOMORROW), 'cal-card-title').length, 0, '明天不再重复这张卡片');
+  // 周日的明天属于下一周；周内才检查其格子。
+  if (cellOf(el, TOMORROW)) assert.equal(findAllByClass(cellOf(el, TOMORROW), 'cal-card-title').length, 0, '明天不再重复这张卡片');
 });
 
 test('问题3：项目任务勾选写到它自己那一层', async () => {

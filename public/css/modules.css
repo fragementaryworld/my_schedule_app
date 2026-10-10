@@ -416,3 +416,56 @@
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .gantt-track { flex: 1; height: 16px; background: var(--border); border-radius: 999px; overflow: hidden; }
 .gantt-track > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+/* 每日执行清单：归属分组，来源保留为辅助信息。 */
+.daily-filters { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+.daily-filters .input { width:auto; min-width:120px; }
+.daily-filters .daily-search { flex:1; min-width:200px; }
+.daily-filters [aria-pressed="true"] { color:var(--primary); background:var(--primary-soft); border-color:var(--primary); }
+.daily-date { width:auto; max-width:160px; }
+.daily-list { max-width:1120px; margin:auto; }
+.daily-summary { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px; background:var(--primary-soft); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:26px; }
+.daily-summary strong { font-size:20px; }
+.daily-summary p { margin:6px 0 0; }
+.daily-stats { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; min-width:160px; }
+.daily-stats strong { color:var(--primary); font-size:32px; line-height:1; }
+.daily-stats > span { flex-basis:100%; color:var(--muted); font-size:12px; }
+.daily-list h2 { font-size:17px; display:flex; align-items:center; gap:10px; margin:22px 0 12px; }
+.daily-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.daily-category { min-width:0; padding:16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); }
+.daily-category-work { border-top:3px solid var(--primary); }
+.daily-category-temporary { border-top:3px solid var(--warning); }
+.daily-category-routine { border-top:3px solid var(--success); }
+.daily-category h3 { margin:0 0 12px; display:flex; align-items:center; gap:8px; font-size:14px; }
+.daily-count { font-size:12px; font-weight:400; color:var(--muted); background:var(--panel-2); padding:1px 7px; border-radius:12px; }
+.daily-project > summary { padding:8px 0; color:var(--muted); font-weight:600; cursor:pointer; }
+.daily-project > summary .daily-count { float:right; }
+.daily-task { display:flex; align-items:flex-start; gap:10px; padding:12px 0; border-top:1px solid var(--border); }
+.daily-task .task-check { flex-shrink:0; margin-top:4px; }
+.daily-task-body { min-width:0; flex:1; }
+.daily-task-title { font-weight:500; overflow-wrap:anywhere; }
+.daily-task-title:hover { color:var(--primary); }
+.daily-task-meta { display:flex; gap:6px 10px; flex-wrap:wrap; margin-top:5px; font-size:11px; color:var(--muted); }
+.daily-task-meta a:hover { text-decoration:underline; }
+.daily-task-meta .badge { font-size:10px; }
+.daily-breadcrumb { flex-basis:100%; }
+.daily-task.done .daily-task-title { text-decoration:line-through; color:var(--muted); }
+.daily-task > button { flex-shrink:0; font-size:11px; }
+.daily-subtasks { margin-left:26px; border-left:2px solid var(--border); padding-left:12px; }
+.daily-subtasks > summary { cursor:pointer; font-size:12px; color:var(--muted); padding:2px 0 10px; }
+.daily-fold { border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-top:16px; background:var(--panel); }
+.daily-fold > summary { cursor:pointer; font-weight:500; }
+.daily-fold > summary .daily-count { margin-left:8px; }
+.daily-fold[open] > summary { margin-bottom:16px; }
+.daily-empty { padding:22px; border:1px dashed var(--border); border-radius:var(--radius); }
+.daily-due > h2 { color:var(--warning); }
+@media (min-width:1500px) { .daily-groups { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:1000px) { .daily-groups { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:600px) {
+  .daily-summary { align-items:flex-start; padding:18px; flex-direction:column; gap:14px; }
+  .daily-filters .input { min-width:0; max-width:100%; flex:1 1 40%; }
+  .daily-filters .daily-search { flex-basis:100%; }
+  .daily-task { flex-wrap:wrap; }
+  .daily-task > .daily-plan-add { margin-left:26px; }
+  .daily-category { padding:12px; }
+  .cal-nav { flex-wrap:wrap; }
+}

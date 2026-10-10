@@ -294,8 +294,8 @@ export function sortFeedProjects(projects) {
 export const DEFAULT_PAGE_NAME = '未命名页面';
 
 // 直接新建页面并跳转（不弹窗，由页面内就地填写信息）
-export async function createProject() {
-  const created = await api.post('/api/projects', { name: DEFAULT_PAGE_NAME });
+export async function createProject(options = {}) {
+  const created = await api.post('/api/projects', { name: DEFAULT_PAGE_NAME, ...(options.category ? { category: options.category } : {}) });
   toast('已新建页面');
   location.hash = `#/page/${created.id}`;
   return created;

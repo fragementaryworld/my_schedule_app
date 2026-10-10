@@ -6,6 +6,7 @@ import { escapeHtml, todayStr } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
+import { ROUTINE_OPTIONS, ownerProjectId } from '../daily.js';
 import {
   PRIORITY_OPTIONS, REPEAT_OPTIONS, SOURCE_OPTIONS,
   repeatCode, decodeRepeat, isFreshDayTask, createDayTask, taskDateValue, taskDatePatch
@@ -29,7 +30,7 @@ async function paint() {
   const pos = scrollPos();
   const focus = focusSnapshot();
   titleEl = null;
-  const task = await api.get(`/api/tasks/${encodeURIComponent(taskId)}`);
+  const [task, projects] = await Promise.all([api.get(`/api/tasks/${encodeURIComponent(taskId)}`), api.get('/api/projects')]);
   container.innerHTML = '';
   try {
     if (!task || !task.id) {
@@ -38,7 +39,7 @@ async function paint() {
     }
     container.append(buildBreadcrumb(task));
     container.append(buildHead(task));
-    container.append(buildProperties(task));
+    container.append(buildProperties(task, projects));
     container.append(h('div', { class: 'page-section' }, '📝 备注'));
     container.append(buildNote(task));
     if (isFreshDayTask(task)) focusTitle();
@@ -103,9 +104,18 @@ function buildHead(task) {
   return wrap;
 }
 
-function buildProperties(task) {
+function buildProperties(task, projects = []) {
   const card = h('div', { class: 'page-props' });
   const base = `/api/tasks/${task.id}`;
+  const ownerSel = h('select', { class: 'input inline-select', 'aria-label': '任务归属' });
+  ownerSel.append(h('option', { value: '' }, '日常事务'));
+  for (const p of projects) ownerSel.append(h('option', { value: p.id }, `${p.category === 'temporary' ? '临时专题' : '工作项目'} · ${p.name}`));
+  ownerSel.value = ownerProjectId(task) || '';
+  ownerSel.onchange = async () => { await api.put(base, { projectId: ownerSel.value || null }); toast('归属已更新'); await paint(); };
+  const tagSel = h('select', { class: 'input inline-select', 'aria-label': '事务标签' });
+  for (const [value, label] of ROUTINE_OPTIONS) tagSel.append(h('option', { value }, label));
+  tagSel.value = task.routineTag || '';
+  tagSel.onchange = async () => { await api.put(base, { routineTag: tagSel.value }); toast('标签已更新'); await paint(); };
   // 第三参是"重绘后要恢复焦点"的稳定键
   const row = (label, ctrl, key) => {
     if (key && ctrl && ctrl.setAttribute) ctrl.setAttribute('data-focus-key', key);
@@ -172,6 +182,8 @@ function buildProperties(task) {
   });
 
   card.append(
+    row('归属', ownerSel, `${base}:projectId`),
+    ...(!ownerSel.value ? [row('事务标签', tagSel, `${base}:routineTag`)] : []),
     row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
     row('预计用时', estimateSel),

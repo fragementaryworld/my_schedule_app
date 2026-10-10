@@ -243,6 +243,7 @@ test('问题2：每日任务页面可以用手填小时保存', async () => {
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
     calls.push({ url: u, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : null });
+    if (u === '/api/projects') return { ok: true, status: 200, json: async () => [] };
     if (u.includes('/api/tasks/t1')) return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(task)) };
     return { ok: true, status: 200, json: async () => ({ ok: true }) };
   };

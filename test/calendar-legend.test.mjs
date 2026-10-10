@@ -62,6 +62,8 @@ const dotColor = (node) => {
 async function renderToday() {
   const el = document.createElement('div');
   await todayMod.render(el);
+  findAllByTag(el, 'button').find(b => textOf(b) === '周视图').click();
+  await tick();
   return el;
 }
 
