@@ -21,13 +21,14 @@ function defaultData() {
 }
 
 const ARRAY_KEYS = ['memos', 'tasks', 'projects', 'books', 'ideas'];
+const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 // 补齐缺失/类型错误的顶层字段，保证数据结构完整
 function normalize(data) {
   const def = defaultData();
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return def;
+  if (!isRecord(data)) return def;
 
-  if (!data.preferences || typeof data.preferences !== 'object') {
+  if (!isRecord(data.preferences)) {
     data.preferences = def.preferences;
   }
   for (const k of Object.keys(def.preferences)) {
@@ -38,7 +39,7 @@ function normalize(data) {
     if (!Array.isArray(data[k])) data[k] = def[k];
   }
 
-  if (!data.workouts || typeof data.workouts !== 'object' || Array.isArray(data.workouts)) {
+  if (!isRecord(data.workouts)) {
     data.workouts = def.workouts;
   }
   for (const k of Object.keys(def.workouts)) {
@@ -49,7 +50,7 @@ function normalize(data) {
   if (!Array.isArray(data.workouts.exercises)) data.workouts.exercises = [];
   if (!Array.isArray(data.workouts.logs)) data.workouts.logs = [];
   if (!Array.isArray(data.workouts.bodyData)) data.workouts.bodyData = [];
-  if (!data.workouts.schedule || typeof data.workouts.schedule !== 'object') {
+  if (!isRecord(data.workouts.schedule)) {
     data.workouts.schedule = def.workouts.schedule;
   }
   for (const day of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) {
@@ -63,13 +64,13 @@ function atomicWrite(filePath, content) {
   const dir = path.dirname(filePath);
   if (dir && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, content, 'utf8');
   try {
+    fs.writeFileSync(tmp, content, 'utf8');
     fs.renameSync(tmp, filePath);
   } catch (e) {
-    // Windows 上某些情况下 rename 覆盖失败，退化为先删后改名
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    fs.renameSync(tmp, filePath);
+    // 覆盖失败时保留原文件；先删原文件会在第二次 rename 失败时丢失数据。
+    try { fs.rmSync(tmp, { force: true }); } catch { /* 保留原始写入错误 */ }
+    throw e;
   }
 }
 
@@ -81,12 +82,15 @@ class Store {
   }
 
   load() {
+    this.recoveredFromBackup = false;
     if (fs.existsSync(this.filePath)) {
       try {
         const raw = fs.readFileSync(this.filePath, 'utf8');
         this.data = normalize(JSON.parse(raw));
         return true;
       } catch (e) {
+        // 权限/磁盘错误不表示 JSON 损坏，不能据此隔离并覆盖原数据。
+        if (!(e instanceof SyntaxError)) throw e;
         // 主文件损坏：尝试从自动备份恢复
         this._quarantineCorrupt();
         const bak = this.filePath + '.bak';
@@ -96,6 +100,7 @@ class Store {
             this.data = normalize(JSON.parse(rawBak));
             this.recoveredFromBackup = true;
           } catch (e2) {
+            if (!(e2 instanceof SyntaxError)) throw e2;
             this.data = defaultData();
           }
         } else {
@@ -112,11 +117,8 @@ class Store {
 
   _quarantineCorrupt() {
     const ts = Date.now();
-    try {
-      fs.renameSync(this.filePath, `${this.filePath}.corrupt-${ts}`);
-    } catch (e) {
-      /* 忽略：无法改名则保持原样 */
-    }
+    // 隔离失败就停止恢复，避免 save() 把损坏文件复制到有效备份上。
+    fs.renameSync(this.filePath, `${this.filePath}.corrupt-${ts}`);
   }
 
   get() {
@@ -140,8 +142,14 @@ class Store {
   }
 
   replace(newData) {
+    const previous = this.data;
     this.data = normalize(newData);
-    this.save();
+    try {
+      this.save();
+    } catch (e) {
+      this.data = previous;
+      throw e;
+    }
   }
 }
 
