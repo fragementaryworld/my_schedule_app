@@ -77,7 +77,8 @@ test('问题2：任务页面导出 render/add 并带完整属性', async () => {
   assert.equal(findAllByClass(el, 'date-field').length, 1, '有时间字段（日期选择器）');
   assert.equal(findAllByTag(el, 'input').filter((i) => i.getAttribute('type') === 'date').length, 0);
   const text = textOf(el);
-  for (const label of ['状态', '时间', '优先级', '重复', '来源']) assert.ok(text.includes(label), `缺少 ${label}`);
+  for (const label of ['归属', '状态', '时间', '优先级', '重复']) assert.ok(text.includes(label), `缺少 ${label}`);
+  assert.ok(!text.includes('来源'));
   assert.ok(text.includes('🗑 删除任务'));
   assert.ok(findAllByClass(el, 'feed-goal-md').length >= 1, '备注区');
 });
@@ -106,7 +107,7 @@ test('问题2：日期选择器写回 date/time/dateFormat', async () => {
   assert.deepEqual(put.body, { date: target, time: '09:30', endDate: null, endTime: null, dateFormat: 'ymd' });
 });
 
-test('问题2：状态/优先级/重复/来源 都能改', async () => {
+test('问题2：状态/优先级/重复 都能改，来源不再作为属性', async () => {
   const el = await renderPlan();
   // 按标签定位，避免属性行顺序变化影响断言
   const propSelect = (label) => {
@@ -114,7 +115,7 @@ test('问题2：状态/优先级/重复/来源 都能改', async () => {
     assert.ok(row, `应有「${label}」属性行`);
     return findAllByTag(row, 'select')[0];
   };
-  assert.equal(findAllByClass(el, 'inline-select').length, 6, '归属 / 事务标签 / 状态 / 优先级 / 重复 / 来源');
+  assert.equal(findAllByClass(el, 'inline-select').length, 5, '归属 / 事务标签 / 状态 / 优先级 / 重复');
 
   calls.length = 0;
   const doneSel = propSelect('状态');
@@ -130,12 +131,7 @@ test('问题2：状态/优先级/重复/来源 都能改', async () => {
   await tick();
   assert.deepEqual(calls.find((c) => c.method === 'PUT').body, { repeat: { interval: 2, unit: 'day' } });
 
-  calls.length = 0;
-  const sourceSel = propSelect('来源');
-  sourceSel.value = '';
-  sourceSel.fire('change');
-  await tick();
-  assert.deepEqual(calls.find((c) => c.method === 'PUT').body, { source: null });
+  assert.equal(findAllByClass(el, 'prop-row').some(r => textOf(r).startsWith('来源')), false);
 });
 
 test('问题2：备注按 Markdown 渲染并可编辑', async () => {

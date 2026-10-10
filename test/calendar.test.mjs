@@ -133,12 +133,12 @@ test('问题1：今天的列高亮，任务落在对应那一天', async () => {
   assert.ok(!tomorrowCol.classList.contains('today'));
 });
 
-test('问题1：卡片显示时间/来源/重复，完成项划线', async () => {
+test('问题1：卡片显示时间/重复，来源标签已移除，完成项划线', async () => {
   const el = await renderToday();
   const todayCol = colOf(el, TODAY);
   const text = textOf(todayCol);
   assert.ok(text.includes('🕐 09:00'), '显示时间');
-  assert.ok(text.includes('📁 项目'), '显示来源');
+  assert.ok(!text.includes('📁 项目'), '不再显示重复的来源标签');
   const cards = findAllByClass(todayCol, 'cal-card');
   const done = cards.find((c) => c.classList.contains('done'));
   assert.ok(done, '完成项应有 done 样式');

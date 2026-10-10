@@ -9,7 +9,7 @@ import {
   projectEntriesByDate, legendFor, dateBoard, expandEntries, spanningEntries, spanBarLayout, tint, truncate,
   clampColDelta, dragRangePatch, dragSinglePatch
 } from '../calendar.js';
-import { createDayTask, dayTaskHref, sourceLabel, timeRangeLabel } from '../daytask.js';
+import { createDayTask, dayTaskHref, timeRangeLabel } from '../daytask.js';
 
 // 兼容：这些纯函数仍从本模块导出（供既有测试与页面复用）
 export { repeatCode, decodeRepeat, repeatLabel, sourceLabel } from '../daytask.js';
@@ -73,7 +73,7 @@ async function paint() {
         content.append(buildLegend(byDate, dates), buildSelectedBoard(byDate));
       }
     };
-    container.append(buildDailyFilters(projects, filters, update), content);
+    container.append(buildDailyFilters(filters, update), content);
     update();
   } finally {
     restoreScroll(pos);
@@ -95,7 +95,6 @@ function toEntry(t) {
     repeat: t.repeat || null,
     repeatOf: t.repeatOf || null,
     source: t.source || null,
-    sourceLabel: t.source && t.source.type ? sourceLabel(t.source.type) : '',
     color: DAY_TASK_COLOR,
     detail: (t.note || '').trim(),
     estimate: t.estimate || null,
@@ -406,7 +405,6 @@ function buildCard(e, compact, ctx) {
   if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
   if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
   if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `${e.spanStart ? '起' : (e.spanEnd ? '止' : '续')} · 共 ${e.spanDays} 天`));
-  if (e.sourceLabel) meta.append(h('span', { class: 'cal-chip' }, e.sourceLabel));
   if (e.repeat || e.repeatOf) meta.append(h('span', { class: 'cal-chip' }, '🔁'));
   if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
   if (!compact && e.priority) meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));

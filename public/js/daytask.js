@@ -20,14 +20,6 @@ export const PRIORITY_OPTIONS = [
   { value: 'low', label: '低' }
 ];
 
-export const SOURCE_OPTIONS = [
-  { value: '', label: '无' },
-  { value: 'project', label: '工作项目' },
-  { value: 'book', label: '阅读' },
-  { value: 'workout', label: '健身' },
-  { value: 'idea', label: '灵感' }
-];
-
 export function repeatCode(r) {
   if (r === 'daily') return 'daily';
   if (r === 'weekly') return 'weekly';

@@ -4,7 +4,7 @@ import { api } from './api.js';
 import { flattenProjectItems, itemSpan, spanDays, DAY_TASK_COLOR } from './calendar.js';
 import { itemBase, itemHref, timelineColor, createProject } from './views/projects.js';
 import { estimateText, priorityLabel, priorityClass } from './utils.js';
-import { sourceLabel, timeRangeLabel, dayTaskHref } from './daytask.js';
+import { timeRangeLabel, dayTaskHref } from './daytask.js';
 
 export const CATEGORY_OPTIONS = [['work', '工作项目'], ['temporary', '临时专题'], ['routine', '日常事务']];
 export const ROUTINE_OPTIONS = [['', '未分类'], ['admin', '行政'], ['communication', '沟通'], ['organizing', '整理']];
@@ -50,9 +50,6 @@ export function dailyEntries(tasks, projects, includeInactive = false) {
 export function filterDailyEntries(entries, filters = {}) {
   const q = (filters.search || '').trim().toLocaleLowerCase();
   return entries.filter(e => (!filters.category || e.category === filters.category)
-    && (!filters.projectId || e.projectId === filters.projectId)
-    && (!filters.source || e.sourceType === filters.source)
-    && (!filters.quick || (Number(e.estimate) > 0 && Number(e.estimate) <= 15))
     && (!q || [e.title, e.projectName, ...(e.ancestors || []), e.note, e.desc].join(' ').toLocaleLowerCase().includes(q)));
 }
 
@@ -93,7 +90,7 @@ export function entryForest(entries) {
   return roots;
 }
 
-export function buildDailyFilters(projects, filters, onChange) {
+export function buildDailyFilters(filters, onChange) {
   const bar = h('div', { class: 'daily-filters' });
   const selects = [];
   const search = h('input', { class: 'input daily-search', type: 'search', placeholder: '搜索任务或项目…', 'aria-label': '搜索任务或项目' });
@@ -110,19 +107,14 @@ export function buildDailyFilters(projects, filters, onChange) {
     selects.push(ctrl);
   };
   select('全部归属', 'category', CATEGORY_OPTIONS);
-  select('全部项目', 'projectId', projects.map(p => [p.id, p.name]));
-  select('全部来源', 'source', [['project', '项目'], ['idea', '灵感'], ['book', '阅读'], ['workout', '健身']]);
-  const quick = h('button', { class: 'btn btn-sm', 'aria-pressed': !!filters.quick }, '⚡ 15 分钟内');
-  quick.onclick = () => { filters.quick = !filters.quick; quick.setAttribute('aria-pressed', !!filters.quick); onChange(); };
   const clear = h('button', { class: 'btn btn-sm' }, '清除筛选');
   clear.onclick = () => {
     for (const key of Object.keys(filters)) delete filters[key];
     search.value = '';
     for (const ctrl of selects) ctrl.value = '';
-    quick.setAttribute('aria-pressed', false);
     onChange();
   };
-  bar.append(quick, clear);
+  bar.append(clear);
   return bar;
 }
 
@@ -149,7 +141,6 @@ export function buildDailyList(entries, date, refresh) {
     if (e.time) meta.append(h('span', {}, `${e.kind === 'project' ? '截止' : '安排'} ${e.time}`));
     if (e.kind === 'project' && e.dueDate) meta.append(h('span', {}, `截止 ${e.dueDate}`));
     if (estimateText(e)) meta.append(h('span', {}, estimateText(e)));
-    if (e.sourceType && e.sourceType !== 'project') meta.append(h('a', { href: e.sourceType === 'idea' ? '#/ideas' : e.sourceType === 'book' ? '#/reading' : '#/fitness' }, `来源：${sourceLabel(e.sourceType)}`));
     const tag = ROUTINE_OPTIONS.find(([v]) => v && v === e.routineTag);
     if (tag && e.category === 'routine') meta.append(h('span', {}, tag[1]));
     if (e.priority === 'high') meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));

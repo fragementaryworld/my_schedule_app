@@ -8,7 +8,7 @@ import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
 import { ROUTINE_OPTIONS, ownerProjectId } from '../daily.js';
 import {
-  PRIORITY_OPTIONS, REPEAT_OPTIONS, SOURCE_OPTIONS,
+  PRIORITY_OPTIONS, REPEAT_OPTIONS,
   repeatCode, decodeRepeat, isFreshDayTask, createDayTask, taskDateValue, taskDatePatch
 } from '../daytask.js';
 
@@ -161,15 +161,6 @@ function buildProperties(task, projects = []) {
     await paint();
   };
 
-  const sourceSel = h('select', { class: 'input inline-select' });
-  for (const o of SOURCE_OPTIONS) sourceSel.append(h('option', { value: o.value }, o.label));
-  sourceSel.value = (task.source && task.source.type) || '';
-  sourceSel.onchange = async () => {
-    await api.put(base, { source: sourceSel.value ? { type: sourceSel.value, id: null } : null });
-    toast('已保存');
-    await paint();
-  };
-
   const estimateSel = buildEstimateField({
     value: task.estimate,
     key: `${base}:estimate`,
@@ -188,8 +179,7 @@ function buildProperties(task, projects = []) {
     row('时间', dateField),
     row('预计用时', estimateSel),
     row('优先级', prioSel, `${base}:priority`),
-    row('重复', repeatSel, `${base}:repeat`),
-    row('来源', sourceSel, `${base}:source`)
+    row('重复', repeatSel, `${base}:repeat`)
   );
   return card;
 }

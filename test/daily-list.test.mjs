@@ -73,19 +73,20 @@ test('父子任务按路径折叠；单独安排子任务保留祖先路径和�
   assert.equal(child.base, '/api/projects/paper/tasks/parent/subtasks/child');
 });
 
-test('快速任务按正数用时筛选，支持归属/来源/项目与路径搜索组合', () => {
-  assert.deepEqual(filterDailyEntries(entries(), { quick: true }).map(e => e.id).sort(), ['child', 'invoice']);
-  assert.deepEqual(filterDailyEntries(entries(), { category: 'work', source: 'idea' }).map(e => e.id), ['idea']);
-  assert.deepEqual(filterDailyEntries(entries(), { projectId: 'files', search: '目录' }).map(e => e.id), ['catalog']);
+test('归属与路径搜索可组合，废弃的来源/项目/快速筛选不会隐藏任务', () => {
+  assert.deepEqual(filterDailyEntries(entries(), { category: 'work', search: '新方法' }).map(e => e.id), ['idea']);
+  assert.deepEqual(filterDailyEntries(entries(), { category: 'temporary', search: '目录' }).map(e => e.id), ['catalog']);
+  assert.deepEqual(filterDailyEntries(entries(), { projectId: 'missing', source: 'book', quick: true }), entries());
   assert.ok(filterDailyEntries(entries(), { search: '修改论文' }).some(e => e.id === 'child'));
 });
 
-test('完成和持续区块默认折叠，三类归属和灵感来源可见', () => {
+test('完成和持续区块默认折叠，三类归属可见，来源不再显示', () => {
   const root = buildDailyList(entries(), date, async () => {});
   assert.equal(findAllByClass(root, 'daily-done')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(root, 'daily-ongoing')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(root, 'daily-subtasks')[0].hasAttribute('open'), false);
-  for (const label of ['工作项目', '临时专题', '日常事务', '来源：💡 灵感', '行政']) assert.ok(textOf(root).includes(label));
+  for (const label of ['工作项目', '临时专题', '日常事务', '行政']) assert.ok(textOf(root).includes(label));
+  assert.ok(!textOf(root).includes('来源：'));
 });
 
 test('加入当天/移出当天/完成子任务只更新原始任务', async () => {
@@ -108,7 +109,7 @@ test('加入当天/移出当天/完成子任务只更新原始任务', async () 
 test('筛选输入和清除筛选不丢失焦点控件，不请求网络', () => {
   const filters = { category: 'work', quick: true };
   let updates = 0;
-  const root = buildDailyFilters(projects, filters, () => updates++);
+  const root = buildDailyFilters(filters, () => updates++);
   const search = findAllByTag(root, 'input')[0];
   search.value = '发票'; search.fire('input');
   assert.equal(filters.search, '发票');
@@ -118,7 +119,7 @@ test('筛选输入和清除筛选不丢失焦点控件，不请求网络', () =>
   assert.equal(updates, 2);
 });
 
-test('今日计划默认清单，周/月保留，来源筛选同时影响日历', async () => {
+test('今日计划默认清单，周/月保留，搜索同时影响日历', async () => {
   globalThis.fetch = async url => ({ ok: true, json: async () => String(url).includes('preferences') ? {} : String(url).includes('projects') ? projects : tasks });
   const root = document.createElement('div');
   await today.render(root);

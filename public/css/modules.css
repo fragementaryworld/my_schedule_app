@@ -420,7 +420,6 @@
 .daily-filters { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
 .daily-filters .input { width:auto; min-width:120px; }
 .daily-filters .daily-search { flex:1; min-width:200px; }
-.daily-filters [aria-pressed="true"] { color:var(--primary); background:var(--primary-soft); border-color:var(--primary); }
 .daily-date { width:auto; max-width:160px; }
 .daily-list { max-width:1120px; margin:auto; }
 .daily-summary { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px; background:var(--primary-soft); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:26px; }
