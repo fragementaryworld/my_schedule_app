@@ -2,6 +2,7 @@
 // 每日计划任务（date + time 的独立任务）共用的模型与动作
 import { api } from './api.js';
 import { toast } from './ui.js';
+import { DEFAULT_DATE_FORMAT } from './datepicker.js';
 
 export const DEFAULT_DAY_TASK_TITLE = '新任务';
 
@@ -88,7 +89,7 @@ export function taskDateValue(task) {
 export function taskDatePatch(patch, current) {
   const p = patch || {};
   const cur = current || {};
-  const format = p.dateFormat || cur.dateFormat || 'full';
+  const format = p.dateFormat || cur.dateFormat || DEFAULT_DATE_FORMAT;
   if (p.startDate && p.dueDate) {
     return {
       date: p.startDate,

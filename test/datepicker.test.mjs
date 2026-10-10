@@ -71,7 +71,7 @@ test('状态：单日期只写在 dueDate 上', () => {
   assert.equal(st.start, '2024-05-11');
   assert.equal(st.end, null);
   assert.deepEqual(dp.toApiPatch(st), {
-    startDate: null, startTime: null, dueDate: '2024-05-11', dueTime: null, dateFormat: 'full'
+    startDate: null, startTime: null, dueDate: '2024-05-11', dueTime: null, dateFormat: 'ymd'
   });
 });
 
@@ -89,7 +89,7 @@ test('状态：只有 startDate 的历史数据归一到 dueDate', () => {
   const st = dp.toPickerState({ startDate: '2024-05-01' });
   assert.equal(st.hasEnd, false);
   assert.deepEqual(dp.toApiPatch(st), {
-    startDate: null, startTime: null, dueDate: '2024-05-01', dueTime: null, dateFormat: 'full'
+    startDate: null, startTime: null, dueDate: '2024-05-01', dueTime: null, dateFormat: 'ymd'
   });
 });
 
@@ -101,7 +101,7 @@ test('状态：Include time 与 Date format 往返', () => {
   assert.deepEqual(dp.toApiPatch(st), {
     startDate: null, startTime: null, dueDate: '2024-05-11', dueTime: '14:30', dateFormat: 'iso'
   });
-  assert.equal(dp.toPickerState({ dueDate: '2024-05-11', dateFormat: 'bogus' }).format, 'full', '非法格式回落默认');
+  assert.equal(dp.toPickerState({ dueDate: '2024-05-11', dateFormat: 'bogus' }).format, 'ymd', '非法格式回落默认');
 });
 
 test('状态：区间 + 时间 + 格式 的完整补丁', () => {
@@ -171,10 +171,11 @@ test('交互：清除只清日期与时间，保留格式', () => {
 // ——— 展示 ———
 
 test('展示：formatDateValue 单日期/区间/带时间/按格式', () => {
-  assert.equal(dp.formatDateValue({ dueDate: '2024-05-11' }, TODAY), '2024年5月11日 周六');
-  assert.equal(dp.formatDateValue({ startDate: '2024-05-01', dueDate: '2024-05-11' }, TODAY), '2024年5月1日 周三 → 2024年5月11日 周六');
-  assert.equal(dp.formatDateValue({ dueDate: '2024-05-11', dueTime: '14:30' }, TODAY), '2024年5月11日 周六 14:30');
+  assert.equal(dp.formatDateValue({ dueDate: '2024-05-11' }, TODAY), '2024/05/11');
+  assert.equal(dp.formatDateValue({ startDate: '2024-05-01', dueDate: '2024-05-11' }, TODAY), '2024/05/01 → 2024/05/11');
+  assert.equal(dp.formatDateValue({ dueDate: '2024-05-11', dueTime: '14:30' }, TODAY), '2024/05/11 14:30');
   assert.equal(dp.formatDateValue({ dueDate: '2024-05-11', dateFormat: 'iso' }, TODAY), '2024-05-11');
+  assert.equal(dp.formatDateValue({ dueDate: '2024-05-11', dateFormat: 'full' }, TODAY), '2024年5月11日 周六');
   assert.equal(dp.formatDateValue({ dueDate: '2024-05-11', dateFormat: 'relative' }, TODAY), '今天');
   assert.equal(dp.formatDateValue({}, TODAY), '');
 });
@@ -199,7 +200,7 @@ test('组件：默认收起，点击展开日历', () => {
   const { field } = makeField({ dueDate: '2024-05-11' });
   const pop = findAllByClass(field, 'datepicker-pop')[0];
   assert.equal(pop.style.display, 'none');
-  assert.equal(findAllByClass(field, 'date-trigger')[0].textContent, '2024年5月11日 周六');
+  assert.equal(findAllByClass(field, 'date-trigger')[0].textContent, '2024/05/11');
   findAllByClass(field, 'date-trigger')[0].click();
   assert.equal(pop.style.display, '', '应展开');
   assert.equal(findAllByClass(field, 'dp-day').length, 42);
@@ -218,8 +219,8 @@ test('组件：点一天保存为 dueDate（单日期）', async () => {
   dayBtn(field, '2024-05-20').click();
   await tick();
   assert.equal(saved.length, 1);
-  assert.deepEqual(saved[0], { startDate: null, startTime: null, dueDate: '2024-05-20', dueTime: null, dateFormat: 'full' });
-  assert.equal(findAllByClass(field, 'date-trigger')[0].textContent, '2024年5月20日 周一');
+  assert.deepEqual(saved[0], { startDate: null, startTime: null, dueDate: '2024-05-20', dueTime: null, dateFormat: 'ymd' });
+  assert.equal(findAllByClass(field, 'date-trigger')[0].textContent, '2024/05/20');
 });
 
 test('组件：开启结束日期后保存为区间', async () => {
@@ -251,14 +252,14 @@ test('组件：开启包含时间会写入默认时间，并可改时间', async
   timeInput.fire('change');
   await tick();
   assert.equal(saved[1].dueTime, '18:30');
-  assert.equal(saved[1].dateFormat, 'full');
+  assert.equal(saved[1].dateFormat, 'ymd');
 });
 
 test('组件：切换 Date format 会保存并立即影响显示', async () => {
   const { field, saved } = makeField({ dueDate: '2024-05-11' });
   findAllByClass(field, 'date-trigger')[0].click();
   const sel = findAllByClass(field, 'date-format-select')[0];
-  assert.equal(sel.value, 'full');
+  assert.equal(sel.value, 'ymd');
   assert.equal(findAllByTag(sel, 'option').length, dp.DATE_FORMATS.length);
   sel.value = 'iso';
   sel.fire('change');
@@ -272,7 +273,7 @@ test('组件：清除会写回空日期', async () => {
   findAllByClass(field, 'date-trigger')[0].click();
   findAllByClass(field, 'dp-clear')[0].click();
   await tick();
-  assert.deepEqual(saved[0], { startDate: null, startTime: null, dueDate: null, dueTime: null, dateFormat: 'full' });
+  assert.deepEqual(saved[0], { startDate: null, startTime: null, dueDate: null, dueTime: null, dateFormat: 'ymd' });
   assert.equal(findAllByClass(field, 'date-trigger')[0].textContent, '选择时间');
 });
 

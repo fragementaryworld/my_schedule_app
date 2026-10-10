@@ -82,7 +82,7 @@ test('时间字段：任务页单日期写到 dueDate，不写 startDate', async
   const put = putTo('/api/projects/p1/tasks/t1').pop();
   assert.ok(put, '应更新任务时间');
   assert.deepEqual(put.body, {
-    startDate: null, startTime: null, dueDate: '2024-05-25', dueTime: null, dateFormat: 'full'
+    startDate: null, startTime: null, dueDate: '2024-05-25', dueTime: null, dateFormat: 'ymd'
   });
 });
 

@@ -12,7 +12,8 @@ export const DATE_FORMATS = [
   { value: 'relative', label: '相对日期' }
 ];
 
-export const DEFAULT_DATE_FORMAT = 'full';
+// 默认按「年/月/日」显示
+export const DEFAULT_DATE_FORMAT = 'ymd';
 export const DEFAULT_TIME = '09:00';
 const WD = ['日', '一', '二', '三', '四', '五', '六'];
 const pad = (n) => String(n).padStart(2, '0');

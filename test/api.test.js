@@ -421,7 +421,7 @@ test('时间字段：项目/任务/子任务支持时间与日期格式', async 
   assert.equal(tu.json.startTime, '08:00');
 
   const st = await api('POST', `/api/projects/${p.json.id}/tasks/${t.json.id}/subtasks`, { title: '子任务' });
-  assert.equal(st.json.dateFormat, 'full', '子任务默认完整日期');
+  assert.equal(st.json.dateFormat, 'ymd', '子任务默认年/月/日');
   assert.equal(st.json.dueTime, null);
   const stu = await api('PUT', `/api/projects/${p.json.id}/tasks/${t.json.id}/subtasks/${st.json.id}`, { dueDate: '2024-05-08', dueTime: '11:00', dateFormat: 'ymd' });
   assert.equal(stu.json.dueTime, '11:00');

@@ -36,17 +36,18 @@ const P = {
 };
 
 test('问题2：formatTaskDates 按选定格式展示时间区间', () => {
-  assert.equal(projects.formatTaskDates({ startDate: '2024-05-01', dueDate: '2024-05-10' }), '2024年5月1日 周三 → 2024年5月10日 周五');
-  assert.equal(projects.formatTaskDates({ dueDate: '2024-05-10' }), '2024年5月10日 周五');
-  assert.equal(projects.formatTaskDates({ startDate: '2024-05-01' }), '2024年5月1日 周三');
+  assert.equal(projects.formatTaskDates({ startDate: '2024-05-01', dueDate: '2024-05-10' }), '2024/05/01 → 2024/05/10');
+  assert.equal(projects.formatTaskDates({ dueDate: '2024-05-10' }), '2024/05/10');
+  assert.equal(projects.formatTaskDates({ startDate: '2024-05-01' }), '2024/05/01');
   assert.equal(projects.formatTaskDates({ startDate: '2024-05-01', dueDate: '2024-05-10', dateFormat: 'short' }), '2024年5月1日 → 2024年5月10日');
-  assert.equal(projects.formatTaskDates({ dueDate: '2024-05-10', dueTime: '09:30' }), '2024年5月10日 周五 09:30');
+  assert.equal(projects.formatTaskDates({ startDate: '2024-05-01', dueDate: '2024-05-10', dateFormat: 'full' }), '2024年5月1日 周三 → 2024年5月10日 周五');
+  assert.equal(projects.formatTaskDates({ dueDate: '2024-05-10', dueTime: '09:30' }), '2024/05/10 09:30');
   assert.equal(projects.formatTaskDates({}), '—');
 });
 
 test('问题2：表格时间列显示区间', () => {
   const table = projects.buildTaskTable(P);
-  assert.ok(textOf(table).includes('2024年5月1日 周三 → 2024年5月10日 周五'), '时间列应显示起止区间');
+  assert.ok(textOf(table).includes('2024/05/01 → 2024/05/10'), '时间列应显示起止区间');
 });
 
 test('问题2：表格默认收起子任务', () => {
