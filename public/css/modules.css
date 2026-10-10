@@ -368,6 +368,8 @@
 .cal-board-head { margin-bottom: 10px; align-items: center; gap: 8px; }
 .cal-board-date { font-weight: 600; font-size: 14px; }
 .cal-board-card { margin-bottom: 6px; cursor: grab; }
+.cal-board-del { opacity: 0; flex-shrink: 0; }
+.cal-board-card:hover .cal-board-del, .cal-board-del:focus { opacity: 1; }
 .cal-board-card .cal-card-meta { gap: 6px; }
 .cal-board-card.done .title { text-decoration: line-through; color: var(--muted); }
 .cal-board-detail { margin-top: 5px; font-size: 11.5px; line-height: 1.45; opacity: .8; }

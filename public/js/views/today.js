@@ -335,6 +335,19 @@ function boardCol(title, entries, doneFlag, all) {
     const title = h('span', { class: 'title row-link', style: 'flex:1' }, escapeHtml(e.title));
     title.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
     row.append(title);
+
+    // 删除按钮（不触发拖动、选日期、打开页面）
+    const del = h('button', {
+      type: 'button',
+      class: 'icon-btn cal-board-del',
+      title: `删除「${e.title}」`,
+      'aria-label': `删除「${e.title}」`
+    }, '🗑');
+    del.onclick = async (ev) => {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      await removeEntry(e);
+    };
+    row.append(del);
     card.append(row);
 
     // 有详细内容就显示出来（描述 / 内容块 / 备注）
@@ -357,6 +370,18 @@ async function moveEntry(entry, done) {
   if (entry.kind === 'project') await api.put(entry.base, { done });
   else await api.put(`/api/tasks/${entry.id}`, { done });
   toast(done ? '已移到已完成' : '已移回待办');
+  paint();
+}
+
+// 删除任务（项目任务删它自己那一层，含其子任务；每日任务删整条/整个系列）
+async function removeEntry(entry) {
+  const extra = entry.repeat
+    ? '（重复任务会删除整个系列）'
+    : (entry.subtaskCount ? `（会连同 ${entry.subtaskCount} 个子任务一起删除）` : '');
+  if (!(await confirmDialog(`确认删除「${entry.title}」？${extra}`, { danger: true }))) return;
+  if (entry.kind === 'project') await api.del(entry.base);
+  else await api.del(`/api/tasks/${entry.id}`);
+  toast('已删除');
   paint();
 }
 
