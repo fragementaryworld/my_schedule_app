@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeDocument, findAllByClass, findAllByTag, textOf } from '../test-helpers/dom-shim.mjs';
-import { dailyEntries, dailySections, filterDailyEntries, entryForest, buildDailyList, buildDailyFilters } from '../public/js/daily.js';
+import { dailyEntries, dailySections, filterDailyEntries, entryForest, buildDailyBoard, buildDailyFilters } from '../public/js/daily.js';
 import { todayStr, addDays } from '../public/js/utils.js';
 import * as today from '../public/js/views/today.js';
 import * as plan from '../public/js/views/plan.js';
@@ -81,7 +81,7 @@ test('归属与路径搜索可组合，废弃的来源/项目/快速筛选不会
 });
 
 test('完成和持续区块默认折叠，三类归属可见，来源不再显示', () => {
-  const root = buildDailyList(entries(), date, async () => {});
+  const root = buildDailyBoard(entries(), date, async () => {});
   assert.equal(findAllByClass(root, 'daily-done')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(root, 'daily-ongoing')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(root, 'daily-subtasks')[0].hasAttribute('open'), false);
@@ -93,7 +93,7 @@ test('加入当天/移出当天/完成子任务只更新原始任务', async () 
   const calls = [];
   let refreshes = 0;
   globalThis.fetch = async (url, options) => { calls.push([url, JSON.parse(options.body)]); return { ok: true, json: async () => ({}) }; };
-  const root = buildDailyList(entries(), date, async () => { refreshes++; });
+  const root = buildDailyBoard(entries(), date, async () => { refreshes++; });
   const add = findAllByTag(root, 'button').find(b => b.getAttribute('aria-label') === '加入当天：提交摘要');
   add.click(); await tick();
   assert.deepEqual(calls.pop(), ['/api/projects/paper/tasks/due', { planDate: date }]);
@@ -101,7 +101,7 @@ test('加入当天/移出当天/完成子任务只更新原始任务', async () 
   remove.click(); await tick();
   assert.deepEqual(calls.pop(), ['/api/projects/paper/tasks/parent', { planDate: null }]);
   const childCheck = findAllByTag(root, 'input').find(c => c.getAttribute('aria-label') === '完成任务：修改图表');
-  childCheck.checked = true; childCheck.fire('change'); await tick();
+  childCheck.checked = true; childCheck.click(); await tick();
   assert.deepEqual(calls.pop(), ['/api/projects/paper/tasks/parent/subtasks/child', { done: true }]);
   assert.equal(refreshes, 3);
 });
@@ -119,11 +119,11 @@ test('筛选输入和清除筛选不丢失焦点控件，不请求网络', () =>
   assert.equal(updates, 2);
 });
 
-test('今日计划默认清单，周/月保留，搜索同时影响日历', async () => {
+test('周/月日历共用日期看板，搜索同步影响日历与看板', async () => {
   globalThis.fetch = async url => ({ ok: true, json: async () => String(url).includes('preferences') ? {} : String(url).includes('projects') ? projects : tasks });
   const root = document.createElement('div');
   await today.render(root);
-  assert.ok(findAllByClass(root, 'daily-list').length);
+  assert.equal(findAllByClass(root, 'daily-board').length, 1);
   const search = findAllByTag(root, 'input').find(e => e.getAttribute('type') === 'search');
   search.value = '报发票'; search.fire('input');
   assert.equal(findAllByClass(root, 'daily-task-title').length, 1);
@@ -133,7 +133,7 @@ test('今日计划默认清单，周/月保留，搜索同时影响日历', asyn
   button(root, '清除筛选').click();
   button(root, '月视图').click(); await tick();
   assert.equal(findAllByClass(root, 'cal-cell').length, 42);
-  button(root, '今日清单').click(); await tick();
+  button(root, '周视图').click(); await tick();
 });
 
 test('任务页切换归属不会覆写灵感来源；项目页可设为临时专题', async () => {
@@ -180,9 +180,9 @@ test('灵感转换弹窗可选择任务归属，临时专题按钮发送分类',
 test('完成任务保存失败后还原勾选状态并保持原任务', async () => {
   globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: '保存失败' }) });
   let refreshes = 0;
-  const root = buildDailyList(entries(), date, async () => refreshes++);
+  const root = buildDailyBoard(entries(), date, async () => refreshes++);
   const cb = findAllByTag(root, 'input').find(c => c.getAttribute('aria-label') === '完成任务：报发票');
-  cb.checked = true; cb.fire('change'); await tick();
+  cb.checked = true; cb.click(); await tick();
   assert.equal(cb.checked, false);
   assert.equal(cb.disabled, false);
   assert.equal(refreshes, 0);

@@ -233,6 +233,7 @@ export function clampColDelta(mode, startCol, endCol, delta, cols) {
 // 单日条目平移：只动它已有的日期字段
 export function dragSinglePatch(entry, deltaDays) {
   if (!entry || !deltaDays) return null;
+  if (entry.planOnly) return { planDate: addDays(entry.planDate, deltaDays) };
   if (entry.kind !== 'project') {
     const date = entry.date || entry.spanFrom;
     if (!date) return null;

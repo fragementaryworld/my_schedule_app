@@ -82,7 +82,7 @@ test('问题1：分隔元素带最小间距（窄屏也不会贴在一起）', a
 test('问题1：视图切换仍在左边且顺序不变', async () => {
   const el = await renderToday();
   const tabs = tabsOf(el);
-  assert.deepEqual(findAllByClass(tabs, 'tab').map((t) => textOf(t)), ['今日清单', '周视图', '月视图']);
+  assert.deepEqual(findAllByClass(tabs, 'tab').map((t) => textOf(t)), ['周视图', '月视图']);
   assert.equal(tabs, topRow(el).children[0], '视图切换是第一项');
 });
 

@@ -416,20 +416,18 @@
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .gantt-track { flex: 1; height: 16px; background: var(--border); border-radius: 999px; overflow: hidden; }
 .gantt-track > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
-/* 每日执行清单：归属分组，来源保留为辅助信息。 */
+/* 周/月日历共用的归属看板。 */
 .daily-filters { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
 .daily-filters .input { width:auto; min-width:120px; }
 .daily-filters .daily-search { flex:1; min-width:200px; }
-.daily-date { width:auto; max-width:160px; }
-.daily-list { max-width:1120px; margin:auto; }
-.daily-summary { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px; background:var(--primary-soft); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:26px; }
-.daily-summary strong { font-size:20px; }
-.daily-summary p { margin:6px 0 0; }
-.daily-stats { display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; min-width:160px; }
-.daily-stats strong { color:var(--primary); font-size:32px; line-height:1; }
-.daily-stats > span { flex-basis:100%; color:var(--muted); font-size:12px; }
-.daily-list h2 { font-size:17px; display:flex; align-items:center; gap:10px; margin:22px 0 12px; }
-.daily-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.daily-board { grid-template-columns:minmax(0,2fr) minmax(0,1fr); }
+.daily-board > .kanban-col { min-width:0; }
+.daily-board h2 { font-size:14px; display:flex; align-items:center; gap:10px; margin:16px 0 10px; }
+.daily-groups { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+.daily-done:not([open]) { min-height:0; }
+.daily-done > summary { cursor:pointer; }
+.daily-done > summary::before { content:'▸'; }
+.daily-done[open] > summary::before { content:'▾'; }
 .daily-category { min-width:0; padding:16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); }
 .daily-category-work { border-top:3px solid var(--primary); }
 .daily-category-temporary { border-top:3px solid var(--warning); }
@@ -457,10 +455,8 @@
 .daily-fold[open] > summary { margin-bottom:16px; }
 .daily-empty { padding:22px; border:1px dashed var(--border); border-radius:var(--radius); }
 .daily-due > h2 { color:var(--warning); }
-@media (min-width:1500px) { .daily-groups { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:1000px) { .daily-groups { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:850px) { .daily-board { grid-template-columns:minmax(0,1fr); } }
 @media (max-width:600px) {
-  .daily-summary { align-items:flex-start; padding:18px; flex-direction:column; gap:14px; }
   .daily-filters .input { min-width:0; max-width:100%; flex:1 1 40%; }
   .daily-filters .daily-search { flex-basis:100%; }
   .daily-task { flex-wrap:wrap; }

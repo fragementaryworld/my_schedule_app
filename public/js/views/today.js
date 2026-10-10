@@ -1,12 +1,12 @@
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { todayStr, addDays, escapeHtml, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
-import { dailyEntries, filterDailyEntries, buildDailyFilters, buildDailyList } from '../daily.js';
+import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
+import { dailyEntries, dailySections, filterDailyEntries, buildDailyFilters, buildDailyBoard, withPlannedCalendarEntries } from '../daily.js';
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
   periodTitle, shiftAnchor, parseYm, sameMonth, isToday, dayNumber, groupByDate, spanDays,
-  projectEntriesByDate, legendFor, dateBoard, expandEntries, spanningEntries, spanBarLayout, tint, truncate,
+  projectEntriesByDate, legendFor, expandEntries, spanningEntries, spanBarLayout, tint,
   clampColDelta, dragRangePatch, dragSinglePatch
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, timeRangeLabel } from '../daytask.js';
@@ -16,7 +16,7 @@ export { repeatCode, decodeRepeat, repeatLabel, sourceLabel } from '../daytask.j
 
 let el = null;
 let anchor = todayStr();
-let view = 'list';
+let view = 'week';
 let filters = {};
 let paintVersion = 0;
 let weekStartPref = 'mon';
@@ -39,8 +39,8 @@ async function paint() {
   if (!container) return;
   const pos = scrollPos();
   const version = ++paintVersion;
-  const { from, to } = view === 'list' ? { from: anchor, to: anchor } : rangeOf(anchor, view, weekStartPref);
-  const dates = view === 'list' ? [anchor] : visibleDates(anchor, view, weekStartPref);
+  const { from, to } = rangeOf(anchor, view, weekStartPref);
+  const dates = visibleDates(anchor, view, weekStartPref);
   // 每日计划任务 + 工作项目里的所有任务（含各级子任务，跨多天的任务铺满整段）
   const [tasks, projects] = await Promise.all([
     api.get(`/api/tasks?from=${from}&to=${to}`),
@@ -50,13 +50,13 @@ async function paint() {
   const allDaily = dailyEntries(tasks, projects);
   const key = e => `${e.kind}:${e.kind === 'project' ? e.projectId : ''}:${e.id}`;
   const dailyByKey = new Map(dailyEntries(tasks, projects, true).map(e => [key(e), e]));
-  const items = [...(tasks || []).map(toEntry), ...projectEntriesByDate(projects, todayStr())].map(e => {
+  const items = withPlannedCalendarEntries([...(tasks || []).map(toEntry), ...projectEntriesByDate(projects, todayStr())].map(e => {
     // 每日任务的归属来自独立字段；日历仍保留原有拖动所需的数据。
     const daily = dailyByKey.get(key(e));
     return { ...e, category: daily?.category || 'work', projectId: daily?.projectId || null,
       projectName: daily?.projectName || '', sourceType: daily?.sourceType || '', ancestors: daily?.ancestors || [],
       note: daily?.note || '', desc: daily?.desc || '' };
-  });
+  }), allDaily);
 
   container.innerHTML = '';
   try {
@@ -64,14 +64,11 @@ async function paint() {
     const content = h('div', { class: 'daily-content' });
     const update = () => {
       content.innerHTML = '';
-      if (view === 'list') content.append(buildDailyList(filterDailyEntries(allDaily, filters), anchor, paint));
-      else {
-        const filtered = filterDailyEntries(items, filters);
-        const byDate = groupByDate(expandEntries(filtered, dates));
-        const multiDay = spanningEntries(filtered, dates);
-        content.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
-        content.append(buildLegend(byDate, dates), buildSelectedBoard(byDate));
-      }
+      const filtered = filterDailyEntries(items, filters);
+      const byDate = groupByDate(expandEntries(filtered, dates));
+      const multiDay = spanningEntries(filtered, dates);
+      content.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
+      content.append(buildLegend(byDate, dates), buildSelectedBoard(filterDailyEntries(allDaily, filters)));
     };
     container.append(buildDailyFilters(filters, update), content);
     update();
@@ -116,9 +113,9 @@ function buildToolbar() {
   const top = h('div', { class: 'row cal-toolbar-top', style: 'flex-wrap:wrap;gap:8px' });
 
   const tabs = h('div', { class: 'tabbar cal-views', style: 'margin:0;border:none' });
-  for (const v of [{ value: 'list', label: '今日清单' }, ...CALENDAR_VIEWS]) {
+  for (const v of CALENDAR_VIEWS) {
     const b = h('button', { class: 'tab' + (view === v.value ? ' active' : '') }, v.label);
-    b.onclick = () => { view = v.value; paint(); };
+    b.onclick = () => { view = v.value; anchor = selectedDate; paint(); };
     tabs.append(b);
   }
   top.append(tabs);
@@ -132,18 +129,13 @@ function buildToolbar() {
   wrap.append(top);
 
   const nav = h('div', { class: 'row cal-nav' });
-  nav.append(h('span', { class: 'cal-period' }, view === 'list' ? `${anchor} 的清单` : periodTitle(anchor, view)));
-  if (view === 'list') {
-    const date = h('input', { class: 'input daily-date', type: 'date', value: anchor, 'aria-label': '清单日期' });
-    date.onchange = () => { if (date.value) { anchor = date.value; selectedDate = anchor; paint(); } };
-    nav.append(date);
-  }
+  nav.append(h('span', { class: 'cal-period' }, periodTitle(anchor, view)));
   nav.append(h('span', { class: 'spacer' }));
   const prev = h('button', { class: 'icon-btn cal-prev', title: '上一页' }, '‹');
   const todayBtn = h('button', { class: 'btn btn-sm' }, '今天');
   const next = h('button', { class: 'icon-btn cal-next', title: '下一页' }, '›');
-  prev.onclick = () => { anchor = view === 'list' ? addDays(anchor, -1) : shiftAnchor(anchor, view, -1); selectedDate = anchor; paint(); };
-  next.onclick = () => { anchor = view === 'list' ? addDays(anchor, 1) : shiftAnchor(anchor, view, 1); selectedDate = anchor; paint(); };
+  prev.onclick = () => { selectedDate = shiftAnchor(selectedDate, view, -1); anchor = selectedDate; paint(); };
+  next.onclick = () => { selectedDate = shiftAnchor(selectedDate, view, 1); anchor = selectedDate; paint(); };
   todayBtn.onclick = () => { anchor = todayStr(); selectedDate = anchor; paint(); };
   nav.append(prev, todayBtn, next);
   wrap.append(nav);
@@ -385,22 +377,25 @@ function buildCard(e, compact, ctx) {
     });
     titleRow.append(move);
 
-    const stretch = h('span', { class: 'cal-grip cal-card-stretch', title: '拖动调整结束日期' });
-    attachDrag(stretch, {
-      entry: e,
-      row: ctx.row,
-      dates: ctx.dates,
-      clamp: (delta) => clampColDelta('end', ctx.col, ctx.col, delta, ctx.dates.length),
-      onPreview: () => card.classList.add('dragging'),
-      onEnd: () => card.classList.remove('dragging'),
-      patchOf: (delta) => dragRangePatch(e, delta, 'end')
-    });
-    card.append(stretch);
+    if (!e.planOnly) {
+      const stretch = h('span', { class: 'cal-grip cal-card-stretch', title: '拖动调整结束日期' });
+      attachDrag(stretch, {
+        entry: e,
+        row: ctx.row,
+        dates: ctx.dates,
+        clamp: (delta) => clampColDelta('end', ctx.col, ctx.col, delta, ctx.dates.length),
+        onPreview: () => card.classList.add('dragging'),
+        onEnd: () => { card.style.transform = ''; card.classList.remove('dragging'); },
+        patchOf: (delta) => dragRangePatch(e, delta, 'end')
+      });
+      card.append(stretch);
+    }
   }
 
   body.append(titleRow);
 
   const meta = h('div', { class: 'cal-card-meta' });
+  if (e.planOnly) meta.append(h('span', { class: 'cal-chip' }, '当天安排'));
   if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
   if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
   if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
@@ -444,101 +439,18 @@ function buildLegend(byDate, dates) {
   return row;
 }
 
-// 选中日期的任务看板
-function buildSelectedBoard(byDate) {
-  const entries = byDate.get(selectedDate) || [];
-  const { pending, done, total } = dateBoard(entries);
-
-  const wrap = h('div', { class: 'cal-board card' });
+// 周/月视图共用选中日期的分类看板，包含未设置截止日期的当天安排。
+function buildSelectedBoard(entries) {
+  const sections = dailySections(entries, selectedDate);
+  const pending = sections.planned.length + sections.due.length + sections.ongoing.length;
+  const total = pending + sections.done.length;
+  const wrap = h('section', { class: 'cal-board card', 'aria-label': '所选日期任务看板' });
   const head = h('div', { class: 'row cal-board-head' });
   head.append(h('span', { class: 'cal-board-date' }, selectedLabel()));
   head.append(h('span', { class: 'spacer' }));
-  head.append(h('span', { class: 'small muted' }, total ? `共 ${total} 项 · 待办 ${pending.length} · 已完成 ${done.length}` : '这一天还没有任务'));
-  wrap.append(head);
-
-  const board = h('div', { class: 'kanban' });
-  const all = [...pending, ...done];
-  board.append(boardCol('待办', pending, false, all));
-  board.append(boardCol('已完成', done, true, all));
-  wrap.append(board);
+  head.append(h('span', { class: 'small muted' }, total ? `共 ${total} 项 · 待办 ${pending} · 已完成 ${sections.done.length}` : '这一天还没有任务'));
+  wrap.append(head, buildDailyBoard(entries, selectedDate, paint, { onRemove: removeEntry }));
   return wrap;
-}
-
-function boardCol(title, entries, doneFlag, all) {
-  const col = h('div', { class: 'kanban-col ' + (doneFlag ? 'board-col-done' : 'board-col-active') });
-
-  // 可以拖动任务：拖到另一列即切换完成状态
-  col.addEventListener('dragover', (ev) => { ev.preventDefault(); col.classList.add('drop-hover'); });
-  col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
-  col.addEventListener('drop', async (ev) => {
-    ev.preventDefault();
-    col.classList.remove('drop-hover');
-    const id = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '';
-    const entry = (all || []).find((x) => x.id === id);
-    if (!entry || entry.done === doneFlag) return;
-    await moveEntry(entry, doneFlag);
-  });
-
-  col.append(h('div', { class: 'col-head' }, title, h('span', { class: 'small muted' }, String(entries.length))));
-  if (!entries.length) col.append(h('div', { class: 'small muted', style: 'padding:6px' }, '暂无'));
-  for (const e of entries) {
-    const card = h('div', {
-      class: 'kanban-card cal-board-card' + (e.done ? ' done' : ''),
-      style: `background:${tint(e.color || DAY_TASK_COLOR)};border-left: 3px solid ${e.color || DAY_TASK_COLOR}`,
-      draggable: 'true'
-    });
-    card.addEventListener('dragstart', (ev) => {
-      if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', e.id);
-    });
-
-    const row = h('div', { class: 'row' });
-    const cb = h('input', { type: 'checkbox', class: 'task-check cal-check' });
-    cb.checked = !!e.done;
-    cb.onclick = async (ev) => {
-      if (ev && ev.stopPropagation) ev.stopPropagation();
-      await toggleEntry(e);
-    };
-    row.append(cb);
-    const title = h('span', { class: 'title row-link', style: 'flex:1' }, escapeHtml(e.title));
-    title.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
-    row.append(title);
-
-    // 删除按钮（不触发拖动、选日期、打开页面）
-    const del = h('button', {
-      type: 'button',
-      class: 'icon-btn cal-board-del',
-      title: `删除「${e.title}」`,
-      'aria-label': `删除「${e.title}」`
-    }, '🗑');
-    del.onclick = async (ev) => {
-      if (ev && ev.stopPropagation) ev.stopPropagation();
-      await removeEntry(e);
-    };
-    row.append(del);
-    card.append(row);
-
-    // 有详细内容就显示出来（描述 / 内容块 / 备注）
-    if (e.detail) card.append(h('div', { class: 'cal-board-detail' }, truncate(e.detail, 90)));
-
-    const meta = h('div', { class: 'row cal-card-meta' });
-    if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
-    if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
-    meta.append(h('span', { class: 'cal-chip' }, e.kind === 'project' ? `📁 ${escapeHtml(e.projectName)}` : '每日任务'));
-    if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `跨 ${e.spanDays} 天`));
-    if (e.subtaskCount) meta.append(h('span', { class: 'cal-chip' }, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));
-    if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
-    card.append(meta);
-    col.append(card);
-  }
-  return col;
-}
-
-// 拖动切换完成状态
-async function moveEntry(entry, done) {
-  if (entry.kind === 'project') await api.put(entry.base, { done });
-  else await api.put(`/api/tasks/${entry.id}`, { done });
-  toast(done ? '已移到已完成' : '已移回待办');
-  paint();
 }
 
 // 删除任务（项目任务删它自己那一层，含其子任务；每日任务删整条/整个系列）
@@ -577,7 +489,7 @@ function openEntry(e) {
 }
 
 async function addTask() {
-  await createDayTask(anchor);
+  await createDayTask(selectedDate);
 }
 
 export async function render(container) {

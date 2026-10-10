@@ -111,10 +111,11 @@ test('问题3：看板卡片可以拖动，拖到已完成会写回完成', asyn
   const el = await renderToday();
   const card = cardIn(el, 0, '有备注的每日任务');
   assert.equal(card.getAttribute('draggable'), 'true');
-  assert.equal(drag(card, 'x'), 'd1', 'dragstart 带上任务 id');
+  const key = drag(card, 'x');
+  assert.equal(key, '/api/tasks/d1', 'dragstart 带上任务唯一的接口路径');
 
   calls.length = 0;
-  drop(cols(el)[1], 'd1');
+  drop(cols(el)[1], key);
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/tasks/d1');
@@ -127,7 +128,7 @@ test('问题3：拖回待办会取消完成', async () => {
   assert.ok(card, '已完成列里有它');
 
   calls.length = 0;
-  drop(cols(el)[0], 't2');
+  drop(cols(el)[0], drag(card));
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/projects/p1/tasks/t2', '项目任务写到它自己那一层');
@@ -137,7 +138,7 @@ test('问题3：拖回待办会取消完成', async () => {
 test('问题3：拖到原来那一列不做任何事', async () => {
   const el = await renderToday();
   calls.length = 0;
-  drop(cols(el)[0], 'd1');
+  drop(cols(el)[0], '/api/tasks/d1');
   await tick();
   assert.equal(calls.filter((c) => c.method === 'PUT').length, 0);
 });

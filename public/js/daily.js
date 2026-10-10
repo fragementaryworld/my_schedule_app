@@ -1,9 +1,9 @@
 // 归属决定分组；来源只记录任务从哪里来。每日安排不改项目的截止日期。
-import { h, toast } from './ui.js';
+import { h, toast, confirmDialog } from './ui.js';
 import { api } from './api.js';
-import { flattenProjectItems, itemSpan, spanDays, DAY_TASK_COLOR } from './calendar.js';
+import { flattenProjectItems, itemSpan, spanDays, DAY_TASK_COLOR, truncate, tint } from './calendar.js';
 import { itemBase, itemHref, timelineColor, createProject } from './views/projects.js';
-import { estimateText, priorityLabel, priorityClass } from './utils.js';
+import { estimateText, priorityLabel, priorityClass, isOverdue, todayStr } from './utils.js';
 import { timeRangeLabel, dayTaskHref } from './daytask.js';
 
 export const CATEGORY_OPTIONS = [['work', '工作项目'], ['temporary', '临时专题'], ['routine', '日常事务']];
@@ -25,6 +25,8 @@ export function dailyEntries(tasks, projects, includeInactive = false) {
     ...t, kind: 'day', ...ownership(projectMap.get(ownerProjectId(t))),
     time: timeRangeLabel(t.time, t.endTime),
     spanFrom: t.date, spanTo: t.endDate || t.date,
+    spanDays: t.date ? spanDays({ from: t.date, to: t.endDate || t.date }) : 0,
+    overdue: isOverdue(t, todayStr()),
     sourceType: t.source?.type || '', raw: t,
     base: `/api/tasks/${t.id}`, href: dayTaskHref(t.id), path: []
   }));
@@ -41,6 +43,9 @@ export function dailyEntries(tasks, projects, includeInactive = false) {
       ...node, kind: 'project', ...ownership(project), path, ancestors,
       spanFrom: span?.from, spanTo: span?.to, spanDays: spanDays(span),
       time: node.dueTime || '', sourceType: project.sourceIdeaId ? 'idea' : 'project',
+      overdue: isOverdue(node, todayStr()),
+      subtaskCount: (node.subtasks || []).length,
+      subtaskDone: (node.subtasks || []).filter(n => n.done).length,
       raw: node, base: itemBase(project.id, path), href: itemHref(project.id, path)
     });
   }
@@ -51,6 +56,20 @@ export function filterDailyEntries(entries, filters = {}) {
   const q = (filters.search || '').trim().toLocaleLowerCase();
   return entries.filter(e => (!filters.category || e.category === filters.category)
     && (!q || [e.title, e.projectName, ...(e.ancestors || []), e.note, e.desc].join(' ').toLocaleLowerCase().includes(q)));
+}
+
+// 原日历保留起止/截止日期；单独安排到其他日期的任务增加一个执行日标记。
+export function withPlannedCalendarEntries(calendarEntries, entries) {
+  const extra = [];
+  for (const e of entries) {
+    if (!e.planDate) continue;
+    const original = calendarEntries.find(c => c.kind === e.kind && c.id === e.id && (e.kind !== 'project' || c.projectId === e.projectId));
+    if (original && original.spanFrom <= e.planDate && original.spanTo >= e.planDate) continue;
+    extra.push({ ...e, date: e.planDate, time: '', planOnly: true,
+      spanFrom: e.planDate, spanTo: e.planDate, spanDays: 1, spanStart: true, spanEnd: true,
+      detail: e.kind === 'project' ? e.desc || '' : e.note || '' });
+  }
+  return [...calendarEntries, ...extra];
 }
 
 export function dailySections(entries, date) {
@@ -118,34 +137,76 @@ export function buildDailyFilters(filters, onChange) {
   return bar;
 }
 
-export function buildDailyList(entries, date, refresh) {
+export function buildDailyBoard(entries, date, refresh, { onRemove } = {}) {
   const sections = dailySections(entries, date);
-  const wrap = h('div', { class: 'daily-list' });
-  wrap.append(h('div', { class: 'daily-summary' },
-    h('div', {}, h('strong', {}, '先安排，再开始'), h('p', { class: 'muted' }, '把今天要做的事放进清单，其他任务留在各自的项目里。')),
-    h('div', { class: 'daily-stats' }, h('strong', {}, String(sections.planned.length)), '项安排', h('span', {}, `${sections.due.length} 项截止 · ${sections.done.length} 项完成`))));
+  const wrap = h('div', { class: 'daily-board kanban' });
+  const active = h('div', { class: 'kanban-col board-col-active' });
+  const pendingCount = sections.planned.length + sections.due.length + sections.ongoing.length;
+  active.append(h('div', { class: 'col-head' }, '待办', h('span', { class: 'daily-count' }, String(pendingCount))));
+  const completed = h('details', { class: 'kanban-col board-col-done daily-done' });
+  completed.append(h('summary', { class: 'col-head' }, '已完成', h('span', { class: 'daily-count' }, String(sections.done.length))));
+  wrap.append(active, completed);
 
   const save = async (e, patch) => {
-    try { await api.put(e.base, patch); await refresh(); return true; }
+    try { await api.put(e.base, patch); Object.assign(e, patch); await refresh(); return true; }
     catch (err) { toast(err.message, 'error'); return false; }
   };
+  const shown = [...sections.planned, ...sections.due, ...sections.ongoing, ...sections.done];
+  const dragEntries = new Map(shown.map(e => [e.base, e]));
+  for (const [col, done] of [[active, false], [completed, true]]) {
+    col.addEventListener('dragover', ev => {
+      ev.preventDefault(); col.classList.add('drop-hover');
+      if (done) col.open = true;
+    });
+    col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
+    col.addEventListener('drop', async ev => {
+      ev.preventDefault(); col.classList.remove('drop-hover');
+      const e = dragEntries.get(ev.dataTransfer?.getData('text/plain'));
+      if (!e || !!e.done === done) return;
+      await save(e, { done });
+    });
+  }
   const row = (e, mode) => {
-    const r = h('div', { class: 'daily-task' + (e.done ? ' done' : ''), dataset: { entry: `${e.kind}:${e.projectId || ''}:${e.id}` } });
-    const cb = h('input', { type: 'checkbox', class: 'task-check', 'aria-label': `完成任务：${e.title}` });
+    const r = h('div', { class: 'daily-task' + (mode !== 'candidates' ? ' cal-board-card' : '') + (e.done ? ' done' : ''), dataset: { entry: e.base }, draggable: mode !== 'candidates' ? 'true' : null,
+      style: `background:${tint(e.color || DAY_TASK_COLOR, 0.12)};border-left:3px solid ${e.color || DAY_TASK_COLOR}` });
+    r.addEventListener('dragstart', ev => { ev.dataTransfer?.setData('text/plain', e.base); });
+    const cb = h('input', { type: 'checkbox', class: 'task-check cal-check', 'aria-label': `完成任务：${e.title}` });
     cb.checked = !!e.done;
-    cb.onchange = async () => { cb.disabled = true; if (!(await save(e, { done: cb.checked }))) cb.checked = !!e.done; cb.disabled = false; };
+    cb.onclick = async () => { cb.checked = !e.done; cb.disabled = true; if (!(await save(e, { done: cb.checked }))) cb.checked = !!e.done; cb.disabled = false; };
     const body = h('div', { class: 'daily-task-body' });
-    body.append(h('a', { class: 'daily-task-title', href: e.href }, e.title));
+    const title = h('a', { class: 'daily-task-title title row-link', href: e.href }, e.title);
+    title.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); location.hash = e.href; };
+    body.append(title);
+    const detail = (e.kind === 'project' ? e.desc || '' : e.note || '').trim();
+    if (detail) body.append(h('div', { class: 'cal-board-detail' }, truncate(detail, 90)));
     const meta = h('div', { class: 'daily-task-meta' });
     if (e.ancestors?.length) meta.append(h('span', { class: 'daily-breadcrumb' }, e.ancestors.join(' / ')));
     if (e.time) meta.append(h('span', {}, `${e.kind === 'project' ? '截止' : '安排'} ${e.time}`));
     if (e.kind === 'project' && e.dueDate) meta.append(h('span', {}, `截止 ${e.dueDate}`));
     if (estimateText(e)) meta.append(h('span', {}, estimateText(e)));
+    if (e.spanDays > 1) meta.append(h('span', {}, `跨 ${e.spanDays} 天`));
+    if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
+    if (e.subtaskCount) meta.append(h('span', {}, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));
     const tag = ROUTINE_OPTIONS.find(([v]) => v && v === e.routineTag);
     if (tag && e.category === 'routine') meta.append(h('span', {}, tag[1]));
     if (e.priority === 'high') meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));
     body.append(meta);
     r.append(cb, body);
+    if (onRemove) {
+      const del = h('button', { type: 'button', class: 'icon-btn cal-board-del', title: `删除「${e.title}」`, 'aria-label': `删除「${e.title}」` }, '🗑');
+      del.onclick = async ev => {
+        ev.stopPropagation();
+        try { await onRemove(e); } catch (err) { toast(err.message, 'error'); }
+      };
+      r.append(del);
+    }
+    if (e.repeat || e.repeatOf) {
+      const finish = h('button', { class: 'icon-btn', title: '完成整个系列' }, '✓✓');
+      finish.onclick = async () => {
+        if (await confirmDialog('完成整个系列？所有已生成与未来的实例都会标记完成。')) await save(e, { done: true, finishSeries: true });
+      };
+      r.append(finish);
+    }
     if (!e.done && (mode === 'due' || mode === 'ongoing' || mode === 'candidates')) {
       const add = h('button', { class: 'btn btn-sm daily-plan-add', 'aria-label': `加入当天：${e.title}` }, '＋ 加入当天');
       add.onclick = () => save(e, { planDate: date });
@@ -191,10 +252,11 @@ export function buildDailyList(entries, date, refresh) {
     }
     return groups;
   };
-  wrap.append(h('section', { class: 'daily-planned' }, h('h2', {}, '当天清单'),
+  active.append(h('section', { class: 'daily-planned' }, h('h2', {}, '当天安排'),
     sections.planned.length ? grouped(sections.planned, 'planned') : h('div', { class: 'daily-empty muted' }, '还没有安排。从下方选择项目任务，或新增一条日常事务。')));
-  if (sections.due.length) wrap.append(h('section', { class: 'daily-due' }, h('h2', {}, '当天截止', h('span', { class: 'daily-count' }, String(sections.due.length))), grouped(sections.due, 'due')));
-  for (const [key, label] of [['ongoing', '持续进行中'], ['done', '已完成'], ['candidates', '从项目中选择任务']]) {
+  if (sections.due.length) active.append(h('section', { class: 'daily-due' }, h('h2', {}, '当天截止', h('span', { class: 'daily-count' }, String(sections.due.length))), grouped(sections.due, 'due')));
+  completed.append(sections.done.length ? grouped(sections.done, 'done') : h('p', { class: 'muted' }, '暂无任务'));
+  for (const [key, label] of [['ongoing', '持续进行中'], ['candidates', '从项目中选择任务']]) {
     const fold = h('details', { class: `daily-fold daily-${key}` });
     fold.append(h('summary', {}, label, h('span', { class: 'daily-count' }, `${sections[key].length} 项`)));
     if (key === 'candidates') {
@@ -203,7 +265,7 @@ export function buildDailyList(entries, date, refresh) {
       fold.append(create);
     }
     fold.append(sections[key].length ? grouped(sections[key], key) : h('p', { class: 'muted' }, '暂无任务'));
-    wrap.append(fold);
+    active.append(fold);
   }
   return wrap;
 }

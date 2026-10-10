@@ -115,7 +115,7 @@ test('问题1：今日计划可切到周视图，7 列 + 星期表头', async ()
   const el = await renderToday();
   assert.deepEqual(findAllByClass(el, 'cal-wd').map((x) => textOf(x)), ['一', '二', '三', '四', '五', '六', '日']);
   assert.equal(findAllByClass(el, 'cal-col').length, 7, '一周 7 列');
-  assert.deepEqual(findAllByClass(el, 'tab').map((t) => textOf(t)), ['今日清单', '周视图', '月视图']);
+  assert.deepEqual(findAllByClass(el, 'tab').map((t) => textOf(t)), ['周视图', '月视图']);
   const req = calls.find((c) => c.url.includes('/api/tasks?from='));
   assert.ok(req, '应按日期区间一次性取数据');
 });
