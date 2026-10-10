@@ -3,10 +3,13 @@
 .toolbar .spacer { flex: 1; }
 
 /* 首页卡片网格 */
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.home-card { padding: 16px; display: block; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+.home-card { padding: 22px; display: block; cursor: pointer; transition: transform .15s, box-shadow .15s; }
 .home-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-.home-card .card-title { font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.home-card .card-title { font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.home-welcome { margin-bottom: 20px; }
+.home-welcome h1 { font-size: 26px; font-weight: 650; letter-spacing: -.03em; }
+.home-welcome .muted { margin-top: 4px; }
 .home-card.wide { grid-column: 1 / -1; }
 .memo-line { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .memo-line .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -57,7 +60,7 @@
 }
 
 /* 健身周日程 */
-.schedule-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
 .schedule-day { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--panel); min-height: 90px; }
 .schedule-day.today { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.2); }
 .schedule-day .day-name { font-weight: 600; margin-bottom: 6px; }
@@ -80,6 +83,7 @@
 /* 设置分组 */
 .settings-group { margin-bottom: 24px; }
 .settings-group h3 { margin-bottom: 10px; font-size: 15px; }
+.settings-group .small { overflow-wrap: anywhere; }
 
 /* 项目任务三种视图 */
 .task-table { width: 100%; border-collapse: collapse; }
@@ -98,7 +102,7 @@
 .project-table tbody tr:last-child td { border-bottom: none; }
 .project-table tbody tr:hover { background: var(--panel-2); }
 .proj-name { font-weight: 600; }
-.avatar { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 11px; flex-shrink: 0; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: var(--primary-ink); font-size: 11px; flex-shrink: 0; }
 .badge.paused { color: var(--warning); border-color: var(--warning); }
 .badge.blocked { color: var(--danger); border-color: var(--danger); }
 
@@ -174,7 +178,7 @@
 .toolbar .tabbar { background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; gap: 2px; }
 .toolbar .tabbar .tab { padding: 6px 14px; border-radius: 9px; border-bottom: none; font-size: 13px; }
 .toolbar .tabbar .tab:hover { color: var(--text); background: rgba(127, 127, 127, 0.08); }
-.toolbar .tabbar .tab.active { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
+.toolbar .tabbar .tab.active { background: var(--panel); color: var(--primary); font-weight: 600; box-shadow: var(--shadow); }
 
 /* 表格视图 */
 .project-table { box-shadow: var(--shadow); }
@@ -186,7 +190,7 @@
 
 /* 看板视图 */
 .kanban { gap: 14px; }
-.kanban-col { border-radius: 12px; padding: 12px; border: 1px solid var(--border); }
+.kanban-col { border-radius: var(--radius); padding: 12px; border: 1px solid var(--border); }
 .kanban-col .col-head { padding: 2px 4px 10px; }
 .kanban-card { border-radius: 10px; transition: transform .12s, box-shadow .12s; }
 .kanban-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
@@ -289,7 +293,7 @@
 .dp-day.outside { color: var(--muted); opacity: .5; }
 .dp-day.today { font-weight: 700; color: var(--primary); }
 .dp-day.in-range { background: var(--panel-2); border-radius: 0; }
-.dp-day.selected { background: var(--primary); color: #fff; font-weight: 600; }
+.dp-day.selected { background: var(--primary); color: var(--primary-ink); font-weight: 600; }
 .dp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 2px; border-top: 1px solid var(--border); }
 .dp-label { font-size: 13px; }
 .dp-select { width: auto; font-size: 13px; }
@@ -407,8 +411,6 @@
 .estimate-unit { flex-shrink: 0; }
 .block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
 .block-divider { border-top: 1px solid var(--border); height: 0; padding: 0; }
-
-.block-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
 
 .gantt-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .gantt-label { width: 160px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

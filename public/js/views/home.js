@@ -77,8 +77,8 @@ async function refresh() {
 }
 
 function buildGreeting(today) {
-  return h('div', { style: 'margin-bottom:16px' },
-    h('h1', { style: 'font-size:22px' }, `${greeting()}，`)
+  return h('div', { class: 'home-welcome' },
+    h('h1', {}, greeting())
   , h('div', { class: 'muted' }, fmtDate(today)));
 }
 

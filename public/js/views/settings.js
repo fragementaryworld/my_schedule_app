@@ -91,8 +91,9 @@ function buildPrefsGroup(prefs) {
   weekStart.onchange = async () => { await savePrefs({ weekStart: weekStart.value }); };
 
   const card = h('div', { class: 'card', style: 'padding:16px' });
-  for (const [label, ctrl] of [['默认首页（启动后先打开）', defHome], ['界面主题', theme], ['一周起始日', weekStart]]) {
-    card.append(h('div', { style: 'margin-bottom:12px' }, h('label', {}, label), ctrl));
+  for (const [id, label, ctrl] of [['default-home', '默认首页（启动后先打开）', defHome], ['theme', '界面主题', theme], ['week-start', '一周起始日', weekStart]]) {
+    ctrl.setAttribute('id', id);
+    card.append(h('div', { style: 'margin-bottom:12px' }, h('label', { for: id }, label), ctrl));
   }
   group.append(card);
   return group;

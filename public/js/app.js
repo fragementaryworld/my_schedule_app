@@ -54,6 +54,8 @@ export async function navigate() {
   const navRoute = (route === 'page' || route === 'task') ? 'projects' : (route === 'plan' ? 'today' : route);
   document.querySelectorAll('#nav a, .sidebar-foot a').forEach((a) => {
     a.classList.toggle('active', a.dataset.route === navRoute);
+    if (a.dataset.route === navRoute) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
   });
   document.getElementById('pageTitle').textContent = titles[route] || titles.home;
   const content = document.getElementById('content');
@@ -83,6 +85,8 @@ function init() {
       if (!location.hash) {
         const home = p.defaultHome && views[p.defaultHome] ? p.defaultHome : 'home';
         location.hash = '#/' + home;
+        // hashchange 会负责渲染；重复调用会并发追加两套首页卡片。
+        return;
       }
     } catch (e) {
       /* 忽略 */

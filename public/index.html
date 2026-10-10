@@ -11,29 +11,31 @@
 <body>
   <div id="app">
     <aside id="sidebar">
-      <div class="brand">🗓 工作生活</div>
-      <nav id="nav">
-        <a href="#/home" data-route="home">🏠 首页</a>
-        <a href="#/today" data-route="today">📋 今日计划</a>
-        <a href="#/projects" data-route="projects">📁 工作项目</a>
-        <a href="#/reading" data-route="reading">📚 阅读计划</a>
-        <a href="#/fitness" data-route="fitness">💪 健身计划</a>
-        <a href="#/ideas" data-route="ideas">💡 灵感</a>
+      <div class="brand"><span class="brand-mark" aria-hidden="true">W</span><div class="brand-copy">工作生活<small>把每一天安排好</small></div></div>
+      <div class="nav-caption">我的空间</div>
+      <nav id="nav" aria-label="主要导航">
+        <a href="#/home" data-route="home" aria-label="首页" title="首页"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H7V10h10v10"/></svg><span class="nav-label">首页</span></a>
+        <a href="#/today" data-route="today" aria-label="今日计划" title="今日计划"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4M4 11h16m-11 4 2 2 4-4"/></svg><span class="nav-label">今日计划</span></a>
+        <a href="#/projects" data-route="projects" aria-label="工作项目" title="工作项目"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5h6l2 3h10v12H3V7Z"/></svg><span class="nav-label">工作项目</span></a>
+        <a href="#/reading" data-route="reading" aria-label="阅读计划" title="阅读计划"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v16M12 5C8 2 3 4 3 4v15s5-2 9 2c4-4 9-2 9-2V4s-5-2-9 1Z"/></svg><span class="nav-label">阅读计划</span></a>
+        <a href="#/fitness" data-route="fitness" aria-label="健身计划" title="健身计划"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16m10-16v16M4 8v8m16-8v8M7 12h10"/></svg><span class="nav-label">健身计划</span></a>
+        <a href="#/ideas" data-route="ideas" aria-label="灵感" title="灵感"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17c0-3-4-3-4-8a7 7 0 0 1 14 0c0 5-4 5-4 8H9Zm0 4h6m-6-4v4"/></svg><span class="nav-label">灵感</span></a>
       </nav>
       <div class="sidebar-foot">
-        <a href="#/settings" data-route="settings">⚙️ 数据与设置</a>
+        <a href="#/settings" data-route="settings" aria-label="数据与设置" title="数据与设置"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span class="nav-label">数据与设置</span></a>
+        <div class="sidebar-note"><i></i>数据保存在本机</div>
       </div>
     </aside>
     <main id="main">
       <div id="topbar">
-        <h1 id="pageTitle">首页</h1>
-        <button id="saveBtn" class="btn btn-sm" title="手动保存">💾 保存</button>
+        <div class="topbar-title"><span class="workspace-label">个人工作空间</span><h1 id="pageTitle">首页</h1></div>
+        <button id="saveBtn" class="btn btn-sm" title="手动保存">保存</button>
       </div>
       <div id="content"></div>
     </main>
   </div>
-  <button id="fab" title="快速添加">＋</button>
-  <div id="toast"></div>
+  <button id="fab" title="快速添加" aria-label="快速添加">＋</button>
+  <div id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>
