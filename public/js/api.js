@@ -1,4 +1,5 @@
 'use strict';
+import { trackWrite, trackRequest } from './saving.js';
 
 async function request(method, path, body) {
   const opts = { method, headers: {} };
@@ -21,9 +22,13 @@ async function request(method, path, body) {
   return data;
 }
 
+function write(method, path, body) {
+  return trackWrite(`${method}:${path}`, request(method, path, body));
+}
+
 export const api = {
-  get: (p) => request('GET', p),
-  post: (p, b) => request('POST', p, b),
-  put: (p, b) => request('PUT', p, b),
-  del: (p) => request('DELETE', p)
+  get: (p) => trackRequest(request('GET', p)),
+  post: (p, b) => write('POST', p, b),
+  put: (p, b) => write('PUT', p, b),
+  del: (p) => write('DELETE', p)
 };

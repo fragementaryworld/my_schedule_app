@@ -1,4 +1,5 @@
 'use strict';
+import { registerEditor, serializeSave } from '../saving.js';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { escapeHtml, todayStr } from '../utils.js';
@@ -197,13 +198,18 @@ function buildNote(task) {
     edit.textContent = task.note || '';
     if (edit.focus) edit.focus();
   };
-  edit.addEventListener('blur', async () => {
+  const saveNote = serializeSave(async () => {
     const next = edit.textContent.trim();
     if (next !== (task.note || '')) {
       await api.put(`/api/tasks/${task.id}`, { note: next });
       task.note = next;
       toast('已保存');
     }
+  });
+  registerEditor(edit, saveNote);
+  edit.addEventListener('blur', async () => {
+    try { await saveNote(); }
+    catch (err) { toast(err.message, 'error'); return; }
     display.innerHTML = renderMarkdown(task.note || '');
     edit.style.display = 'none';
     display.style.display = '';

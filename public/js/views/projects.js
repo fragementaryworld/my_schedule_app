@@ -1,4 +1,5 @@
 'use strict';
+import { registerEditor, serializeSave } from '../saving.js';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays, estimateText } from '../utils.js';
@@ -1421,24 +1422,26 @@ function buildItemPost(ctx, entry) {
       descTimer = null;
     }
   };
-  const saveDesc = async (silent) => {
+  const saveDesc = serializeSave(async (silent) => {
     const next = descEdit.textContent.trim();
     if (next === (t.desc || '')) return;
     await api.put(ctx.deepBase(entry.path), { desc: next });
     t.desc = next;
     if (!silent) toast('已保存');
-  };
+  });
+  registerEditor(descEdit, () => { cancelDescTimer(); return saveDesc(true); });
   // 边打字边保存：别的保存会触发整页重绘，只靠失焦会丢掉还没保存的字
   descEdit.addEventListener('input', () => {
     cancelDescTimer();
     descTimer = setTimeout(() => {
       descTimer = null;
-      saveDesc(true);
+      saveDesc(true).catch((err) => toast(err.message, 'error'));
     }, 700);
   });
   descEdit.addEventListener('blur', async () => {
     cancelDescTimer();
-    await saveDesc(false);
+    try { await saveDesc(false); }
+    catch (err) { toast(err.message, 'error'); return; }
     ctx.refresh();
   });
   post.append(descDisplay, descEdit);

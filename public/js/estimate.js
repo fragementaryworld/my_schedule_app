@@ -2,8 +2,9 @@
 // 预计用时输入：手动填写小时数
 // 用文本输入而不是 type="number"：number 输入框会静默丢弃中文输入法打出的全角数字，
 // 导致"输不进数字"。这里改成文本 + decimal 键盘 + 宽容解析（全角/单位后缀都能认）。
-import { h } from './ui.js';
+import { h, toast } from './ui.js';
 import { estimateHours, normalizeEstimate, parseEstimateInput } from './utils.js';
+import { registerEditor, serializeSave } from './saving.js';
 
 export function buildEstimateField({ value, onSave, key, debounceMs = 500 }) {
   let current = normalizeEstimate(value);
@@ -28,7 +29,7 @@ export function buildEstimateField({ value, onSave, key, debounceMs = 500 }) {
   syncInput(current);
 
   // rewrite=true 时会把输入框内容归一化；自动保存那条路径不动用户正在敲的字
-  const commit = async ({ rewrite = true } = {}) => {
+  const commit = serializeSave(async ({ rewrite = true } = {}) => {
     const raw = String(num.value).trim();
     // 留空 = 不改动（输入 0 才是取消）。
     // 这样即使重绘把输入框清空过一次，也不会把已有值误清掉。
@@ -42,10 +43,10 @@ export function buildEstimateField({ value, onSave, key, debounceMs = 500 }) {
       return;
     }
     if (minutes === current) return; // 没变化就不重复提交
-    current = minutes;
     if (rewrite) syncInput(minutes);
     await onSave(minutes);
-  };
+    current = minutes;
+  });
 
   let timer = null;
   const cancelTimer = () => {
@@ -58,6 +59,7 @@ export function buildEstimateField({ value, onSave, key, debounceMs = 500 }) {
     cancelTimer();
     return commit();
   };
+  registerEditor(num, flush);
 
   // 边输入边自动保存：浏览器返回键/快捷键离开时，输入框是被直接移除的，
   // 浏览器不会派发 change，靠它兜底才不会把刚敲的值丢掉。
@@ -65,15 +67,16 @@ export function buildEstimateField({ value, onSave, key, debounceMs = 500 }) {
     cancelTimer();
     timer = setTimeout(() => {
       timer = null;
-      commit({ rewrite: false });
+      commit({ rewrite: false }).catch((err) => toast(err.message, 'error'));
     }, debounceMs);
   });
-  num.addEventListener('change', flush);
-  num.addEventListener('blur', flush);
+  const flushWithFeedback = () => flush().catch((err) => toast(err.message, 'error'));
+  num.addEventListener('change', flushWithFeedback);
+  num.addEventListener('blur', flushWithFeedback);
   num.addEventListener('keydown', (ev) => {
     if (ev && ev.key === 'Enter') {
       if (ev.preventDefault) ev.preventDefault();
-      flush();
+      flushWithFeedback();
     }
   });
 

@@ -1,6 +1,7 @@
 'use strict';
 import { api } from './api.js';
-import { toast } from './ui.js';
+import { toast, h, confirmDialog } from './ui.js';
+import { flushPendingEdits, waitForPendingWrites } from './saving.js';
 import * as home from './views/home.js';
 import * as today from './views/today.js';
 import * as projects from './views/projects.js';
@@ -27,8 +28,62 @@ export const titles = {
   plan: '计划任务'
 };
 
+async function savedAction(path, body) {
+  try {
+    await flushPendingEdits();
+    await waitForPendingWrites();
+    return await api.post(path, body);
+  } catch (error) {
+    // 等其他编辑结束并消费本次已报告的错误，处理问题后一次重试即可。
+    await waitForPendingWrites().catch(() => {});
+    throw error;
+  }
+}
+
 export async function saveNow() {
-  await api.post('/api/save');
+  return savedAction('/api/save');
+}
+
+export async function shutdownNow() {
+  return savedAction('/api/shutdown', {});
+}
+
+let ending = false;
+export async function endService() {
+  if (ending) return;
+  ending = true;
+  const button = document.getElementById('shutdownBtn');
+  const shell = document.getElementById('app');
+  const fab = document.getElementById('fab');
+  try {
+    if (!await confirmDialog('将保存当前编辑并结束本地服务。下次使用请重新运行启动脚本。', { confirmText: '保存并结束' })) return;
+    button.disabled = true;
+    button.textContent = '正在保存…';
+    shell.inert = true;
+    fab.disabled = true;
+    await shutdownNow();
+    const content = document.getElementById('content');
+    content.innerHTML = '';
+    content.append(h('div', { class: 'service-ended card', role: 'status' },
+      h('span', { class: 'service-ended-icon', 'aria-hidden': 'true' }, '✓'),
+      h('h2', {}, '已保存，服务已结束'),
+      h('p', { class: 'muted' }, '数据已保存在本机，可以关闭此页面。'),
+      h('p', { class: 'small muted' }, '下次使用请双击「启动.bat」或运行 npm start，然后刷新页面。')));
+    shell.inert = false;
+    shell.querySelector?.('aside')?.setAttribute('inert', '');
+    document.getElementById('saveBtn').disabled = true;
+    button.textContent = '服务已结束';
+    fab.style.display = 'none';
+    window.removeEventListener('hashchange', navigate);
+  } catch (error) {
+    shell.inert = false;
+    button.disabled = false;
+    button.textContent = '保存并结束服务';
+    fab.disabled = false;
+    toast('未结束服务：' + error.message, 'error');
+  } finally {
+    ending = false;
+  }
 }
 
 let currentView = null;
@@ -78,6 +133,7 @@ function init() {
       toast(e.message, 'error');
     }
   });
+  document.getElementById('shutdownBtn')?.addEventListener('click', endService);
   (async () => {
     try {
       const p = await api.get('/api/preferences');

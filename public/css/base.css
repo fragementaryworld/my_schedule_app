@@ -75,6 +75,8 @@ h1, h2, h3 { margin: 0; }
 .btn-primary:hover { background: var(--primary-dark); }
 .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn-danger:hover { filter: brightness(.92); }
+.btn-exit { color: var(--muted); }
+.btn-exit:hover { color: var(--danger); border-color: var(--danger); }
 .btn-ghost { border-color: transparent; background: transparent; }
 .btn-sm { padding: 4px 10px; font-size: 13px; }
 .icon-btn {
@@ -153,6 +155,8 @@ label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px
 .progress > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; transition: width .3s; }
 
 .overdue-text { color: var(--danger); }
+.service-ended { max-width: 520px; margin: 60px auto; padding: 40px 24px; text-align: center; }
+.service-ended-icon { display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 18px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-size: 24px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

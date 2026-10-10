@@ -1,5 +1,6 @@
 'use strict';
 import { api } from '../api.js';
+import { registerEditor, serializeSave } from '../saving.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
 import {
   todayStr, fmtDate, escapeHtml, isOverdue, weekdayIndex, weekStartDate,
@@ -86,8 +87,8 @@ function buildMemoInput() {
   const input = h('input', {
     class: 'input', placeholder: '快速备忘：记一句，回车保存…', style: 'margin-bottom:16px'
   });
-  input.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && input.value.trim()) {
+  const saveMemo = serializeSave(async () => {
+    if (input.value.trim()) {
       try {
         await api.post('/api/memos', { text: input.value.trim() });
         input.value = '';
@@ -95,8 +96,13 @@ function buildMemoInput() {
         refresh();
       } catch (err) {
         toast(err.message, 'error');
+        throw err;
       }
     }
+  });
+  registerEditor(input, saveMemo);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveMemo().catch(() => {});
   });
   return input;
 }

@@ -119,14 +119,14 @@ export function toast(msg, type = 'info') {
   }, 2200);
 }
 
-export function confirmDialog(msg, { danger = false } = {}) {
+export function confirmDialog(msg, { danger = false, confirmText = '确认' } = {}) {
   return new Promise((resolve) => {
     const backdrop = h('div', { class: 'modal-backdrop' });
     const modal = h('div', { class: 'modal modal-sm' });
     const body = h('div', { class: 'modal-body' }, h('p', { html: escapeHtml(msg) }));
     const foot = h('div', { class: 'modal-foot' });
     const cancel = h('button', { class: 'btn' }, '取消');
-    const ok = h('button', { class: danger ? 'btn btn-danger' : 'btn btn-primary' }, '确认');
+    const ok = h('button', { class: danger ? 'btn btn-danger' : 'btn btn-primary' }, confirmText);
     foot.append(cancel, ok);
     modal.append(h('div', { class: 'modal-title' }, '请确认'), body, foot);
     backdrop.append(modal);

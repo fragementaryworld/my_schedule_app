@@ -79,13 +79,16 @@ class Store {
     this.filePath = filePath;
     this.data = null;
     this.recoveredFromBackup = false;
+    this._diskContent = null;
   }
 
   load() {
     this.recoveredFromBackup = false;
+    this._diskContent = null;
     if (fs.existsSync(this.filePath)) {
       try {
         const raw = fs.readFileSync(this.filePath, 'utf8');
+        this._diskContent = raw;
         this.data = normalize(JSON.parse(raw));
         return true;
       } catch (e) {
@@ -119,6 +122,7 @@ class Store {
     const ts = Date.now();
     // 隔离失败就停止恢复，避免 save() 把损坏文件复制到有效备份上。
     fs.renameSync(this.filePath, `${this.filePath}.corrupt-${ts}`);
+    this._diskContent = null;
   }
 
   get() {
@@ -126,6 +130,16 @@ class Store {
   }
 
   save() {
+    // 另一进程或外部编辑写入了新数据时，拒绝用本服务的旧内存快照覆盖。
+    let diskContent = null;
+    try { diskContent = fs.readFileSync(this.filePath, 'utf8'); }
+    catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (diskContent !== this._diskContent) {
+      const error = new Error('数据文件已被其他进程修改，请重启服务后再保存。');
+      error.status = 409;
+      throw error;
+    }
+    const content = JSON.stringify(this.data, null, 2);
     // 先留一份上一步的自动备份
     if (fs.existsSync(this.filePath)) {
       try {
@@ -134,7 +148,8 @@ class Store {
         /* 忽略备份失败 */
       }
     }
-    atomicWrite(this.filePath, JSON.stringify(this.data, null, 2));
+    atomicWrite(this.filePath, content);
+    this._diskContent = content;
   }
 
   snapshot() {

@@ -4,6 +4,7 @@ import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focus
 import { escapeHtml, PROJECT_STATUS } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
+import { registerEditor, serializeSave } from '../saving.js';
 import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME, createProject } from './projects.js';
 
 let el = null;
@@ -95,13 +96,13 @@ export function buildContentEditor({ value, onSave, key, placeholder = '写点�
       timer = null;
     }
   };
-  const save = async (silent) => {
+  const save = serializeSave(async (silent) => {
     const next = edit.textContent;
     if (next === current) return;
     await onSave(next);
     current = next;
     if (!silent) toast('已保存');
-  };
+  });
 
   const enterEdit = () => {
     display.style.display = 'none';
@@ -113,18 +114,20 @@ export function buildContentEditor({ value, onSave, key, placeholder = '写点�
   };
   display.onclick = enterEdit;
   contentEls.set(key, { enterEdit, edit, display });
+  registerEditor(edit, () => { cancel(); return save(true); });
 
   edit.addEventListener('input', () => {
     contentEdit.caret = caretOffset(edit);
     cancel();
     timer = setTimeout(() => {
       timer = null;
-      save(true);
+      save(true).catch((err) => toast(err.message, 'error'));
     }, debounceMs);
   });
   edit.addEventListener('blur', async () => {
     cancel();
-    await save(false);
+    try { await save(false); }
+    catch (err) { toast(err.message, 'error'); return; }
     contentEdit.key = null;
     contentEdit.caret = null;
     display.innerHTML = renderMarkdown(current);
