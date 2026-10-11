@@ -137,19 +137,21 @@ test('问题1：卡片显示时间/重复，来源标签已移除，完成项划
   const el = await renderToday();
   const todayCol = colOf(el, TODAY);
   const text = textOf(todayCol);
-  assert.ok(text.includes('🕐 09:00'), '显示时间');
+  assert.ok(text.includes('09:00'), '显示时间');
   assert.ok(!text.includes('📁 项目'), '不再显示重复的来源标签');
   const cards = findAllByClass(todayCol, 'cal-card');
   const done = cards.find((c) => c.classList.contains('done'));
   assert.ok(done, '完成项应有 done 样式');
   if (!colOf(el, addDays(TODAY, 1))) { findAllByClass(el, 'cal-next')[0].click(); await tick(); }
-  assert.equal(findAllByClass(findAllByClass(el, 'cal-col').find((c) => c.dataset.date === addDays(TODAY, 1)), 'cal-card-act').length, 1, '重复任务有完成系列按钮');
+  assert.equal(findAllByClass(colOf(el, addDays(TODAY, 1)), 'cal-event-repeat').length, 1, '重复任务显示简洁标记');
 });
 
-test('问题1：勾选框直接完成/取消完成', async () => {
+test('问题1：日历不放勾选框，看板仍可直接完成/取消完成', async () => {
   const el = await renderToday();
   const card = findAllByClass(colOf(el, TODAY), 'cal-card').find((c) => textOf(c).includes('今天的事'));
-  findAllByClass(card, 'cal-check')[0].click();
+  assert.equal(findAllByClass(card, 'cal-check').length, 0);
+  const board = findAllByClass(el, 'cal-board')[0];
+  findAllByTag(board, 'input').find(c => c.getAttribute('aria-label') === '完成任务：今天的事').click();
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/tasks/t1');

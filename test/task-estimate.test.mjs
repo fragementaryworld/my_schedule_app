@@ -239,7 +239,7 @@ test('问题1：每日任务页面能设置「预计用时」并保存', async (
   globalThis.fetch = backup;
 });
 
-test('问题1：今日计划的日历卡片与看板都显示预计用时', async () => {
+test('问题1：日历悬浮提示保留预计用时，看板显示预计用时', async () => {
   const backup = globalThis.fetch;
   const dayTask = { id: 'd1', title: '带预计的任务', date: TODAY, time: '09:00', estimate: 30, done: false };
   globalThis.fetch = async (url) => {
@@ -262,7 +262,7 @@ test('问题1：今日计划的日历卡片与看板都显示预计用时', asyn
 
   const card = findAllByClass(el, 'cal-card').find((c) => textOf(c).includes('带预计的任务'));
   assert.ok(card, '日历里应有这张卡片');
-  assert.ok(textOf(card).includes('⏱ 30 分钟'), `日历卡片应显示预计用时：「${textOf(card)}」`);
+  assert.ok(card.getAttribute('title').includes('⏱ 30 分钟'), '简洁事件条的悬浮提示保留预计用时');
 
   const boardCard = findAllByClass(el, 'cal-board-card').find((c) => textOf(c).includes('带预计的任务'));
   assert.ok(boardCard);

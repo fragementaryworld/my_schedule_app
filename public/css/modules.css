@@ -319,18 +319,19 @@
 .cal-col-head { display: flex; justify-content: flex-end; padding: 2px 4px 6px; }
 .cal-daynum { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 999px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cal-col.today .cal-daynum, .cal-cell.today .cal-daynum { background: var(--primary); color: var(--primary-ink); font-weight: 600; }
-.cal-cards { display: flex; flex-direction: column; gap: 7px; }
-.cal-card { display: flex; align-items: flex-start; gap: 5px; padding: 7px 8px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); box-shadow:0 1px 2px rgba(16,24,40,.04); }
-.cal-card:hover { border-color:var(--primary); }
-.cal-card .cal-check { margin-top: 2px; }
+.cal-cards { display: flex; flex-direction: column; gap: 4px; }
+.cal-event { height:24px; box-sizing:border-box; border:0; border-radius:5px; color:var(--text); font-size:12px; line-height:18px; cursor:pointer; }
+.cal-event:hover { box-shadow:inset 0 0 0 1px var(--event-color); }
+.cal-event:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+.cal-event.done { opacity:.55; }
+.cal-card { display:flex; align-items:center; padding:3px 10px 3px 6px; }
 .cal-card-body { flex: 1; min-width: 0; }
-.cal-card-title { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-card-title { font-size:12px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cal-event-time { flex-shrink:0; font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.cal-event-repeat { flex-shrink:0; color:var(--muted); font-size:11px; }
 .cal-card-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 3px; }
 .cal-chip { font-size: 11px; color: var(--muted); }
 .cal-card.done .cal-card-title { text-decoration: line-through; color: var(--muted); }
-.cal-card.from-project { border-left: 3px solid var(--primary); }
-.cal-card-act { opacity: 0; }
-.cal-card:hover .cal-card-act { opacity: 1; }
 .cal-month-grid { display: block; }
 .cal-cell { min-height: 125px; border-right: 1px solid var(--grid-line); border-bottom: 1px solid var(--grid-line); padding: 6px; display: flex; flex-direction: column; gap: 4px; }
 .cal-col.weekend, .cal-cell.weekend { background:var(--panel-2); }
@@ -338,7 +339,6 @@
 .cal-cell.outside { background: var(--panel-2); }
 .cal-cell.outside .cal-daynum { opacity: .55; }
 .cal-cell-head { display: flex; justify-content: flex-end; }
-.cal-month .cal-card { padding: 5px 6px; }
 .cal-month .cal-card-meta { display: none; }
 .cal-more { font-size: 11px; color: var(--muted); padding-left: 4px; }
 .cal-legend { margin-top: 10px; }
@@ -348,7 +348,7 @@
 .cal-col { cursor: pointer; }
 .cal-cell { cursor: pointer; }
 
-/* 任务颜色：左侧色条 + 小圆点 */
+/* 任务使用统一的事件条，图例使用颜色圆点。 */
 .cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .cal-card-titlerow { align-items: center; gap: 5px; }
 .cal-card-title { flex: 1; min-width: 0; }
@@ -358,13 +358,10 @@
 .cal-row { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); }
 .cal-span-layer { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
 .cal-span {
-  position: absolute; height: 24px; box-sizing: border-box; border-radius: 6px;
-  display: flex; align-items: center; gap: 5px; padding: 0 12px;
-  color: #fff; font-size: 11.5px; white-space: nowrap; overflow: hidden;
-  pointer-events: auto; cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+  position:absolute; display:flex; align-items:center; gap:5px; padding:3px 12px;
+  white-space:nowrap; overflow:hidden; pointer-events:auto;
 }
-.cal-span:hover { filter: brightness(1.07); }
-.cal-span.done { opacity: .5; }
+.cal-span.done .cal-span-title { text-decoration:line-through; }
 .cal-span.clip-left { border-top-left-radius: 2px; border-bottom-left-radius: 2px; }
 .cal-span.clip-right { border-top-right-radius: 2px; border-bottom-right-radius: 2px; }
 .cal-span-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -374,7 +371,7 @@
 /* 拖动：两端把手调整开始/结束，中间整体平移 */
 .cal-span-handle {
   position: absolute; top: 0; bottom: 0; width: 10px; cursor: col-resize; touch-action:none;
-  opacity: 0; background: rgba(255, 255, 255, .55); border-radius: 3px;
+  opacity:0; background:var(--event-color); border-radius:3px;
 }
 .cal-span-handle.left { left: 2px; }
 .cal-span-handle.right { right: 2px; }

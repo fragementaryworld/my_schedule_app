@@ -144,7 +144,7 @@ test('问题3：日历里能看到工作项目的任务（含各级子任务）'
 
   const projectCards = findAllByClass(todayCell, 'cal-card').filter((c) => c.classList.contains('from-project'));
   assert.equal(projectCards.length, 2, '两条单日子任务来自工作项目');
-  assert.ok(textOf(todayCell).includes('📁 项目A'), '标出来自哪个项目');
+  assert.ok(projectCards.every(c => c.getAttribute('title').includes('项目A')), '悬浮提示标出所属项目');
   assert.ok(findAllByClass(el, 'cal-span').some((s) => textOf(s).includes('项目任务1')), '跨天的项目任务画成 block');
 
   // 周日的明天属于下一周；周内才检查其格子。
@@ -155,7 +155,8 @@ test('问题3：项目任务勾选写到它自己那一层', async () => {
   const el = await renderToday();
   const card = titleIn(cellOf(el, TODAY), '子子任务');
   calls.length = 0;
-  findAllByClass(card, 'cal-check')[0].click();
+  assert.equal(findAllByClass(card, 'cal-check').length, 0);
+  findAllByTag(findAllByClass(el, 'cal-board')[0], 'input').find(c => c.getAttribute('aria-label') === '完成任务：子子任务').click();
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.equal(put.url, '/api/projects/p1/tasks/t1/subtasks/s1/subtasks/s2');

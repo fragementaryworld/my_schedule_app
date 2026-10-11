@@ -136,7 +136,7 @@ test('问题1：block 的左右位置正好横跨三天', async () => {
   const style = String(span.getAttribute('style'));
   assert.ok(Math.abs(pctOf(span, 'left') - (1 / 7) * 100) < 0.01, `left 应为第 2 列，实际 ${style}`);
   assert.ok(Math.abs(pctOf(span, 'width') - (3 / 7) * 100) < 0.01, `width 应横跨 3 列，实际 ${style}`);
-  assert.ok(style.includes('background:#'), 'block 用任务颜色铺满');
+  assert.ok(style.includes('background:rgba(') && style.includes('border-left:3px solid #'), '使用与单日事件相同的淡色底和色条');
  });
 
 test('问题1：block 上显示标题与天数，被裁切的那条带箭头', async () => {
@@ -147,7 +147,7 @@ test('问题1：block 上显示标题与天数，被裁切的那条带箭头', a
   assert.equal(findAllByClass(t1, 'cal-span-clip').length, 0, '完整落在本周内不需要箭头');
   assert.equal(findAllByClass(t4, 'cal-span-clip').length, 1);
   assert.equal(textOf(findAllByClass(t4, 'cal-span-clip')[0]), '◀');
-  assert.ok(String(t4.getAttribute('style')).includes('background:#'));
+  assert.ok(String(t4.getAttribute('style')).includes('background:rgba('));
 });
 
 test('问题1：有跨天 block 时，格子顶部会留出空间', async () => {

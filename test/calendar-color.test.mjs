@@ -89,9 +89,9 @@ test('问题2：整个任务 block 的背景都用该任务的颜色（不只左
   const cardB = cardOf(el, '项目二的任务');
   const cardD = cardOf(el, '每日任务');
 
-  assert.equal(bgOf(cardA), cal.tint(timelineColor('p1')), '项目一：整块背景染色');
-  assert.equal(bgOf(cardB), cal.tint(timelineColor('p2')), '项目二：整块背景染色');
-  assert.equal(bgOf(cardD), cal.tint(cal.DAY_TASK_COLOR), '每日任务用自己的颜色');
+  assert.equal(bgOf(cardA), cal.tint(timelineColor('p1'), .14), '项目一：整块背景染色');
+  assert.equal(bgOf(cardB), cal.tint(timelineColor('p2'), .14), '项目二：整块背景染色');
+  assert.equal(bgOf(cardD), cal.tint(cal.DAY_TASK_COLOR, .14), '每日任务用自己的颜色');
 
   assert.notEqual(bgOf(cardA), bgOf(cardB), '不同来源背景明显不同');
   assert.equal(borderOf(cardA), timelineColor('p1'), '左侧色条保留');
@@ -101,7 +101,7 @@ test('问题2：跨天 block 的背景也是整块同色', async () => {
   const el = await renderToday();
   const span = findAllByClass(el, 'cal-span').find((s) => textOf(s).includes('跨天任务'));
   assert.ok(span, '跨天任务应有连续 block');
-  assert.equal(bgOf(span), timelineColor('p2'), 'block 用实色铺满');
+  assert.equal(bgOf(span), cal.tint(timelineColor('p2'), .14), '跨天事件使用同样的淡色背景');
 });
 
 test('日内列表使用中性任务行和所属清单提示，日历继续保留颜色区分', async () => {
@@ -120,5 +120,5 @@ test('问题2：图例仍是实色圆点，与卡片染色对应', async () => {
     (/background:(#[0-9a-fA-F]{6})/.exec(String(findAllByClass(i, 'cal-dot')[0].getAttribute('style'))) || [])[1]
   ]));
   assert.equal(map.get('项目一'), timelineColor('p1'));
-  assert.equal(bgOf(cardOf(el, '项目一的任务')), cal.tint(map.get('项目一')), '圆点色 → 卡片背景色可对上');
+  assert.equal(bgOf(cardOf(el, '项目一的任务')), cal.tint(map.get('项目一'), .14), '圆点色 → 卡片背景色可对上');
 });

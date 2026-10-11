@@ -1,9 +1,8 @@
 import { beginRender } from '../view-lifecycle.js';
-import { PERIODS } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { todayStr, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
+import { todayStr, isOverdue, priorityLabel, estimateText } from '../utils.js';
 import { dailyEntries, dailySections, filterDailyEntries, buildDailyFilters, buildDailyBoard, withPlannedCalendarEntries } from '../daily.js';
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
@@ -205,7 +204,7 @@ function buildRow(rowDates, byDate, opts) {
     // 跨天任务由上面的连续 block 表示，这里只列当天的单日任务
     const entries = sortDayEntries(byDate.get(d) || []).filter((e) => !(e.spanDays > 1));
     const max = month ? 3 : entries.length;
-    for (const e of entries.slice(0, max)) list.append(buildCard(e, month, { row, dates: rowDates, col }));
+    for (const e of entries.slice(0, max)) list.append(buildCard(e, { row, dates: rowDates, col }));
     if (entries.length > max) list.append(h('div', { class: 'cal-more' }, `+${entries.length - max}`));
     cell.append(list);
 
@@ -222,13 +221,13 @@ function buildSpanLayer(layout, cols, row, dates) {
     const e = bar.entry;
     const pct = (n) => `${(n / cols) * 100}%`;
     const el = h('div', {
-      class: 'cal-span'
+      ...eventProps(e),
+      class: 'cal-event cal-span'
         + (bar.continuesLeft ? ' clip-left' : '')
         + (bar.continuesRight ? ' clip-right' : '')
         + (e.done ? ' done' : ''),
       style: `left:${pct(bar.startCol)};width:${pct(bar.endCol - bar.startCol + 1)};`
-        + `top:${SPAN_TOP + bar.lane * SPAN_LANE_H}px;background:${e.color || DAY_TASK_COLOR}`,
-      title: `${e.title}（${e.spanFrom} → ${e.spanTo}，共 ${e.spanDays} 天）`
+        + `top:${SPAN_TOP + bar.lane * SPAN_LANE_H}px;${eventStyle(e)}`
     });
     el.onclick = (ev) => {
       if (ev && ev.stopPropagation) ev.stopPropagation();
@@ -311,32 +310,40 @@ function buildMonth(byDate, dates, multiDay) {
   return wrap;
 }
 
-function buildCard(e, compact, ctx) {
+function eventStyle(e) {
+  const color = e.color || DAY_TASK_COLOR;
+  return `--event-color:${color};background:${tint(color, .14)};border-left:3px solid ${color}`;
+}
+
+function eventProps(e) {
+  const title = [e.title, e.time, e.ownerLabel || e.projectName,
+    e.spanDays > 1 ? `${e.spanFrom} → ${e.spanTo} · ${e.spanDays} 天` : e.date,
+    estimateText(e), e.priority ? priorityLabel(e.priority) : '',
+    e.repeat || e.repeatOf ? '重复任务' : '', e.done ? '已完成' : e.overdue ? '逾期' : ''].filter(Boolean).join(' · ');
+  return { title, role: 'link', tabindex: '0', 'aria-label': title,
+    onkeydown: ev => { if (ev.key === 'Enter' && !suppressClick) { ev.preventDefault(); openEntry(e); } } };
+}
+
+function buildCard(e, ctx) {
   const card = h('div', {
-    class: 'cal-card'
+    ...eventProps(e),
+    class: 'cal-event cal-card'
       + (e.done ? ' done' : '')
       + (e.kind === 'project' ? ' from-project' : '')
       + (e.spanDays > 1 ? ' spanning' : '')
       + (e.continued ? ' continued' : '')
       + (e.spanDays > 1 && e.spanEnd ? ' span-end' : ''),
-    style: `background:${tint(e.color || DAY_TASK_COLOR)};border-left: 3px solid ${e.color || DAY_TASK_COLOR}`,
-    title: e.title
+    style: eventStyle(e)
   });
   // 卡片上的点击不要冒泡到格子，避免"想点任务却变成选日期"
-  card.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); };
-
-  const cb = h('input', { type: 'checkbox', class: 'task-check cal-check' });
-  cb.checked = !!e.done;
-  cb.onclick = async (ev) => {
-    if (ev && ev.stopPropagation) ev.stopPropagation();
-    await toggleEntry(e);
+  card.onclick = ev => {
+    ev.stopPropagation();
+    if (!suppressClick) openEntry(e);
   };
-  card.append(cb);
 
   const body = h('div', { class: 'cal-card-body' });
   const titleRow = h('div', { class: 'row cal-card-titlerow' });
-  titleRow.append(h('i', { class: 'cal-dot', style: `background:${e.color || DAY_TASK_COLOR}` }));
-  if (e.continued) titleRow.append(h('span', { class: 'cal-cont', title: `延续自 ${e.spanFrom}` }, '↳'));
+  if (e.time) titleRow.append(h('span', { class: 'cal-event-time' }, e.time));
   const title = h('span', { class: 'cal-card-title row-link' }, e.title);
   title.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
   titleRow.append(title);
@@ -375,32 +382,8 @@ function buildCard(e, compact, ctx) {
   }
 
   body.append(titleRow);
-
-  const meta = h('div', { class: 'cal-card-meta' });
-  if (e.planOnly || e.planDate === e.date) meta.append(h('span', { class: 'cal-chip' }, e.planPeriod ? PERIODS.find(p => p.value === e.planPeriod)?.label || '当天安排' : '当天安排'));
-  if (!e.planOnly && e.planDate === e.date && e.planTime) meta.append(h('span', { class: 'cal-chip' }, `安排 ${timeRangeLabel(e.planTime, e.planEndTime)}`));
-  if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
-  if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
-  if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${e.projectName}`));
-  if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `${e.spanStart ? '起' : (e.spanEnd ? '止' : '续')} · 共 ${e.spanDays} 天`));
-  if (e.repeat || e.repeatOf) meta.append(h('span', { class: 'cal-chip' }, '🔁'));
-  if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
-  if (!compact && e.priority) meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));
-  if (meta.children.length) body.append(meta);
+  if (e.repeat || e.repeatOf) titleRow.append(h('span', { class: 'cal-event-repeat', 'aria-hidden': 'true' }, '↻'));
   card.append(body);
-
-  if (e.repeat || e.repeatOf) {
-    const finish = h('button', { class: 'icon-btn cal-card-act', title: '完成整个系列' }, '✓✓');
-    finish.onclick = async (ev) => {
-      if (ev && ev.stopPropagation) ev.stopPropagation();
-      if (await confirmDialog('完成整个系列？所有已生成与未来的实例都会标记完成。')) {
-        await api.put(`/api/tasks/${e.id}`, { done: true, finishSeries: true });
-        toast('已完成整个系列');
-        paint();
-      }
-    };
-    card.append(finish);
-  }
   return card;
 }
 
@@ -457,12 +440,6 @@ function selectedLabel() {
 function selectDate(date) {
   if (suppressClick) return; // 刚拖完不顺手改选中日期
   selectedDate = date;
-  paint();
-}
-
-async function toggleEntry(e) {
-  if (e.kind === 'project') await api.put(e.base, { done: !e.done });
-  else await api.put(`/api/tasks/${e.id}`, { done: !e.done });
   paint();
 }
 

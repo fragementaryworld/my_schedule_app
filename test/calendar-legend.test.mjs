@@ -96,7 +96,7 @@ test('问题2：legendFor 对空输入安全', () => {
 
 // ——— 页面 ———
 
-test('问题2：卡片用所属项目的颜色（左色条 + 圆点）', async () => {
+test('问题2：事件条用所属项目的颜色，不再重复放颜色圆点', async () => {
   const el = await renderToday();
   const cell = cellOf(el, D0);
   const cards = findAllByClass(cell, 'cal-card');
@@ -108,8 +108,8 @@ test('问题2：卡片用所属项目的颜色（左色条 + 圆点）', async (
   assert.equal(barColor(cardB), timelineColor('p2'));
   assert.notEqual(barColor(cardA), barColor(cardB), '两个项目视觉上可区分');
 
-  assert.equal(dotColor(findAllByClass(cardA, 'cal-dot')[0]), timelineColor('p1'), '圆点同色');
-  assert.equal(dotColor(findAllByClass(cardB, 'cal-dot')[0]), timelineColor('p2'));
+  assert.equal(findAllByClass(cardA, 'cal-dot').length, 0);
+  assert.equal(findAllByClass(cardB, 'cal-dot').length, 0);
 });
 
 test('问题2：每日任务用自己的颜色', async () => {
