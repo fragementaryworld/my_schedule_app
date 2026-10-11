@@ -130,6 +130,10 @@ class Store {
   }
 
   save() {
+    if (this._transaction) {
+      this._transaction.dirty = true;
+      return;
+    }
     // 另一进程或外部编辑写入了新数据时，拒绝用本服务的旧内存快照覆盖。
     let diskContent = null;
     try { diskContent = fs.readFileSync(this.filePath, 'utf8'); }
@@ -154,6 +158,27 @@ class Store {
 
   snapshot() {
     return JSON.stringify(this.data, null, 2);
+  }
+
+  // HTTP 调度器保证单次只执行一个事务。草稿不成功就不会成为已提交状态。
+  async transaction(operation) {
+    if (this._transaction) throw new Error('nested store transaction');
+    const previous = this.data;
+    this.data = structuredClone(previous);
+    const transaction = { dirty: false };
+    this._transaction = transaction;
+    try {
+      const result = await operation();
+      this._transaction = null;
+      if (transaction.dirty) this.save();
+      else this.data = previous;
+      return result;
+    } catch (error) {
+      this.data = previous;
+      throw error;
+    } finally {
+      this._transaction = null;
+    }
   }
 
   replace(newData) {
