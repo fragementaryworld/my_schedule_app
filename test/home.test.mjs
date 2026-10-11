@@ -9,7 +9,7 @@ function fixture(today) {
     tasks: [
       { id: '1', title: '低优先', priority: 'low', order: 0, done: false, date: today, time: null },
       { id: '2', title: '高优先', priority: 'high', order: 1, done: false, date: today, time: null },
-      { id: '3', title: '已逾期', priority: 'medium', order: 2, done: false, date: yest, time: null },
+      { id: '3', title: '已逾期', priority: 'medium', order: 2, done: false, date: yest, planDate: today, time: null },
       { id: '4', title: '已完成', priority: 'high', order: 3, done: true, date: today, time: null }
     ],
     memos: [{ id: 'm1', text: '买牛奶', createdAt: 'x' }],
@@ -67,4 +67,31 @@ test('summarize 计算今日训练名称', () => {
   // 只有周一安排了深蹲，其他星期为空
   const isMon = new Date(today).getDay() === 1;
   assert.deepEqual(s.todayTraining, isMon ? ['深蹲'] : []);
+});
+
+test('首页与今日看板统一统计：归属项目、改期及深层任务参与，候选和暂停项目不计入', () => {
+  const today = todayStr();
+  const future = addDays(today, 5);
+  const input = {
+    tasks: [
+      { id: 'moved', title: '今天移走', date: today, planDate: future },
+      { id: 'planned', title: '从别天安排过来', date: future, planDate: today },
+      { id: 'candidate', title: '未安排旧任务', date: addDays(today, -1) },
+      { id: 'done', title: '当天完成', date: today, done: true }
+    ],
+    projects: [
+      { id: 'p', name: '工作', status: 'active', tasks: [
+        { id: 'parent', title: '未安排父任务', dueDate: future, subtasks: [
+          { id: 'child', title: '当天截止子任务', dueDate: today }
+        ] },
+        { id: 'scheduled', title: '今天安排，之后截止', planDate: today, dueDate: future },
+        { id: 'both', title: '当天安排与截止', planDate: today, dueDate: today }
+      ] },
+      { id: 'paused', name: '暂停', status: 'paused', tasks: [{ id: 'hidden', title: '暂停工作', planDate: today }] }
+    ]
+  };
+  const s = summarize(input, today);
+  assert.deepEqual(s.pending.map(task => task.id).sort(), ['both', 'child', 'planned', 'scheduled']);
+  assert.equal(s.doneCount, 1);
+  assert.equal(new Set(s.pending.map(task => task.base)).size, s.pending.length);
 });

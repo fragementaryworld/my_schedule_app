@@ -2,6 +2,7 @@ import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { registerEditor, serializeSave } from '../saving.js';
+import { dailyEntries, dailySections } from '../daily.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
 import {
   todayStr, fmtDate, isOverdue, weekdayIndex, weekStartDate,
@@ -32,9 +33,9 @@ function bookPercent(book) {
  * input = { tasks, memos, projects, books, workouts, ideas }
  */
 export function summarize(input, today, weekStartPref = 'mon') {
-  const tasks = input.tasks || [];
-  const pending = tasks.filter((t) => !t.done);
-  const doneCount = tasks.length - pending.length;
+  const sections = dailySections(dailyEntries(input.tasks || [], input.projects || []), today);
+  const pending = [...sections.planned, ...sections.due];
+  const doneCount = sections.done.length;
   const overdue = pending.filter((t) => isOverdue(t, today));
   const top3 = pending
     .slice()
@@ -238,7 +239,7 @@ export async function render(container) {
   const today = todayStr();
   const [prefs, tasks, memos, projects, books, workouts, ideas] = await Promise.all([
     api.get('/api/preferences'),
-    api.get(`/api/tasks?date=${today}`),
+    api.get(`/api/tasks?from=${today}&to=${today}&includePool=1`),
     api.get('/api/memos'),
     api.get('/api/projects'),
     api.get('/api/books'),
