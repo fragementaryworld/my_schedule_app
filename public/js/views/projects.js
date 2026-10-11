@@ -1,3 +1,5 @@
+import { itemBase, itemHref, TIMELINE_COLORS, timelineColorIndex, timelineColor } from '../task-model.js';
+export { itemBase, itemHref, TIMELINE_COLORS, timelineColorIndex, timelineColor } from '../task-model.js';
 import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { registerEditor, serializeSave } from '../saving.js';
@@ -183,23 +185,6 @@ export function timelineAxis(start, end) {
   return { start, end, totalDays, step, months, days };
 }
 
-// 每条项目/任务一个稳定颜色（按 id 哈希，顺序变化也不跳色）
-export const TIMELINE_COLORS = [
-  '#4f6ef7', '#16a34a', '#f59e0b', '#8b5cf6', '#ec4899',
-  '#0891b2', '#65a30d', '#ea580c', '#0d9488', '#64748b'
-];
-
-export function timelineColorIndex(id) {
-  const s = String(id === null || id === undefined ? '' : id);
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h % TIMELINE_COLORS.length;
-}
-
-export function timelineColor(id) {
-  return TIMELINE_COLORS[timelineColorIndex(id)];
-}
-
 // 时间轴标尺：上排月份、下排日期，底部加极浅分格线
 export function buildTimelineAxis(start, end) {
   const axis = timelineAxis(start, end);
@@ -304,17 +289,6 @@ export async function createProject(options = {}) {
 
 export const DEFAULT_TASK_NAME = '新任务';
 export const DEFAULT_SUBTASK_NAME = '新子任务';
-
-// 层级路径：项目 > tasks/t1[/subtasks/s1[/subtasks/s2 …]]，最多 5 层
-export function itemBase(projectId, chain) {
-  const parts = ['/api/projects', projectId, 'tasks', chain[0]];
-  for (let i = 1; i < chain.length; i++) parts.push('subtasks', chain[i]);
-  return parts.join('/');
-}
-
-export function itemHref(projectId, chain) {
-  return `#/task/${[projectId, ...chain].join('/')}`;
-}
 
 // 第 1 层：在项目下新建任务并跳转
 export async function createTask(projectId) {

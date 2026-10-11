@@ -1,10 +1,11 @@
+import { itemBase, itemHref } from '../task-model.js';
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { buildEstimateField } from '../estimate.js';
-import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
+import { DEFAULT_TASK_NAME, createChild, buildChildViews } from './projects.js';
 import { restoreBlockEditing, buildContentEditor, restoreContentEditing, clearContentEditors } from './page.js';
 import { buildDateField } from '../datepicker.js';
 

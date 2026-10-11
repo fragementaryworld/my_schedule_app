@@ -1,7 +1,7 @@
 'use strict';
 // 今日计划（日历）用到的纯计算：周/月网格、分组、排序、工作项目任务并入
 import { addDays, weekdayIndex, todayStr, isOverdue } from './utils.js';
-import { itemBase, itemHref, timelineColor } from './views/projects.js';
+import { itemBase, itemHref, timelineColor } from './task-model.js';
 
 export const CALENDAR_VIEWS = [
   { value: 'week', label: '周视图' },

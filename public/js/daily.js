@@ -4,7 +4,7 @@ import { ownership, ownerOptions } from './ownership.js';
 import { h, toast, confirmDialog, dismissOnOutsideClick } from './ui.js';
 import { api } from './api.js';
 import { flattenProjectItems, itemSpan, spanDays, DAY_TASK_COLOR, truncate, tint } from './calendar.js';
-import { itemBase, itemHref, timelineColor } from './views/projects.js';
+import { itemBase, itemHref, timelineColor } from './task-model.js';
 import { estimateText, priorityLabel, priorityClass, isOverdue, todayStr, addDays } from './utils.js';
 import { timeRangeLabel, dayTaskHref } from './daytask.js';
 
