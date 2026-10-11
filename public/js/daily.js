@@ -1,5 +1,5 @@
 import { PERIODS, planningFor, isPlannedOn, comparePlan, planSummary, editPlan, buildTimeAxis } from './planning.js';
-import { ownership, ownerOptions } from './ownership.js';
+import { ownership, ownerOptions, LIST_OPTIONS } from './ownership.js';
 // 清单决定存放位置，时段决定当天的执行顺序。安排不改项目的截止日期。
 import { h, toast, confirmDialog, dismissOnOutsideClick } from './ui.js';
 import { api } from './api.js';
@@ -58,6 +58,20 @@ export function filterDailyEntries(entries, filters = {}) {
   const owners = selectedOwners(filters);
   return entries.filter(e => (!owners.size || owners.has(e.ownerKey))
     && (!q || [e.title, e.projectName, ...(e.ancestors || []), e.note, e.desc].join(' ').toLocaleLowerCase().includes(q)));
+}
+
+// Use the task's storage location, independently of legacy category and source tags.
+export function groupEntriesByOwner(entries) {
+  const groups = new Map();
+  const colors = { 'list:inbox': '#64748b', 'list:work': '#4f6ef7', 'list:personal': '#0d9488' };
+  for (const entry of entries) {
+    const key = entry.ownerKey;
+    if (!groups.has(key)) groups.set(key, { key, label: key.startsWith('project:') ? `项目 · ${entry.ownerLabel}` : entry.ownerLabel,
+      color: colors[key] || timelineColor(entry.projectId || key.slice(8)), entries: [] });
+    groups.get(key).entries.push(entry);
+  }
+  const rank = new Map(LIST_OPTIONS.map((o, index) => [o.value, index]));
+  return [...groups.values()].sort((a, b) => (rank.get(a.key) ?? LIST_OPTIONS.length) - (rank.get(b.key) ?? LIST_OPTIONS.length));
 }
 
 // 原日历保留起止/截止日期；单独安排到其他日期的任务增加一个执行日标记。
@@ -311,27 +325,61 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     for (const o of PERIODS) target.append(h('option', { value: o.value }, o.label)); target.value = '';
     const apply = h('button', { class: 'btn btn-primary', disabled: 'true' });
     apply.textContent = '安排选中任务';
+    const selection = h('span', { class: 'small daily-pool-selection', role: 'status', 'aria-live': 'polite' });
     const list = h('div', { class: 'daily-pool-list' });
     const poolEntries = [...pending, ...pool];
+    const groups = groupEntriesByOwner(poolEntries);
+    let visible = [], counters = [], saving = false;
+    const syncSelection = () => {
+      apply.disabled = saving || !picked.size;
+      apply.textContent = picked.size ? `安排选中 ${picked.size} 项` : '安排选中任务';
+      const visiblePicked = visible.filter(e => picked.has(e.base)).length;
+      selection.textContent = picked.size ? `已选 ${picked.size} 项${visiblePicked < picked.size ? `（${picked.size - visiblePicked} 项被搜索隐藏）` : ''}` : '可跨清单多选任务';
+      for (const { group, matches, count } of counters) {
+        const selected = group.entries.filter(e => picked.has(e.base)).length;
+        count.textContent = `${matches.length === group.entries.length ? `${matches.length} 项` : `显示 ${matches.length} / ${group.entries.length} 项`}${selected ? ` · 已选 ${selected} 项` : ''}`;
+      }
+    };
     const update = () => {
       list.innerHTML = '';
+      visible = []; counters = [];
       const q = search.value.trim().toLocaleLowerCase();
-      for (const e of poolEntries.filter(e => !q || `${e.title} ${e.ownerLabel} ${(e.ancestors || []).join(' ')}`.toLocaleLowerCase().includes(q))) {
-        const choice = h('input', { type: 'checkbox', 'aria-label': `选择安排：${e.title}` }); choice.checked = picked.has(e.base);
-        choice.onchange = () => { choice.checked ? picked.add(e.base) : picked.delete(e.base); apply.disabled = !picked.size; apply.textContent = picked.size ? `安排选中 ${picked.size} 项` : '安排选中任务'; };
-        list.append(h('div', { class: 'daily-pool-choice' }, choice, row(e, true, () => backdrop.remove())));
+      for (const group of groups) {
+        const matches = group.entries.filter(e => !q || `${e.title} ${e.ownerLabel} ${(e.ancestors || []).join(' ')}`.toLocaleLowerCase().includes(q));
+        if (!matches.length) continue;
+        visible.push(...matches);
+        const section = h('section', { class: 'daily-pool-group', dataset: { owner: group.key }, style: `--group-color:${group.color}`, 'aria-label': group.label });
+        const count = h('span', { class: 'daily-pool-group-count' });
+        section.append(h('div', { class: 'daily-pool-group-head' }, h('h3', {}, group.label), count));
+        counters.push({ group, matches, count });
+        const choices = h('div', { class: 'daily-pool-group-tasks' });
+        for (const e of matches) {
+          const choice = h('input', { type: 'checkbox', 'aria-label': `选择安排：${e.title}` }); choice.checked = picked.has(e.base);
+          choice.onchange = () => {
+            if (saving) { choice.checked = picked.has(e.base); return; }
+            choice.checked ? picked.add(e.base) : picked.delete(e.base); syncSelection();
+          };
+          choices.append(h('div', { class: 'daily-pool-choice' }, choice, row(e, true, () => backdrop.remove())));
+        }
+        section.append(choices); list.append(section);
       }
       if (!list.children.length) list.append(h('p', { class: 'muted' }, '没有匹配的待办任务'));
+      syncSelection();
     };
     search.oninput = update;
+    const setSaving = value => {
+      saving = value; search.disabled = value; target.disabled = value;
+      for (const choice of list.querySelectorAll('input')) choice.disabled = value;
+      syncSelection();
+    };
     apply.onclick = async () => {
-      if (!picked.size) return;
-      apply.disabled = true;
+      if (saving || !picked.size) return;
+      setSaving(true);
       if (await batch([...picked].map(base => ({ base, patch: { planDate: date, planPeriod: target.value || null, planTime: null, planEndTime: null, planOrder: null } })))) backdrop.remove();
-      else apply.disabled = false;
+      else setSaving(false);
     };
     modal.append(h('div', { class: 'modal-title row' }, '安排任务', h('span', { class: 'spacer' }), close),
-      h('div', { class: 'modal-body' }, search, list), h('div', { class: 'modal-foot' }, target, apply));
+      h('div', { class: 'modal-body' }, search, list), h('div', { class: 'modal-foot' }, selection, target, apply));
     backdrop.append(modal); document.body.append(backdrop); update(); search.focus();
   };
   const timeline = h('details', { class: 'daily-timeline-fold' });
