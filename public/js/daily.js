@@ -262,7 +262,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
       meta.append(h('span', {}, `原区间 ${e.spanFrom} → ${e.spanTo} · 跨 ${e.spanDays} 天${originalTime ? ` · ${originalTime}` : ''}`));
     }
     if (estimateText(e)) meta.append(h('span', {}, estimateText(e)));
-    const dueDate = e.kind === 'project' ? e.dueDate : e.endDate;
+    const dueDate = e.kind === 'project' ? e.dueDate : (e.planDate ? null : e.endDate);
     if (dueDate) meta.append(h('span', { class: dueDate === date ? 'badge overdue' : '' }, `${dueDate === date ? '今日截止' : `截止 ${dueDate}`}${e.kind === 'project' && e.dueTime ? ` ${e.dueTime}` : ''}`));
     if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
     if (e.subtaskCount) meta.append(h('span', {}, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));

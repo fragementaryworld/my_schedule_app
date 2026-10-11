@@ -19,7 +19,7 @@ const at = (y, m, d, hh, mm) => new Date(y, m - 1, d, hh, mm, 0, 0);
 
 test('问题2：rangeEnd 取时间区间的最后时刻', () => {
   assert.deepEqual(rangeEnd({ date: '2024-05-01' }), { date: '2024-05-01', time: null });
-  assert.deepEqual(rangeEnd({ date: '2024-05-01', time: '09:00' }), { date: '2024-05-01', time: '09:00' });
+  assert.deepEqual(rangeEnd({ date: '2024-05-01', time: '09:00' }), { date: '2024-05-01', time: null });
   assert.deepEqual(
     rangeEnd({ date: '2024-05-01', endDate: '2024-05-05', time: '09:00', endTime: '18:00' }),
     { date: '2024-05-05', time: '18:00' }
@@ -56,10 +56,12 @@ test('问题2：只给到日期时，当天过完才逾期', () => {
   assert.equal(isOverdue({ date: '2024-05-10', done: false }, '2024-05-11', at(2024, 5, 11, 0, 1)), true);
 });
 
-test('问题2：单日任务带时间时按时间判断（原有行为不变）', () => {
+test('单日任务的开始时间不是截止时间，当天过完才逾期', () => {
   const task = { date: '2024-05-10', time: '09:00', done: false };
   assert.equal(isOverdue(task, '2024-05-10', at(2024, 5, 10, 8, 59)), false);
-  assert.equal(isOverdue(task, '2024-05-10', at(2024, 5, 10, 9, 1)), true);
+  assert.equal(isOverdue(task, '2024-05-10', at(2024, 5, 10, 9, 1)), false);
+  assert.equal(isOverdue(task, '2024-05-10', at(2024, 5, 10, 23, 59)), false);
+  assert.equal(isOverdue(task, '2024-05-11', at(2024, 5, 11, 0, 0)), true);
 });
 
 test('问题2：项目任务按 dueDate/dueTime 判断', () => {

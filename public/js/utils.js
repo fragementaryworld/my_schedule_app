@@ -142,20 +142,20 @@ export function parseEstimateInput(raw) {
   return hoursToMinutes(hours);
 }
 
-// 条目的时间区间终点：优先结束日期/时间（项目任务用 dueDate/dueTime）
+// 项目截止日期独立于执行安排；普通事务重新安排后，按最新安排的最后一天判断。
+// 开始时间和安排时段不是截止时间，没有明确截止时间时，当天结束才算逾期。
 export function rangeEnd(item) {
-  const it = item || {};
-  const date = it.endDate || it.dueDate || it.date || null;
+  const it = item?.raw || item || {};
+  if (it.dueDate) return { date: it.dueDate, time: it.dueTime || null };
+  if (it.planDate) return { date: it.planEndDate || it.planDate, time: null };
+  const date = it.endDate || it.date || null;
   if (!date) return { date: null, time: null };
-  // 有结束日期就是区间：只认结束时间，没给就表示到那一天结束
-  const hasRange = !!(it.endDate || it.dueDate);
-  const time = hasRange ? (it.endTime || it.dueTime || null) : (it.time || null);
-  return { date, time };
+  return { date, time: it.endTime || null };
 }
 
 // 任务是否已逾期：当前时间晚于「时间区间的最后时间」才算逾期
 export function isOverdue(task, today = todayStr(), now = new Date()) {
-  if (!task || task.done) return false;
+  if (!task || (task.done ?? task.raw?.done)) return false;
   const end = rangeEnd(task);
   if (!end.date) return false;
   if (end.date < today) return true;

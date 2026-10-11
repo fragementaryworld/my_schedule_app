@@ -9,7 +9,7 @@ function fixture(today) {
     tasks: [
       { id: '1', title: '低优先', priority: 'low', order: 0, done: false, date: today, time: null },
       { id: '2', title: '高优先', priority: 'high', order: 1, done: false, date: today, time: null },
-      { id: '3', title: '已逾期', priority: 'medium', order: 2, done: false, date: yest, planDate: today, time: null },
+      { id: '3', title: '重新安排到今天', priority: 'medium', order: 2, done: false, date: yest, planDate: today, time: null },
       { id: '4', title: '已完成', priority: 'high', order: 3, done: true, date: today, time: null }
     ],
     memos: [{ id: 'm1', text: '买牛奶', createdAt: 'x' }],
@@ -38,14 +38,13 @@ test('summarize 统计待办、完成与逾期', () => {
   const s = summarize(fixture(today), today);
   assert.equal(s.pending.length, 3);
   assert.equal(s.doneCount, 1);
-  assert.equal(s.overdue.length, 1);
-  assert.equal(s.overdue[0].title, '已逾期');
+  assert.equal(s.overdue.length, 0, '普通事务重新安排到今天后不再因旧日期逾期');
 });
 
 test('summarize 优先级排序取 top3', () => {
   const today = todayStr();
   const s = summarize(fixture(today), today);
-  assert.deepEqual(s.top3.map((t) => t.title), ['高优先', '已逾期', '低优先']);
+  assert.deepEqual(s.top3.map((t) => t.title), ['高优先', '重新安排到今天', '低优先']);
 });
 
 test('summarize 汇总各模块摘要', () => {

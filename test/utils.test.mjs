@@ -41,10 +41,10 @@ test('isOverdue 判断逾期', () => {
   assert.equal(isOverdue({ date: yesterday, done: false }, today), true);
   assert.equal(isOverdue({ date: yesterday, done: true }, today), false);
   assert.equal(isOverdue({ date: tomorrow, done: false }, today), false);
-  // 今天已过时间 → 逾期；未来时间 → 未逾期
+  // 开始时间已过也不等于逾期。
   const now = new Date();
   const past = `${String(now.getHours()).padStart(2, '0')}:00`;
-  assert.equal(isOverdue({ date: today, time: past, done: false }, today), true);
+  assert.equal(isOverdue({ date: today, time: past, done: false }, today), false);
   assert.equal(isOverdue({ date: today, time: '23:59', done: false }, today), false);
 });
 
