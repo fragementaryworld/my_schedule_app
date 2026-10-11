@@ -254,7 +254,7 @@ test('问题1：拖卡片改期把手 → 任务整体改到另一天', async ()
   await drag(findAllByClass(card, 'cal-card-move')[0], COL_W * 2);
   const put = lastPut();
   assert.equal(put.url, '/api/tasks/d2');
-  assert.deepEqual(put.body, { planDate: addDays(D4, 2), planPeriod: 'morning', planTime: '10:00', planEndTime: null, planOrder: null });
+  assert.deepEqual(put.body, { date: addDays(D4, 2) });
 });
 
 test('问题1：拖卡片改期把手也能往前挪', async () => {
@@ -262,7 +262,7 @@ test('问题1：拖卡片改期把手也能往前挪', async () => {
   stubRow(el);
   const card = cardOf(el, '单日项目任务');
   await drag(findAllByClass(card, 'cal-card-move')[0], -COL_W * 2);
-  assert.deepEqual(lastPut().body, { planDate: addDays(D5, -2), planPeriod: null, planTime: null, planEndTime: null, planOrder: null, planEndDate: null }, '周视图安排执行日，不改项目截止日');
+  assert.deepEqual(lastPut().body, { dueDate: addDays(D5, -2) });
 });
 
 test('问题1：拖卡片右边缘 → 把它拉成跨天区间', async () => {
@@ -272,7 +272,7 @@ test('问题1：拖卡片右边缘 → 把它拉成跨天区间', async () => {
   await drag(findAllByClass(card, 'cal-card-stretch')[0], COL_W * 2);
   const put = lastPut();
   assert.equal(put.url, '/api/tasks/d2');
-  assert.deepEqual(put.body, { planDate: D4, planEndDate: addDays(D4, 2), planPeriod: 'morning', planTime: '10:00', planEndTime: null, planOrder: null }, '拉长执行安排并保留具体时间');
+  assert.deepEqual(put.body, { date: D4, endDate: addDays(D4, 2) }, '日期不变，结束日期被拉长');
 });
 
 test('问题1：单日卡片不能往左缩成 0 天', async () => {

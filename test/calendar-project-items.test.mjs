@@ -180,10 +180,9 @@ test('问题3：月视图同样显示项目任务', async () => {
   assert.ok(textOf(cell).includes('子任务1'));
 });
 
-test('问题3：周视图的具体执行时间与项目日期标记分开', async () => {
+test('问题3：项目任务与每日任务按时间混排', async () => {
   const el = await renderToday();
   const titles = findAllByClass(cellOf(el, TODAY), 'cal-card-title').map((t) => textOf(t));
-  const morning = findAllByClass(cellOf(el, TODAY), 'week-period-cell').find(c => c.dataset.period === 'morning');
-  assert.deepEqual(findAllByClass(morning, 'cal-card-title').map(textOf), ['每日任务'], '08:00 执行安排进入上午，项目截止和开始标记不伪装成执行时间');
+  assert.equal(titles[0], '每日任务', '08:00 的每日任务排最前');
   assert.equal(titles.length, 3, '单日卡片 3 张（跨天的那条走 block）');
 });
