@@ -84,11 +84,12 @@ async function paint() {
     container.append(buildHead(project, item, chain));
     container.append(buildItemProperties(project, item, chain));
     container.append(h('div', { class: 'page-section' }, '📝 内容'));
+    const contentBase = itemBase(project.id, nodes.map(node => node.id));
     container.append(buildContentEditor({
       value: item.desc,
-      key: `${itemBase(projectId, chain)}:content`,
+      key: `${contentBase}:content`,
       onSave: async (text) => {
-        await api.put(itemBase(projectId, chain), { desc: text });
+        await api.put(contentBase, { desc: text });
         item.desc = text;
       }
     }));

@@ -17,7 +17,7 @@ globalThis.fetch = async (url, opts = {}) => {
   calls.push({ url: u, method, body });
   // 模拟落库：重绘后要能读到刚保存的内容
   if (method === 'PUT' && body && u.endsWith('/api/projects/p1')) Object.assign(project, body);
-  if (method === 'PUT' && body && /\/tasks\/t1$/.test(u)) Object.assign(project.tasks[0], body);
+  if (method === 'PUT' && body && u === `/api/projects/${project.id}/tasks/${project.tasks[0].id}`) Object.assign(project.tasks[0], body);
   if (u.includes('/api/projects')) return { ok: true, status: 200, json: async () => [JSON.parse(JSON.stringify(project))] };
   return { ok: true, status: 200, json: async () => ({ ok: true }) };
 };
@@ -151,4 +151,24 @@ test('问题1：项目任务页的内容同样自动保存', async () => {
   assert.equal(w.length, 1, '任务页也要自动保存');
   assert.equal(w[0].url, '/api/projects/p1/tasks/t1');
   assert.deepEqual(w[0].body, { desc: '任务内容改了' });
+});
+
+test('切换项目任务后，旧编辑框的延迟保存仍写入原任务', async () => {
+  reset();
+  const original = project;
+  const el = mount();
+  await itemMod.render(el, { id: 'p1', chain: ['t1'] });
+  view(el).click();
+  const oldEditor = input(el);
+  oldEditor.textContent = '属于第一个任务的草稿';
+  oldEditor.fire('input');
+
+  project = { ...original, id: 'p2', tasks: [{ ...original.tasks[0], id: 't2', desc: '第二个任务' }] };
+  await itemMod.render(el, { id: 'p2', chain: ['t2'] });
+  await wait(850);
+
+  assert.deepEqual(descWrites().map(({ url, body }) => ({ url, body })), [
+    { url: '/api/projects/p1/tasks/t1', body: { desc: '属于第一个任务的草稿' } }
+  ]);
+  assert.equal(project.tasks[0].desc, '第二个任务');
 });
