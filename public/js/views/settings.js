@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
@@ -15,11 +16,14 @@ const HOME_OPTIONS = [
 
 export async function render(container) {
   el = container;
+  const active = beginRender(container);
+  if (!active()) return;
   const [prefs, meta] = await Promise.all([api.get('/api/preferences'), api.get('/api/meta')]);
-  el.innerHTML = '';
-  el.append(buildDataGroup(meta));
-  el.append(buildPrefsGroup(prefs));
-  el.append(buildAbout());
+  if (!active()) return;
+  container.innerHTML = '';
+  container.append(buildDataGroup(meta));
+  container.append(buildPrefsGroup(prefs));
+  container.append(buildAbout());
 }
 
 function buildDataGroup(meta) {

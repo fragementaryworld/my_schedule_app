@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 import { ownerOptions, ownerPatch } from '../ownership.js';
 'use strict';
 import { api } from '../api.js';
@@ -25,16 +26,20 @@ export async function render(container) {
 }
 
 async function paint() {
-  el.innerHTML = '';
+  const container = el;
+  const active = beginRender(container);
+  if (!active()) return;
+  container.innerHTML = '';
   const ideas = await api.get('/api/ideas');
-  el.append(buildToolbar(ideas));
+  if (!active()) return;
+  container.append(buildToolbar(ideas));
 
   const q = searchText.trim().toLowerCase();
   let filtered = ideas;
   if (q) filtered = filtered.filter((i) => `${i.title} ${i.desc || ''}`.toLowerCase().includes(q));
   if (tagFilter) filtered = filtered.filter((i) => (i.tags || []).includes(tagFilter));
 
-  el.append(buildKanban(filtered));
+  container.append(buildKanban(filtered));
 }
 
 function buildToolbar(ideas) {

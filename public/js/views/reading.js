@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
@@ -35,14 +36,18 @@ export async function render(container, params = {}) {
 }
 
 async function paintList() {
-  el.innerHTML = '';
+  const container = el;
+  const active = beginRender(container);
+  if (!active()) return;
+  container.innerHTML = '';
   const books = await api.get('/api/books');
-  el.append(buildTabs());
+  if (!active()) return;
+  container.append(buildTabs());
   const shown = books.filter((b) => b.status === currentTab);
   if (!shown.length) {
-    el.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📚'), h('p', {}, '这里还没有书，点右下角「＋」添加。')));
+    container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📚'), h('p', {}, '这里还没有书，点右下角「＋」添加。')));
   } else {
-    el.append(h('div', { class: 'books-grid' }, ...shown.map(buildBookCard)));
+    container.append(h('div', { class: 'books-grid' }, ...shown.map(buildBookCard)));
   }
 }
 
@@ -71,19 +76,23 @@ function buildBookCard(b) {
 }
 
 async function paintDetail(id) {
+  const container = el;
+  const active = beginRender(container);
+  if (!active()) return;
   const books = await api.get('/api/books');
+  if (!active()) return;
   const b = books.find((x) => x.id === id);
   if (!b) {
-    el.innerHTML = '<div class="empty"><p>这本书不存在或已删除。</p></div>';
+    container.innerHTML = '<div class="empty"><p>这本书不存在或已删除。</p></div>';
     return;
   }
-  el.innerHTML = '';
-  el.append(buildBookHead(b));
-  el.append(buildBookProgress(b));
-  el.append(buildReadingGoal(b));
-  el.append(h('h3', { style: 'margin:20px 0 8px' }, '📝 笔记与摘录'));
-  el.append(buildNotes(b));
-  if (b.status === 'done') el.append(buildReview(b));
+  container.innerHTML = '';
+  container.append(buildBookHead(b));
+  container.append(buildBookProgress(b));
+  container.append(buildReadingGoal(b));
+  container.append(h('h3', { style: 'margin:20px 0 8px' }, '📝 笔记与摘录'));
+  container.append(buildNotes(b));
+  if (b.status === 'done') container.append(buildReview(b));
 }
 
 function buildBookHead(b) {

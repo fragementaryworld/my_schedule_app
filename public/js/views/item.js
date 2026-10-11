@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
@@ -63,13 +64,17 @@ export async function render(container, params = {}) {
 
 async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
-  if (!container) return;
+  const active = beginRender(container);
+  if (!active()) return;
   const pos = scrollPos();
   const focus = focusSnapshot();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
+  const requestedProject = projectId;
+  const requestedChain = [...chain];
   const projects = await api.get('/api/projects');
-  const project = projects.find((x) => x.id === projectId);
-  const nodes = chainNodes(project, chain);
+  if (!active()) return;
+  const project = projects.find((x) => x.id === requestedProject);
+  const nodes = chainNodes(project, requestedChain);
   const item = nodes.length ? nodes[nodes.length - 1] : null;
   titleEl = null;
   clearContentEditors();
@@ -79,10 +84,10 @@ async function paint() {
       container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📋'), h('p', {}, '内容不存在或已删除。')));
       return;
     }
-    const depth = chain.length;
+    const depth = requestedChain.length;
     container.append(buildBreadcrumb(project, nodes));
-    container.append(buildHead(project, item, chain));
-    container.append(buildItemProperties(project, item, chain));
+    container.append(buildHead(project, item, requestedChain));
+    container.append(buildItemProperties(project, item, requestedChain));
     container.append(h('div', { class: 'page-section' }, '📝 内容'));
     const contentBase = itemBase(project.id, nodes.map(node => node.id));
     container.append(buildContentEditor({
@@ -94,7 +99,7 @@ async function paint() {
       }
     }));
     container.append(h('div', { class: 'page-section' }, `📄 ${childLevelName(depth)}`));
-    container.append(buildChildren(project, item, chain, depth));
+    container.append(buildChildren(project, item, requestedChain, depth));
     if (isFreshItem(item)) focusTitle();
   } finally {
     restoreScroll(pos);

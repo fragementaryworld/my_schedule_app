@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
@@ -31,12 +32,16 @@ export async function render(container) {
 }
 
 async function paint() {
-  el.innerHTML = '';
+  const container = el;
+  const active = beginRender(container);
+  if (!active()) return;
+  container.innerHTML = '';
   const w = await api.get('/api/workouts');
-  el.append(buildTabs());
-  if (currentTab === 'schedule') el.append(buildSchedule(w));
-  else if (currentTab === 'logs') el.append(buildLogs(w));
-  else el.append(buildBody(w));
+  if (!active()) return;
+  container.append(buildTabs());
+  if (currentTab === 'schedule') container.append(buildSchedule(w));
+  else if (currentTab === 'logs') container.append(buildLogs(w));
+  else container.append(buildBody(w));
 }
 
 function buildTabs() {

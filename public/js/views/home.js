@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { registerEditor, serializeSave } from '../saving.js';
@@ -231,6 +232,8 @@ function buildIdeaCard(s) {
 
 export async function render(container) {
   el = container;
+  const active = beginRender(container);
+  if (!active()) return;
   container.innerHTML = '';
   const today = todayStr();
   const [prefs, tasks, memos, projects, books, workouts, ideas] = await Promise.all([
@@ -242,6 +245,7 @@ export async function render(container) {
     api.get('/api/workouts'),
     api.get('/api/ideas')
   ]);
+  if (!active()) return;
   const s = summarize({ tasks, memos, projects, books, workouts, ideas }, today, prefs.weekStart || 'mon');
 
   container.append(buildGreeting(today));

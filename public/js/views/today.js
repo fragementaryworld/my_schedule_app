@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 import { PERIODS } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
@@ -39,7 +40,8 @@ export function partitionTasks(tasks) {
 async function paint() {
   cancelCalendarDrag();
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
-  if (!container) return;
+  const active = beginRender(container);
+  if (!active()) return;
   const pos = scrollPos();
   const version = ++paintVersion;
   const { from, to } = rangeOf(anchor, view, weekStartPref);
@@ -49,7 +51,7 @@ async function paint() {
     api.get(`/api/tasks?from=${from}&to=${to}&includePool=1`),
     api.get('/api/projects')
   ]);
-  if (version !== paintVersion || container !== el) return;
+  if (!active() || version !== paintVersion || container !== el) return;
   const allDaily = dailyEntries(tasks, projects);
   const key = e => `${e.kind}:${e.kind === 'project' ? e.projectId : ''}:${e.id}`;
   const dailyByKey = new Map(dailyEntries(tasks, projects, true).map(e => [key(e), e]));
@@ -475,6 +477,7 @@ async function addTask() {
 
 export async function render(container) {
   el = container;
+  const active = beginRender(container);
   anchor = todayStr();
   selectedDate = todayStr();
   try {
@@ -483,7 +486,7 @@ export async function render(container) {
   } catch (err) {
     weekStartPref = 'mon';
   }
-  await paint();
+  if (active()) await paint();
 }
 
 export function add() {

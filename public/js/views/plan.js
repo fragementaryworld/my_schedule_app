@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
 'use strict';
 import { registerEditor, serializeSave } from '../saving.js';
@@ -27,11 +28,13 @@ export async function render(container, params = {}) {
 
 async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
-  if (!container) return;
+  const active = beginRender(container);
+  if (!active()) return;
   const pos = scrollPos();
   const focus = focusSnapshot();
   titleEl = null;
   const [task, projects] = await Promise.all([api.get(`/api/tasks/${encodeURIComponent(taskId)}`), api.get('/api/projects')]);
+  if (!active()) return;
   container.innerHTML = '';
   try {
     if (!task || !task.id) {

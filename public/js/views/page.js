@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
@@ -153,12 +154,15 @@ export async function render(container, params = {}) {
 
 async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
-  if (!container) return;
+  const active = beginRender(container);
+  if (!active()) return;
   const pos = scrollPos();
   const focus = focusSnapshot();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
+  const requestedId = pageId;
   const projects = await api.get('/api/projects');
-  const page = projects.find((x) => x.id === pageId);
+  if (!active()) return;
+  const page = projects.find((x) => x.id === requestedId);
   blockEls.clear();
   clearContentEditors();
   titleEl = null;

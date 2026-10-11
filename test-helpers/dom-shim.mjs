@@ -105,6 +105,14 @@ export class Element {
     }
     this.parentNode = null;
   }
+  replaceWith(node) {
+    const parent = this.parentNode;
+    if (!parent) return;
+    const index = parent.children.indexOf(this);
+    parent.children.splice(index, 1, node);
+    node.parentNode = parent;
+    this.parentNode = null;
+  }
   focus() {}
   blur() {
     this.dispatchEvent('blur');

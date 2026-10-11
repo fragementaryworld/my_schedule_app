@@ -1,3 +1,4 @@
+import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { registerEditor, serializeSave } from '../saving.js';
 import { api } from '../api.js';
@@ -421,11 +422,13 @@ export async function render(container, params = {}) {
 
 async function paintList() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
-  if (!container) return;
+  const active = beginRender(container);
+  if (!active()) return;
   const pos = scrollPos();
   const focus = focusSnapshot();
   // 先取数据，再一次性重建：中间不出现空页面，滚动条就不会被弹回顶部
   const projects = await api.get('/api/projects');
+  if (!active()) return;
   container.innerHTML = '';
   try {
     container.append(buildViewBar());

@@ -2,6 +2,8 @@
 import { api } from './api.js';
 import { toast, h, confirmDialog } from './ui.js';
 import { flushPendingEdits, waitForPendingWrites } from './saving.js';
+import { retireView } from './view-lifecycle.js';
+import { cancelCalendarDrag } from './calendar-drag.js';
 import * as home from './views/home.js';
 import * as today from './views/today.js';
 import * as projects from './views/projects.js';
@@ -88,6 +90,8 @@ export async function endService() {
 
 let currentView = null;
 let currentParams = {};
+let navigationVersion = 0;
+let displayedHash = '';
 
 function parseHash() {
   const hash = location.hash.replace(/^#\/?/, '');
@@ -102,10 +106,28 @@ function parseHash() {
 }
 
 export async function navigate() {
+  const version = ++navigationVersion;
+  const requestedHash = location.hash;
   const { route, id, subId, subId2, chain } = parseHash();
   const view = views[route] || views.home;
+  try {
+    await flushPendingEdits();
+  } catch (error) {
+    if (version !== navigationVersion) return;
+    await waitForPendingWrites().catch(() => {});
+    if (displayedHash && typeof history !== 'undefined') history.replaceState(null, '', displayedHash);
+    toast('无法离开页面，编辑尚未保存：' + error.message, 'error');
+    return;
+  }
+  if (version !== navigationVersion || ending) return;
+  const previous = document.getElementById('content');
+  retireView(previous);
+  cancelCalendarDrag();
+  const content = h('div', { id: 'content' });
+  previous.replaceWith(content);
   currentView = view;
   currentParams = { id, subId, subId2, chain };
+  displayedHash = requestedHash;
   const navRoute = (route === 'page' || route === 'task') ? 'projects' : (route === 'plan' ? 'today' : route);
   document.querySelectorAll('#nav a, .sidebar-foot a').forEach((a) => {
     a.classList.toggle('active', a.dataset.route === navRoute);
@@ -113,9 +135,16 @@ export async function navigate() {
     else a.removeAttribute('aria-current');
   });
   document.getElementById('pageTitle').textContent = titles[route] || titles.home;
-  const content = document.getElementById('content');
-  content.innerHTML = '';
-  await view.render(content, currentParams);
+  try {
+    await view.render(content, currentParams);
+  } catch (error) {
+    if (version !== navigationVersion) return;
+    content.innerHTML = '';
+    const retry = h('button', { class: 'btn' }, '重新加载');
+    retry.onclick = navigate;
+    content.append(h('div', { class: 'empty', role: 'alert' }, h('p', {}, '页面加载失败：' + error.message), retry));
+  }
+  if (version !== navigationVersion) return;
   content.scrollTop = 0;
   window.scrollTo(0, 0);
 }
