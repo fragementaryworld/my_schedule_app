@@ -3,7 +3,7 @@ import { ownerOptions, ownerPatch } from '../ownership.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
-import { escapeHtml, IDEA_STATUS, IDEA_ORDER, todayStr } from '../utils.js';
+import { IDEA_STATUS, IDEA_ORDER, todayStr } from '../utils.js';
 
 let el = null;
 let searchText = '';
@@ -91,12 +91,12 @@ function buildCard(idea) {
   card.ondragstart = (e) => { e.dataTransfer.setData('text/plain', idea.id); card.classList.add('dragging'); };
   card.ondragend = () => card.classList.remove('dragging');
 
-  const title = h('div', { class: 'title', style: 'cursor:pointer' }, escapeHtml(idea.title));
+  const title = h('div', { class: 'title', style: 'cursor:pointer' }, idea.title);
   title.onclick = () => ideaModal(idea);
   card.append(title);
-  if (idea.desc) card.append(h('div', { class: 'small muted', style: 'margin-top:2px' }, escapeHtml(idea.desc.slice(0, 60))));
+  if (idea.desc) card.append(h('div', { class: 'small muted', style: 'margin-top:2px' }, idea.desc.slice(0, 60)));
   if (idea.tags && idea.tags.length) {
-    card.append(h('div', { style: 'margin-top:4px' }, ...idea.tags.map((t) => h('span', { class: 'tag' }, escapeHtml(t)))));
+    card.append(h('div', { style: 'margin-top:4px' }, ...idea.tags.map((t) => h('span', { class: 'tag' }, t))));
   }
 
   const actions = h('div', { class: 'row', style: 'margin-top:8px' });

@@ -3,7 +3,6 @@ import { buildPlanProperty } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
-import { escapeHtml } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { DEFAULT_TASK_NAME, itemBase, itemHref, createChild, buildChildViews } from './projects.js';
 import { restoreBlockEditing, buildContentEditor, restoreContentEditing, clearContentEditors } from './page.js';
@@ -114,14 +113,14 @@ export function buildBreadcrumb(project, nodes) {
   const bar = h('div', { class: 'breadcrumb' });
   bar.append(h('a', { href: '#/projects', class: 'crumb' }, '项目'));
   bar.append(h('span', { class: 'crumb-sep' }, '/'));
-  bar.append(h('a', { href: `#/page/${project.id}`, class: 'crumb' }, `${project.icon || '📁'} ${escapeHtml(project.name)}`));
+  bar.append(h('a', { href: `#/page/${project.id}`, class: 'crumb' }, `${project.icon || '📁'} ${project.name}`));
 
   nodes.forEach((node, i) => {
     bar.append(h('span', { class: 'crumb-sep' }, '/'));
     if (i === nodes.length - 1) {
-      bar.append(h('span', { class: 'crumb current' }, `${levelName(i + 1)}：${escapeHtml(node.title)}`));
+      bar.append(h('span', { class: 'crumb current' }, `${levelName(i + 1)}：${node.title}`));
     } else {
-      bar.append(h('a', { href: itemHref(project.id, ids.slice(0, i + 1)), class: 'crumb' }, escapeHtml(node.title)));
+      bar.append(h('a', { href: itemHref(project.id, ids.slice(0, i + 1)), class: 'crumb' }, node.title));
     }
   });
 

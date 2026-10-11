@@ -2,7 +2,7 @@ import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
-import { todayStr, fmtDate, escapeHtml } from '../utils.js';
+import { todayStr, fmtDate } from '../utils.js';
 
 let el = null;
 let currentTab = 'schedule';
@@ -101,7 +101,7 @@ function buildLogs(w) {
     }).join('、');
     item.append(h('div', { class: 'row' }, h('span', { style: 'font-weight:600' }, fmtDate(log.date)), h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, log.duration || '')));
     if (names) item.append(h('div', {}, names));
-    if (log.note) item.append(h('div', { class: 'small muted' }, escapeHtml(log.note)));
+    if (log.note) item.append(h('div', { class: 'small muted' }, log.note));
     list.append(item);
   }
   wrap.append(list);

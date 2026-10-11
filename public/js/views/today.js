@@ -3,7 +3,7 @@ import { PERIODS } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
-import { todayStr, escapeHtml, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
+import { todayStr, isOverdue, priorityClass, priorityLabel, estimateText } from '../utils.js';
 import { dailyEntries, dailySections, filterDailyEntries, buildDailyFilters, buildDailyBoard, withPlannedCalendarEntries } from '../daily.js';
 import {
   CALENDAR_VIEWS, DAY_TASK_COLOR, weekdayLabels, visibleDates, rangeOf, sortDayEntries,
@@ -282,7 +282,7 @@ function buildSpanLayer(layout, cols, row, dates) {
     el.append(leftH);
 
     if (bar.continuesLeft) el.append(h('span', { class: 'cal-span-clip' }, '◀'));
-    el.append(h('span', { class: 'cal-span-title' }, escapeHtml(e.title)));
+    el.append(h('span', { class: 'cal-span-title' }, e.title));
     el.append(h('span', { class: 'cal-span-days' }, `${e.spanDays} 天`));
     if (bar.continuesRight) el.append(h('span', { class: 'cal-span-clip' }, '▶'));
     el.append(rightH);
@@ -337,7 +337,7 @@ function buildCard(e, compact, ctx) {
   const titleRow = h('div', { class: 'row cal-card-titlerow' });
   titleRow.append(h('i', { class: 'cal-dot', style: `background:${e.color || DAY_TASK_COLOR}` }));
   if (e.continued) titleRow.append(h('span', { class: 'cal-cont', title: `延续自 ${e.spanFrom}` }, '↳'));
-  const title = h('span', { class: 'cal-card-title row-link' }, escapeHtml(e.title));
+  const title = h('span', { class: 'cal-card-title row-link' }, e.title);
   title.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
   titleRow.append(title);
 
@@ -381,7 +381,7 @@ function buildCard(e, compact, ctx) {
   if (!e.planOnly && e.planDate === e.date && e.planTime) meta.append(h('span', { class: 'cal-chip' }, `安排 ${timeRangeLabel(e.planTime, e.planEndTime)}`));
   if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
   if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
-  if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
+  if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${e.projectName}`));
   if (e.spanDays > 1) meta.append(h('span', { class: 'cal-chip' }, `${e.spanStart ? '起' : (e.spanEnd ? '止' : '续')} · 共 ${e.spanDays} 天`));
   if (e.repeat || e.repeatOf) meta.append(h('span', { class: 'cal-chip' }, '🔁'));
   if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));

@@ -4,7 +4,7 @@ import { buildPlanProperty } from '../planning.js';
 import { registerEditor, serializeSave } from '../saving.js';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
-import { escapeHtml, todayStr } from '../utils.js';
+import { todayStr } from '../utils.js';
 import { buildEstimateField } from '../estimate.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
@@ -57,7 +57,7 @@ function buildBreadcrumb(task) {
   const bar = h('div', { class: 'breadcrumb' });
   bar.append(h('a', { href: '#/today', class: 'crumb' }, '今日计划'));
   bar.append(h('span', { class: 'crumb-sep' }, '/'));
-  bar.append(h('span', { class: 'crumb current' }, `任务：${escapeHtml(task.title)}`));
+  bar.append(h('span', { class: 'crumb current' }, `任务：${task.title}`));
   bar.append(h('span', { class: 'spacer' }));
 
   const del = h('button', { class: 'btn btn-sm btn-danger' }, '🗑 删除任务');

@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { registerEditor, serializeSave } from '../saving.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
 import {
-  todayStr, fmtDate, escapeHtml, isOverdue, weekdayIndex, weekStartDate,
+  todayStr, fmtDate, isOverdue, weekdayIndex, weekStartDate,
   priorityClass, priorityLabel, PROJECT_STATUS, BOOK_STATUS, estimateText
 } from '../utils.js';
 
@@ -122,7 +122,7 @@ function buildTodayCard(s, today) {
     for (const t of s.top3) {
       const row = h('div', { class: 'row', style: 'padding:4px 0' });
       row.append(h('span', { class: `badge ${priorityClass(t.priority)}` }, priorityLabel(t.priority)));
-      row.append(h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(t.title)));
+      row.append(h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, t.title));
       if (estimateText(t)) row.append(h('span', { class: 'small muted estimate-chip' }, estimateText(t)));
       if (isOverdue(t, today)) row.append(h('span', { class: 'badge overdue' }, '逾期'));
       list.append(row);
@@ -141,7 +141,7 @@ function buildMemoCard(s) {
   if (s.memos.length) {
     for (const m of s.memos) {
       const line = h('div', { class: 'memo-line' });
-      line.append(h('span', { class: 'text', title: m.text }, escapeHtml(m.text)));
+      line.append(h('span', { class: 'text', title: m.text }, m.text));
       const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
       const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
       edit.onclick = async (e) => {
@@ -176,7 +176,7 @@ function buildProjectCard(s) {
     for (const p of s.activeProjects.slice(0, 2)) {
       const row = h('div', { style: 'padding:6px 0;cursor:pointer' });
       row.onclick = (e) => { e.stopPropagation(); location.hash = `#/page/${p.id}`; };
-      row.append(h('div', { class: 'row' }, h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(p.name)), h('span', { class: 'small muted' }, `${p.progress || 0}%`)));
+      row.append(h('div', { class: 'row' }, h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, p.name), h('span', { class: 'small muted' }, `${p.progress || 0}%`)));
       row.append(h('div', { class: 'progress' }, h('i', { style: `width:${p.progress || 0}%` })));
       card.append(row);
     }
@@ -195,7 +195,7 @@ function buildReadingCard(s) {
       const pct = bookPercent(b);
       const row = h('div', { style: 'padding:6px 0;cursor:pointer' });
       row.onclick = (e) => { e.stopPropagation(); location.hash = `#/reading/${b.id}`; };
-      row.append(h('div', { class: 'row' }, h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(b.title)), h('span', { class: 'small muted' }, `${pct}%`)));
+      row.append(h('div', { class: 'row' }, h('span', { style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, b.title), h('span', { class: 'small muted' }, `${pct}%`)));
       row.append(h('div', { class: 'progress' }, h('i', { style: `width:${pct}%` })));
       card.append(row);
     }
@@ -221,7 +221,7 @@ function buildIdeaCard(s) {
   card.append(h('div', { class: 'card-title' }, '💡 灵感', h('span', { class: 'spacer' }), h('span', { class: 'small muted' }, `${s.ideasOpen} 个未完成`)));
   if (s.latestIdeas.length) {
     for (const i of s.latestIdeas) {
-      card.append(h('div', { class: 'memo-line' }, h('span', { class: 'text', title: i.title }, escapeHtml(i.title))));
+      card.append(h('div', { class: 'memo-line' }, h('span', { class: 'text', title: i.title }, i.title)));
     }
   } else {
     card.append(h('p', { class: 'muted' }, '有灵感就记下来吧。'));

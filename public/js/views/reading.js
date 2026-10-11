@@ -2,7 +2,7 @@ import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
-import { escapeHtml, BOOK_STATUS, todayStr, fmtDate } from '../utils.js';
+import { BOOK_STATUS, todayStr, fmtDate } from '../utils.js';
 
 let el = null;
 let currentParams = {};
@@ -66,7 +66,7 @@ function buildBookCard(b) {
   const card = h('div', { class: 'card book-card' });
   card.onclick = () => { location.hash = `#/reading/${b.id}`; };
   card.append(h('div', { class: 'book-cover' }, (b.title || '书').slice(0, 1)));
-  card.append(h('div', { style: 'font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, escapeHtml(b.title)));
+  card.append(h('div', { style: 'font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, b.title));
   card.append(h('div', { class: 'small muted' }, b.author || '未知作者'));
   card.append(h('div', { class: 'row', style: 'margin-top:8px' },
     h('div', { class: 'progress', style: 'flex:1' }, h('i', { style: `width:${pct}%` })),
@@ -100,7 +100,7 @@ function buildBookHead(b) {
   const back = h('button', { class: 'btn btn-sm' }, '← 返回');
   back.onclick = () => { location.hash = '#/reading'; };
   head.append(back);
-  head.append(h('h2', {}, escapeHtml(b.title)));
+  head.append(h('h2', {}, b.title));
   head.append(h('span', { class: 'small muted' }, b.author || ''));
   const st = BOOK_STATUS[b.status] || BOOK_STATUS.want;
   head.append(h('span', { class: 'badge' }, st.label));
@@ -181,8 +181,8 @@ function buildNotes(b) {
   }
   for (const n of b.notes) {
     const row = h('div', { class: 'list-item', style: 'padding:10px 0' });
-    if (n.excerpt) row.append(h('div', { class: 'small muted', style: 'border-left:3px solid var(--primary);padding-left:8px;margin-bottom:4px' }, escapeHtml(n.excerpt)));
-    if (n.thought) row.append(h('div', {}, escapeHtml(n.thought)));
+    if (n.excerpt) row.append(h('div', { class: 'small muted', style: 'border-left:3px solid var(--primary);padding-left:8px;margin-bottom:4px' }, n.excerpt));
+    if (n.thought) row.append(h('div', {}, n.thought));
     const actions = h('div', { class: 'row', style: 'margin-top:4px' });
     actions.append(h('span', { class: 'small muted' }, fmtDate(n.createdAt.slice(0, 10))));
     const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');

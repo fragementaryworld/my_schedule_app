@@ -3,7 +3,7 @@ import { beginRender } from '../view-lifecycle.js';
 import { registerEditor, serializeSave } from '../saving.js';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
-import { escapeHtml, PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays, estimateText } from '../utils.js';
+import { PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays, estimateText } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { formatDateValue } from '../datepicker.js';
 
@@ -501,7 +501,7 @@ function buildBoardCard(p) {
   const card = h('div', { class: 'kanban-card', draggable: 'true', style: 'cursor:pointer' });
   card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); });
   card.onclick = () => { location.hash = `#/page/${p.id}`; };
-  card.append(h('div', { class: 'title', style: 'font-weight:600;margin-bottom:6px' }, escapeHtml(d.name)));
+  card.append(h('div', { class: 'title', style: 'font-weight:600;margin-bottom:6px' }, d.name));
   card.append(h('div', { class: 'small muted' }, d.dates));
   const metaRow = h('div', { class: 'row', style: 'margin-top:6px;flex-wrap:wrap' });
   metaRow.append(h('span', { class: `badge ${d.priorityCls}` }, d.priorityLabel));
@@ -557,7 +557,7 @@ function buildProjectTimeline(projects) {
       const row = h('div', { class: 'timeline-row', style: `min-width:${rowMinW}px` });
       const label = h('span', { class: 'timeline-label', title: `${p.name}（拖到分组标题可改状态）`, draggable: 'true' },
         h('i', { class: 'timeline-dot', style: `background:${color}` }),
-        escapeHtml(p.name));
+        p.name);
       label.onclick = () => { location.hash = `#/page/${p.id}`; };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', p.id); };
       row.append(label);
@@ -701,7 +701,7 @@ function buildFeedPost(p) {
   const post = h('div', { class: 'feed-post card' });
 
   const head = h('div', { class: 'row', style: 'margin-bottom:8px' });
-  head.append(h('span', { class: 'avatar' }, escapeHtml((d.owner || '我').slice(0, 1))));
+  head.append(h('span', { class: 'avatar' }, (d.owner || '我').slice(0, 1)));
   head.append(h('span', { class: 'small muted' }, `${d.owner || '我的'} · ${String(p.createdAt || '').slice(0, 10)}`));
   head.append(h('span', { class: 'spacer' }));
 
@@ -824,7 +824,7 @@ function feedTaskCol(title, tasks, p, doneFlag) {
   for (const t of tasks) {
     const card = h('div', { class: 'kanban-card', draggable: 'true' });
     card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
-    card.append(h('div', { class: 'title' }, escapeHtml(t.title)));
+    card.append(h('div', { class: 'title' }, t.title));
     if (t.dueDate) card.append(h('div', { class: 'small muted' }, `📅 ${t.dueDate}`));
     const subs = t.subtasks || [];
     card.append(h('div', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
@@ -849,17 +849,17 @@ function buildProjectRow(p) {
   const d = projectRowData(p);
   const tr = h('tr', { style: 'cursor:pointer' });
   tr.onclick = () => { location.hash = `#/page/${p.id}`; };
-  tr.append(h('td', {}, h('span', { class: 'proj-name' }, escapeHtml(d.name))));
+  tr.append(h('td', {}, h('span', { class: 'proj-name' }, d.name)));
   tr.append(h('td', {}, h('span', { class: `badge ${d.statusCls}` }, d.statusLabel)));
   tr.append(h('td', {}, d.owner
-    ? h('span', { class: 'row' }, h('span', { class: 'avatar' }, escapeHtml(d.owner.slice(0, 1))), d.owner)
+    ? h('span', { class: 'row' }, h('span', { class: 'avatar' }, d.owner.slice(0, 1)), d.owner)
     : h('span', { class: 'muted' }, '—')));
   tr.append(h('td', { class: 'small muted' }, d.dates));
   tr.append(h('td', {}, h('span', { class: `badge ${d.priorityCls}` }, d.priorityLabel)));
   tr.append(h('td', {}, h('div', { class: 'row' },
     h('div', { class: 'progress', style: 'width:70px' }, h('i', { style: `width:${d.completion}%` })),
     h('span', { class: 'small muted' }, `${d.completion}%`))));
-  tr.append(h('td', {}, d.blockedBy ? h('span', { class: 'badge blocked' }, escapeHtml(d.blockedBy)) : ''));
+  tr.append(h('td', {}, d.blockedBy ? h('span', { class: 'badge blocked' }, d.blockedBy) : ''));
 
   const tdOps = h('td', {});
   const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
@@ -1034,7 +1034,7 @@ export function buildItemTable(ctx) {
     tdCb.append(cb);
     tr.append(tdCb);
 
-    const titleSpan = h('span', { class: 'row-link' + (t.done ? ' muted' : '') }, escapeHtml(t.title));
+    const titleSpan = h('span', { class: 'row-link' + (t.done ? ' muted' : '') }, t.title);
     titleSpan.onclick = () => { location.hash = ctx.href(t); };
     tr.append(h('td', {}, titleSpan));
 
@@ -1107,7 +1107,7 @@ function subtreeItemRow(ctx, entry) {
   const link = h('span', {
     class: 'row-link',
     style: `flex:1;${node.done ? 'text-decoration:line-through;color:var(--muted)' : ''}`
-  }, escapeHtml(node.title));
+  }, node.title);
   link.onclick = () => { location.hash = ctx.deepHref(path); };
   row.append(link);
 
@@ -1213,7 +1213,7 @@ export function buildItemTimeline(ctx) {
         style: entry.depth > 1 ? `padding-left:${(entry.depth - 1) * 14}px` : '',
         title: `${t.title}（拖到分组标题可切换完成）`,
         draggable: 'true'
-      }, h('i', { class: 'timeline-dot', style: `background:${color}` }), escapeHtml(t.title));
+      }, h('i', { class: 'timeline-dot', style: `background:${color}` }), t.title);
       if (estimateText(t)) label.append(h('span', { class: 'small muted estimate-chip' }, estimateText(t)));
       label.onclick = () => { location.hash = ctx.deepHref(entry.path); };
       label.ondragstart = (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); };
@@ -1306,7 +1306,7 @@ function itemCol(ctx, title, entries, today, doneFlag, all) {
     });
     card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', t.id); });
 
-    const titleEl = h('div', { class: 'title row-link' }, escapeHtml(t.title));
+    const titleEl = h('div', { class: 'title row-link' }, t.title);
     titleEl.onclick = () => { location.hash = ctx.deepHref(entry.path); };
     card.append(titleEl);
 
@@ -1329,7 +1329,7 @@ function itemCol(ctx, title, entries, today, doneFlag, all) {
           st.done = !st.done;
           ctx.refresh();
         };
-        const subLink = h('span', { class: 'small row-link', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, escapeHtml(st.title));
+        const subLink = h('span', { class: 'small row-link', style: `flex:1;${st.done ? 'text-decoration:line-through;color:var(--muted)' : ''}` }, st.title);
         subLink.onclick = (e) => { if (e && e.stopPropagation) e.stopPropagation(); location.hash = ctx.deepHref(subEntry.path); };
         list.append(h('div', { class: 'row' }, scb, subLink));
       }
@@ -1482,7 +1482,7 @@ function itemSubCol(ctx, title, entries, doneFlag, all) {
   for (const entry of entries) {
     const card = h('div', { class: 'kanban-card', draggable: 'true' });
     card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', entry.node.id); });
-    card.append(h('div', { class: 'title' }, escapeHtml(entry.node.title)));
+    card.append(h('div', { class: 'title' }, entry.node.title));
     col.append(card);
   }
   return col;

@@ -2,7 +2,7 @@ import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
-import { escapeHtml, PROJECT_STATUS } from '../utils.js';
+import { PROJECT_STATUS } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
 import { registerEditor, serializeSave } from '../saving.js';
@@ -216,7 +216,7 @@ function buildBreadcrumb(page) {
   const bar = h('div', { class: 'breadcrumb' });
   bar.append(h('a', { href: '#/projects', class: 'crumb' }, '项目'));
   bar.append(h('span', { class: 'crumb-sep' }, '/'));
-  bar.append(h('span', { class: 'crumb current' }, `${page.icon || '📁'} ${escapeHtml(page.name)}`));
+  bar.append(h('span', { class: 'crumb current' }, `${page.icon || '📁'} ${page.name}`));
   bar.append(h('span', { class: 'spacer' }));
 
   const del = h('button', { class: 'btn btn-sm btn-danger' }, '🗑 删除页面');
