@@ -11,6 +11,7 @@ import {
   clampColDelta, dragRangePatch, dragSinglePatch
 } from '../calendar.js';
 import { createDayTask, dayTaskHref, timeRangeLabel } from '../daytask.js';
+import { attachCalendarDrag, cancelCalendarDrag } from '../calendar-drag.js';
 
 // 兼容：这些纯函数仍从本模块导出（供既有测试与页面复用）
 export { repeatCode, decodeRepeat, repeatLabel, sourceLabel } from '../daytask.js';
@@ -36,6 +37,7 @@ export function partitionTasks(tasks) {
 }
 
 async function paint() {
+  cancelCalendarDrag();
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   if (!container) return;
   const pos = scrollPos();
@@ -64,6 +66,7 @@ async function paint() {
     container.append(buildToolbar());
     const content = h('div', { class: 'daily-content' });
     const update = () => {
+      cancelCalendarDrag();
       content.innerHTML = '';
       const filtered = filterDailyEntries(items, filters);
       const byDate = groupByDate(expandEntries(filtered, dates));
@@ -151,16 +154,8 @@ function buildWeekdays() {
 }
 
 // 跨天任务用连续 block 画在顶部，单日任务仍放在当天格子里
-const SPAN_TOP = 28;
-const SPAN_LANE_H = 22;
-const DRAG_THRESHOLD = 4; // 抖动阈值，避免点一下就当成拖动
-
-function rowWidthPx(rowEl) {
-  const rect = rowEl && rowEl.getBoundingClientRect ? rowEl.getBoundingClientRect() : null;
-  const w = (rect && rect.width) || (rowEl && rowEl.offsetWidth) || 0;
-  return w > 0 ? w : 0;
-}
-
+const SPAN_TOP = 34;
+const SPAN_LANE_H = 28;
 // 拖动期间抑制随之而来的 click（否则会顺手把日期选中/打开页面）
 let suppressClick = false;
 function suppressNextClick() {
@@ -173,44 +168,15 @@ async function saveEntryPatch(entry, patch) {
   if (entry.kind === 'project') await api.put(entry.base, patch);
   else await api.put(`/api/tasks/${entry.id}`, patch);
   toast('时间已更新');
-  paint();
+  try { await paint(); }
+  catch (error) { toast(`时间已保存，刷新失败：${error.message}`, 'error'); }
 }
 
-// 通用拖动：按住把手左右移动，松手按"列 = 天"吸附
-function attachDrag(handleEl, opts) {
-  // 把手上的普通点击不要冒泡（避免顺手打开任务页面）
-  handleEl.addEventListener('click', (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); });
-  handleEl.addEventListener('mousedown', (ev) => {
-    if (ev && ev.button !== undefined && ev.button !== 0) return;
-    if (ev && ev.preventDefault) ev.preventDefault();
-    if (ev && ev.stopPropagation) ev.stopPropagation();
-
-    const cols = opts.dates.length;
-    const width = rowWidthPx(opts.row);
-    if (!width || !cols) return;
-    const colW = width / cols;
-    const startX = (ev && ev.clientX) || 0;
-    let applied = 0;
-    let moved = false;
-
-    const onMove = (e2) => {
-      const dx = ((e2 && e2.clientX) || 0) - startX;
-      if (!moved && Math.abs(dx) < DRAG_THRESHOLD) return;
-      moved = true;
-      applied = opts.clamp(Math.round(dx / colW));
-      if (opts.onPreview) opts.onPreview(applied, colW);
-    };
-    const onUp = async () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (!moved) return;
-      suppressNextClick();
-      if (opts.onEnd) opts.onEnd();
-      if (!applied) return;
-      await saveEntryPatch(opts.entry, opts.patchOf(applied));
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+// 统一拖动生命周期：连续预览、按帧更新、目标提示、取消和保存失败恢复。
+function attachDrag(handle, opts) {
+  attachCalendarDrag(handle, {
+    ...opts, suppressClick: suppressNextClick, savePatch: saveEntryPatch,
+    onError: error => toast(`保存失败：${error.message}`, 'error')
   });
 }
 
@@ -225,6 +191,7 @@ function buildRow(rowDates, byDate, opts) {
     const cell = h('div', {
       class: (month ? 'cal-cell' : 'cal-col')
         + (month && !sameMonth(d, y, m) ? ' outside' : '')
+        + ([0, 6].includes(new Date(d + 'T12:00:00').getDay()) ? ' weekend' : '')
         + (isToday(d) ? ' today' : '')
         + (d === selectedDate ? ' selected' : ''),
       dataset: { date: d }
@@ -267,13 +234,22 @@ function buildSpanLayer(layout, cols, row, dates) {
       openEntry(e);
     };
 
+    const resetSpan = () => {
+      el.style.transform = ''; el.style.left = pct(bar.startCol);
+      el.style.width = pct(bar.endCol - bar.startCol + 1); el.classList.remove('dragging');
+    };
     // 整体平移
     attachDrag(el, {
       entry: e,
       row,
       dates,
       clamp: (delta) => clampColDelta('move', bar.startCol, bar.endCol, delta, cols),
-      onPreview: (delta) => { el.style.left = pct(bar.startCol + delta); },
+      crossRows: true,
+      onPreview: (_, __, position) => {
+        el.classList.add('dragging');
+        el.style.transform = `translate3d(${position.dx}px,${position.dy}px,0)`;
+      },
+      onEnd: resetSpan,
       patchOf: (delta) => dragRangePatch(e, delta, 'move')
     });
 
@@ -289,6 +265,7 @@ function buildSpanLayer(layout, cols, row, dates) {
         el.style.left = pct(bar.startCol + delta);
         el.style.width = pct(bar.endCol - (bar.startCol + delta) + 1);
       },
+      onEnd: resetSpan,
       patchOf: (delta) => dragRangePatch(e, delta, 'start')
     });
     attachDrag(rightH, {
@@ -297,6 +274,7 @@ function buildSpanLayer(layout, cols, row, dates) {
       dates,
       clamp: (delta) => clampColDelta('end', bar.startCol, bar.endCol, delta, cols),
       onPreview: (delta) => { el.style.width = pct(bar.endCol + delta - bar.startCol + 1); },
+      onEnd: resetSpan,
       patchOf: (delta) => dragRangePatch(e, delta, 'end')
     });
     el.append(leftH);
@@ -369,9 +347,10 @@ function buildCard(e, compact, ctx) {
       row: ctx.row,
       dates: ctx.dates,
       clamp: (delta) => clampColDelta('move', ctx.col, ctx.col, delta, ctx.dates.length),
-      onPreview: (delta, colW) => {
+      crossRows: true,
+      onPreview: (_, __, position) => {
         card.classList.add('dragging');
-        card.style.transform = `translateX(${delta * colW}px)`;
+        card.style.transform = `translate3d(${position.dx}px,${position.dy}px,0)`;
       },
       onEnd: () => { card.style.transform = ''; card.classList.remove('dragging'); },
       patchOf: (delta) => dragSinglePatch(e, delta)
@@ -385,8 +364,8 @@ function buildCard(e, compact, ctx) {
         row: ctx.row,
         dates: ctx.dates,
         clamp: (delta) => clampColDelta('end', ctx.col, ctx.col, delta, ctx.dates.length),
-        onPreview: () => card.classList.add('dragging'),
-        onEnd: () => { card.style.transform = ''; card.classList.remove('dragging'); },
+        onPreview: (delta, colW) => { card.classList.add('dragging'); card.style.width = `${colW * (1 + delta) - 12}px`; },
+        onEnd: () => { card.style.width = ''; card.classList.remove('dragging'); },
         patchOf: (delta) => dragRangePatch(e, delta, 'end')
       });
       card.append(stretch);

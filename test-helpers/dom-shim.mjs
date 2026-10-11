@@ -79,6 +79,9 @@ export class Element {
   addEventListener(type, fn) {
     (this._listeners[type] ||= []).push(fn);
   }
+  removeEventListener(type, fn) {
+    this._listeners[type] = (this._listeners[type] || []).filter(listener => listener !== fn);
+  }
   dispatchEvent(type, event = {}) {
     const e = { preventDefault() {}, stopPropagation() {}, target: this, ...event };
     for (const fn of this._listeners[type] || []) fn(e);
