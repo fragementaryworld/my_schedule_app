@@ -200,6 +200,7 @@ export function buildDailyFilters(filters, onChange, projects = []) {
 export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries = entries } = {}) {
   const sections = dailySections(entries, date);
   const pending = [...sections.planned, ...sections.due].sort((a, b) => comparePlan(a, b, date));
+  const pendingKeys = new Set(pending.map(e => e.base));
   const wrap = h('div', { class: 'daily-board' });
   const active = h('div', { class: 'kanban-col board-col-active' });
   const completed = h('details', { class: 'kanban-col board-col-done daily-done' });
@@ -232,6 +233,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
   }
   const row = (e, candidate = false, onAdded) => {
     const p = planningFor(e, date);
+    const alreadyPending = candidate && pendingKeys.has(e.base);
     const r = h('div', { class: 'daily-task' + (candidate ? '' : ' cal-board-card') + (e.done ? ' done' : ''), dataset: { entry: e.base }, draggable: candidate ? null : 'true' });
     r.addEventListener('dragstart', ev => { ev.stopPropagation(); ev.dataTransfer?.setData('text/plain', e.base); });
     if (!candidate && !e.done && !p.time) {
@@ -254,9 +256,13 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     if (detail) body.append(h('div', { class: 'cal-board-detail' }, truncate(detail, 90)));
     const meta = h('div', { class: 'daily-task-meta' });
     meta.append(h('span', { class: 'daily-owner' }, e.ownerLabel));
+    if (alreadyPending) {
+      const schedule = p.time ? timeRangeLabel(p.time, p.endTime) : PERIODS.find(o => o.value === p.period).label;
+      meta.append(h('span', { class: 'badge daily-plan-status' }, `已在当天待办 · ${schedule}`));
+    }
     if (e.planEndDate) meta.append(h('span', { class: 'daily-plan-range' }, `安排 ${e.planDate} → ${e.planEndDate}`));
     if (e.ancestors?.length) meta.append(h('span', { class: 'daily-breadcrumb' }, e.ancestors.join(' / ')));
-    if (p.time) meta.append(h('span', { class: 'daily-plan-time' }, timeRangeLabel(p.time, p.endTime)));
+    if (p.time && !alreadyPending) meta.append(h('span', { class: 'daily-plan-time' }, timeRangeLabel(p.time, p.endTime)));
     if (candidate && e.spanDays > 1) {
       const originalTime = e.kind === 'project' ? timeRangeLabel(e.startTime, e.dueTime) : timeRangeLabel(e.raw.time, e.raw.endTime);
       meta.append(h('span', {}, `原区间 ${e.spanFrom} → ${e.spanTo} · 跨 ${e.spanDays} 天${originalTime ? ` · ${originalTime}` : ''}`));
@@ -292,10 +298,10 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
         menuItems.append(up, down);
       }
     }
-    if (candidate || (!e.done && !e.planDate && sections.due.includes(e))) {
+    if ((candidate && !alreadyPending) || (!candidate && !e.done && !e.planDate && sections.due.includes(e))) {
       const add = h('button', { class: 'btn btn-sm daily-plan-add', 'aria-label': `加入当天：${e.title}` }, '＋ 加入当天');
       add.onclick = async () => { if (await save(e, { planDate: date })) onAdded?.(); }; actions.append(add);
-    } else if (!e.done && isPlannedOn(e, date)) {
+    } else if (!candidate && !e.done && isPlannedOn(e, date)) {
       const remove = h('button', { class: 'icon-btn', title: '取消安排', 'aria-label': `移出当天：${e.title}` }, e.planEndDate ? '撤销这段安排' : '撤销当天安排');
       remove.onclick = () => save(e, { planDate: null }); menuItems.append(remove);
     }

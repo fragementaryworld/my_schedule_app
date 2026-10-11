@@ -481,6 +481,7 @@
 .daily-task-title:hover { color:var(--primary); }
 .daily-task-meta { display:flex; gap:6px 10px; flex-wrap:wrap; margin-top:5px; font-size:11px; color:var(--muted); }
 .daily-task-meta .badge { font-size:10px; }
+.daily-task-meta .daily-plan-status { color:var(--text); font-weight:600; border:1px solid color-mix(in srgb,var(--success) 50%,var(--border)); background:color-mix(in srgb,var(--success) 12%,var(--panel)); }
 .daily-breadcrumb { color:var(--muted); }
 .daily-task.done .daily-task-title { text-decoration:line-through; color:var(--muted); }
 .daily-actions { display:flex; align-items:center; justify-content:flex-end; gap:3px; flex-wrap:wrap; max-width:260px; }
