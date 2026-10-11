@@ -53,3 +53,24 @@ test('当前完整备份包含日志、笔记和扩展字段时可以无损往�
   assert.deepEqual(exported.workouts, backup.workouts);
   assert.deepEqual(exported.tasks, backup.tasks);
 });
+
+test('旧备份中缺失的嵌套集合补齐，导入后可继续添加任务和笔记', async t => {
+  const { request } = await apiFixture(t);
+  const legacy = { tasks: [], projects: [{ id: 'p', name: '项目' }], books: [{ id: 'b', title: '书' }], ideas: [{ id: 'i', title: '灵感' }] };
+  assert.equal((await request('POST', '/api/backup/import', legacy)).status, 200);
+  assert.equal((await request('POST', '/api/projects/p/tasks', { title: '导入后的任务' })).status, 201);
+  assert.equal((await request('POST', '/api/books/b/notes', { thought: '导入后的笔记' })).status, 201);
+  assert.deepEqual((await request('GET', '/api/ideas')).body[0].tags, []);
+});
+
+test('导入不能绕过日期及父子关系校验，失败后原数据不变', async t => {
+  const { server, request } = await apiFixture(t);
+  const before = server.store.snapshot();
+  for (const invalid of [
+    { ...defaultData(), tasks: [{ id: 't', title: '错误任务', date: 'bad' }] },
+    { ...defaultData(), projects: [{ id: 'a', name: 'A', parentId: 'b' }, { id: 'b', name: 'B', parentId: 'a' }] }
+  ]) {
+    assert.equal((await request('POST', '/api/backup/import', invalid)).status, 400);
+    assert.equal(server.store.snapshot(), before);
+  }
+});

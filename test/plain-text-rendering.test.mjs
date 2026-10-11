@@ -44,3 +44,13 @@ for (const [name, view, params] of [
     assert.equal(findAllByTag(container, 'script').length, 0);
   });
 }
+
+test('旧书籍笔记缺失时间戳时仍能阅读，显示未记录日期', async () => {
+  const container = setup();
+  globalThis.fetch = async () => ({ ok: true, json: async () => [
+    { id: 'b', title: '旧书', status: 'reading', notes: [{ id: 'n', thought: '保留的历史笔记' }] }
+  ] });
+  await reading.render(container, { id: 'b' });
+  assert.ok(textOf(container).includes('保留的历史笔记'));
+  assert.ok(textOf(container).includes('未记录日期'));
+});

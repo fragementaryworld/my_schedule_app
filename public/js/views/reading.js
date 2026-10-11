@@ -184,7 +184,8 @@ function buildNotes(b) {
     if (n.excerpt) row.append(h('div', { class: 'small muted', style: 'border-left:3px solid var(--primary);padding-left:8px;margin-bottom:4px' }, n.excerpt));
     if (n.thought) row.append(h('div', {}, n.thought));
     const actions = h('div', { class: 'row', style: 'margin-top:4px' });
-    actions.append(h('span', { class: 'small muted' }, fmtDate(n.createdAt.slice(0, 10))));
+    actions.append(h('span', { class: 'small muted' }, typeof n.createdAt === 'string' && n.createdAt
+      ? fmtDate(n.createdAt.slice(0, 10)) : '未记录日期'));
     const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
     edit.onclick = () => noteModal(b, n);
     const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
