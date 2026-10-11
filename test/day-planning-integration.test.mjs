@@ -35,7 +35,7 @@ test('实际 HTTP 服务贯通日内安排、排序、刷新、完成和磁盘�
     target.value = 'afternoon';
     findAllByTag(document.body, 'button').find(e => textOf(e) === '安排选中 2 项').click();
     await waitFor(() => findAllByClass(document.body, 'daily-arrange-modal').length === 0);
-    const afternoonTitles = () => findAllByClass(findAllByClass(root, 'daily-period-afternoon')[0], 'daily-task-title').map(textOf);
+    const afternoonTitles = () => findAllByClass(findAllByClass(findAllByClass(root, 'cal-board')[0], 'daily-period-afternoon')[0], 'daily-task-title').map(textOf);
     assert.equal(afternoonTitles().length, 2);
     const last = afternoonTitles()[1]; button(`上移：${last}`).click();
     await waitFor(() => afternoonTitles()[0] === last);

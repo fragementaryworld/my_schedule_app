@@ -463,6 +463,33 @@
 .daily-period h2 { display:flex; align-items:center; gap:8px; font-size:14px; margin:0; }
 .daily-period h2 { color:var(--period-ink); }
 .daily-period h2::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--period-ink); }
+/* Week planning uses the same period variables, including the existing dark palette. */
+.week-period-grid > .cal-col { display:contents; }
+.week-date-head { border:0; border-right:1px solid var(--grid-line); background:var(--panel); color:var(--text); cursor:pointer; padding:8px; }
+.cal-col.selected .week-date-head { box-shadow:inset 0 -2px var(--primary); }
+.week-date-context { padding:8px 6px; border-right:1px solid var(--grid-line); border-top:1px solid var(--grid-line); background:var(--panel-2); min-width:0; }
+.week-date-context > .cal-cards { margin-top:8px; }
+.week-period-grid .week-period-cell { min-width:0; min-height:110px; border:0; border-top:1px solid var(--period-border); border-right:1px solid var(--period-border); border-radius:0; padding:8px 6px 12px; }
+.week-period-head { display:flex; justify-content:space-between; align-items:center; gap:4px; color:var(--period-ink); font-size:12px; font-weight:600; margin-bottom:10px; }
+.week-period-head .daily-count { color:var(--period-ink); background:var(--panel); }
+.week-period-empty { font-size:12px; padding:8px 4px; opacity:.6; }
+.week-period-grid .week-period-span-layer { position:relative; align-self:stretch; inset:auto; min-width:0; z-index:1; }
+.week-period-grid .week-period-span-layer.dragging-layer { z-index:7; }
+.week-period-cell.cal-drop-target { box-shadow:inset 0 0 0 2px var(--period-ink); }
+.week-planning-hint { margin:0; padding:10px 12px; border-top:1px solid var(--border); background:var(--panel); }
+.cal-event-action { flex-shrink:0; align-self:center; font:inherit; font-size:16px; line-height:18px; width:20px; padding:0; margin-left:3px; border:0; border-radius:3px; background:transparent; color:var(--text); cursor:pointer; position:relative; z-index:2; }
+.cal-event-action:hover, .cal-event-action:focus-visible { background:var(--panel); outline:1px solid var(--event-color); }
+.cal-week .cal-card { padding-right:8px; }
+.cal-week .cal-span { padding-right:10px; }
+.cal-event-deadline { color:var(--muted); font-size:10px; flex-shrink:0; }
+.week-task-actions .modal-body { display:flex; flex-direction:column; gap:10px; }
+.week-day-picker { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; padding:8px 4px; border-bottom:1px solid var(--border); }
+.week-day-picker .btn { padding:6px 2px; }
+.week-day-picker .active { color:var(--primary); border-color:var(--primary); background:var(--primary-soft); }
+.cal-board > summary { cursor:pointer; }
+.cal-board > summary::before { content:'▸'; color:var(--muted); }
+.cal-board[open] > summary::before { content:'▾'; }
+.cal-board:not([open]) > summary { margin-bottom:0; }
 .daily-period-head .daily-count { color:var(--period-ink); background:var(--panel); }
 .daily-period-empty { margin:0 0 8px; padding:18px 12px; border:1px dashed var(--period-border); border-radius:var(--radius-sm); font-size:12px; text-align:center; }
 .daily-count { font-size:12px; font-weight:400; color:var(--muted); background:var(--panel-2); padding:1px 7px; border-radius:12px; }

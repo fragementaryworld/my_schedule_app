@@ -48,10 +48,11 @@ test('问题1：新增任务按钮挪到最右边，视图切换留在左边', a
   const top = topRow(el);
   const kids = top.children;
 
-  assert.equal(kids.length, 3, `第一行应是「视图切换 + 分隔 + 新增任务」，实际 ${kids.length} 个`);
+  assert.equal(kids.length, 4, '第一行是视图切换、分隔、安排任务、新增任务');
   assert.ok(kids[0].classList.contains('cal-views'), '第一个是视图切换');
   assert.ok(kids[1].classList.contains('spacer'), '中间是分隔');
-  assert.ok(kids[2].classList.contains('cal-add'), '最后一个（最右）是新增任务');
+  assert.equal(textOf(kids[2]), '安排任务');
+  assert.ok(kids[3].classList.contains('cal-add'), '最后一个（最右）是新增任务');
 });
 
 test('问题1：新增任务与视图窗口是分开的（不再挨着）', async () => {
@@ -68,7 +69,7 @@ test('问题1：新增任务与视图窗口是分开的（不再挨着）', asyn
   const iTabs = top.children.indexOf(tabs);
   const iAdd = top.children.indexOf(add);
   const between = top.children.slice(iTabs + 1, iAdd);
-  assert.equal(between.length, 1);
+  assert.equal(between.length, 2);
   assert.ok(between[0].classList.contains('spacer'), '中间必须有分隔把它推到右边');
 });
 

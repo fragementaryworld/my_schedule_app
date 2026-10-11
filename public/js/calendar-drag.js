@@ -37,7 +37,7 @@ export function attachCalendarDrag(handle, opts) {
     const moveEvent = pointer ? 'pointermove' : 'mousemove';
     const upEvent = pointer ? 'pointerup' : 'mouseup';
     let moved = false, ended = false, frame = null, latest = event;
-    let delta = 0, valid = true, hint = null;
+    let delta = 0, valid = true, hint = null, targetInfo;
     const highlighted = new Set();
     const accepts = ev => !pointer || ev.pointerId === event.pointerId;
     const clearHighlight = () => {
@@ -82,19 +82,22 @@ export function attachCalendarDrag(handle, opts) {
         }
       }
       opts.row.classList.add('dragging'); doc.body.classList.add('calendar-drag-active');
-      const patch = opts.patchOf(delta);
-      const { from, to } = calendarRangeAfterPatch(opts.entry, patch);
-      opts.onPreview?.(visual, colW, { dx: visual * colW, dy: offsetY, delta, from, to, valid });
+      targetInfo = opts.resolveTarget?.(latest);
+      if (targetInfo?.valid === false) valid = false;
+      const patch = opts.patchOf(delta, targetInfo);
+      const { from, to } = (opts.rangeAfterPatch || calendarRangeAfterPatch)(opts.entry, patch);
+      opts.onPreview?.(visual, colW, { dx: visual * colW, dy: offsetY, delta, from, to, valid, targetInfo });
       clearHighlight();
       if (valid) for (const cell of cells) {
         if (cell.dataset.date >= from && cell.dataset.date <= to) {
-          cell.classList.add('cal-drop-target'); highlighted.add(cell);
+          const targetCell = opts.highlightCell?.(cell, targetInfo) || cell;
+          targetCell.classList.add('cal-drop-target'); highlighted.add(targetCell);
         }
       }
       if (!hint) {
         hint = h('div', { class: 'cal-drag-hint', role: 'status', 'aria-live': 'polite' }); doc.body.append(hint);
       }
-      const label = valid ? `${from}${to && to !== from ? ` → ${to}` : ''} · 松手保存，Esc 取消` : '移回日历内安排，Esc 取消';
+      const label = valid ? `${from}${to && to !== from ? ` → ${to}` : ''}${targetInfo?.label ? ` · ${targetInfo.label}` : ''} · 松手保存，Esc 取消` : '移回日历内安排，Esc 取消';
       if (hint.textContent !== label) hint.textContent = label;
       // 保持提示位于视口内，避免遮住落点。
       const viewW = globalThis.innerWidth || 1200, viewH = globalThis.innerHeight || 800;
@@ -138,7 +141,7 @@ export function attachCalendarDrag(handle, opts) {
       if (!accepts(ev) || ended) return;
       if (Number.isFinite(ev.clientX)) latest = ev;
       flush();
-      const patch = moved && valid ? opts.patchOf(delta) : null;
+      const patch = moved && valid ? opts.patchOf(delta, targetInfo) : null;
       if (moved) opts.suppressClick?.();
       clean();
       if (!patch) return;
