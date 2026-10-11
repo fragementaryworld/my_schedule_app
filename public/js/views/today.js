@@ -54,7 +54,7 @@ async function paint() {
     // 每日任务的归属来自独立字段；日历仍保留原有拖动所需的数据。
     const daily = dailyByKey.get(key(e));
     return { ...e, category: daily?.category || 'work', projectId: daily?.projectId || null,
-      projectName: daily?.projectName || '', sourceType: daily?.sourceType || '', ancestors: daily?.ancestors || [],
+      projectName: daily?.projectName || '', ownerKey: daily?.ownerKey, ownerLabel: daily?.ownerLabel, sourceType: daily?.sourceType || '', ancestors: daily?.ancestors || [],
       note: daily?.note || '', desc: daily?.desc || '' };
   }), allDaily);
 
@@ -70,7 +70,7 @@ async function paint() {
       content.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
       content.append(buildLegend(byDate, dates), buildSelectedBoard(filterDailyEntries(allDaily, filters)));
     };
-    container.append(buildDailyFilters(filters, update), content);
+    container.append(buildDailyFilters(filters, update, projects), content);
     update();
   } finally {
     restoreScroll(pos);

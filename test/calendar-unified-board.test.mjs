@@ -56,13 +56,13 @@ async function setup() {
   return root;
 }
 
-test('只保留周/月两个入口，一处日期看板包含三种归属和当天安排', async () => {
+test('周/月共用一处日期看板，平铺任务并显示所属清单', async () => {
   const root = await setup();
   assert.deepEqual(findAllByClass(root, 'tab').map(textOf), ['周视图', '月视图']);
   assert.equal(findAllByClass(root, 'daily-list').length, 0);
   assert.equal(findAllByClass(root, 'cal-board').length, 1);
   assert.equal(findAllByClass(root, 'daily-board').length, 1);
-  for (const text of ['工作项目', '临时专题', '日常事务', '当天安排', '当天截止']) assert.ok(textOf(board(root)).includes(text));
+  for (const text of ['工作事务', '论文', '文件整理', '当天安排', '当天截止']) assert.ok(textOf(board(root)).includes(text));
   assert.equal(findAllByClass(board(root), 'daily-done')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(board(root), 'daily-ongoing')[0].hasAttribute('open'), false);
 });
@@ -97,8 +97,8 @@ test('选日后切换周/月仍显示同一日期，新增任务使用所选日�
 
 test('翻页与今天按钮同步看板，归属筛选同时作用于日历和看板', async () => {
   const root = await setup();
-  const filter = findAllByTag(root, 'select').find(s => s.getAttribute('aria-label') === '全部归属');
-  filter.value = 'temporary'; filter.fire('change');
+  const filter = findAllByTag(root, 'select').find(s => s.getAttribute('aria-label') === '全部清单');
+  filter.value = 'project:topic'; filter.fire('change');
   assert.deepEqual(findAllByClass(board(root), 'cal-board-card').map(c => c.dataset.entry), ['/api/projects/topic/tasks/child']);
   assert.ok(!textOf(cell(root, date)).includes('报发票'));
   findAllByClass(root, 'cal-next')[0].click(); await tick();

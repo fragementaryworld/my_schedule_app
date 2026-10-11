@@ -1,3 +1,4 @@
+import { ownership, ownerOptions } from './ownership.js';
 // 归属决定分组；来源只记录任务从哪里来。每日安排不改项目的截止日期。
 import { h, toast, confirmDialog } from './ui.js';
 import { api } from './api.js';
@@ -6,23 +7,17 @@ import { itemBase, itemHref, timelineColor, createProject } from './views/projec
 import { estimateText, priorityLabel, priorityClass, isOverdue, todayStr } from './utils.js';
 import { timeRangeLabel, dayTaskHref } from './daytask.js';
 
-export const CATEGORY_OPTIONS = [['work', '工作项目'], ['temporary', '临时专题'], ['routine', '日常事务']];
-export const ROUTINE_OPTIONS = [['', '未分类'], ['admin', '行政'], ['communication', '沟通'], ['organizing', '整理']];
-
-export function ownerProjectId(task) {
-  // 显式 null 表示已改为日常事务；缺省才兼容旧的项目来源。
-  return task.projectId !== undefined ? task.projectId : (task.source?.type === 'project' ? task.source.id : null);
-}
+export { ownerProjectId } from './ownership.js';
 
 export function dailyEntries(tasks, projects, includeInactive = false) {
   const projectMap = new Map((projects || []).map(p => [p.id, p]));
-  const ownership = project => ({
+  const legacyOwnership = project => ({
     category: project ? (project.category === 'temporary' ? 'temporary' : 'work') : 'routine',
     projectId: project?.id || null, projectName: project?.name || '',
     color: project ? timelineColor(project.id) : DAY_TASK_COLOR
   });
   const entries = (tasks || []).map(t => ({
-    ...t, kind: 'day', ...ownership(projectMap.get(ownerProjectId(t))),
+    ...t, kind: 'day', ...legacyOwnership(projectMap.get(ownership(t, projects).projectId)), ...ownership(t, projects),
     time: timeRangeLabel(t.time, t.endTime),
     spanFrom: t.date, spanTo: t.endDate || t.date,
     spanDays: t.date ? spanDays({ from: t.date, to: t.endDate || t.date }) : 0,
@@ -40,7 +35,7 @@ export function dailyEntries(tasks, projects, includeInactive = false) {
     }
     const span = itemSpan(node);
     entries.push({
-      ...node, kind: 'project', ...ownership(project), path, ancestors,
+      ...node, kind: 'project', ...legacyOwnership(project), ...ownership({ projectId: project.id }, projects), path, ancestors,
       spanFrom: span?.from, spanTo: span?.to, spanDays: spanDays(span),
       time: node.dueTime || '', sourceType: project.sourceIdeaId ? 'idea' : 'project',
       overdue: isOverdue(node, todayStr()),
@@ -54,7 +49,7 @@ export function dailyEntries(tasks, projects, includeInactive = false) {
 
 export function filterDailyEntries(entries, filters = {}) {
   const q = (filters.search || '').trim().toLocaleLowerCase();
-  return entries.filter(e => (!filters.category || e.category === filters.category)
+  return entries.filter(e => (!filters.owner || e.ownerKey === filters.owner)
     && (!q || [e.title, e.projectName, ...(e.ancestors || []), e.note, e.desc].join(' ').toLocaleLowerCase().includes(q)));
 }
 
@@ -109,7 +104,7 @@ export function entryForest(entries) {
   return roots;
 }
 
-export function buildDailyFilters(filters, onChange) {
+export function buildDailyFilters(filters, onChange, projects = []) {
   const bar = h('div', { class: 'daily-filters' });
   const selects = [];
   const search = h('input', { class: 'input daily-search', type: 'search', placeholder: '搜索任务或项目…', 'aria-label': '搜索任务或项目' });
@@ -125,7 +120,7 @@ export function buildDailyFilters(filters, onChange) {
     bar.append(ctrl);
     selects.push(ctrl);
   };
-  select('全部归属', 'category', CATEGORY_OPTIONS);
+  select('全部清单', 'owner', ownerOptions(projects).map(o => [o.value, o.label]));
   const clear = h('button', { class: 'btn btn-sm' }, '清除筛选');
   clear.onclick = () => {
     for (const key of Object.keys(filters)) delete filters[key];
@@ -187,8 +182,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove } = {}) {
     if (e.spanDays > 1) meta.append(h('span', {}, `跨 ${e.spanDays} 天`));
     if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
     if (e.subtaskCount) meta.append(h('span', {}, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));
-    const tag = ROUTINE_OPTIONS.find(([v]) => v && v === e.routineTag);
-    if (tag && e.category === 'routine') meta.append(h('span', {}, tag[1]));
+    meta.append(h('span', { class: 'daily-owner' }, e.ownerLabel));
     if (e.priority === 'high') meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));
     body.append(meta);
     r.append(cb, body);
@@ -231,25 +225,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove } = {}) {
   };
   const grouped = (list, mode) => {
     const groups = h('div', { class: 'daily-groups' });
-    for (const [category, label] of CATEGORY_OPTIONS) {
-      const items = list.filter(e => e.category === category);
-      if (!items.length) continue;
-      const section = h('section', { class: `daily-category daily-category-${category}` });
-      section.append(h('h3', {}, label, h('span', { class: 'daily-count' }, String(items.length))));
-      const projectGroups = new Map();
-      for (const e of items) {
-        const key = e.projectId || 'routine';
-        if (!projectGroups.has(key)) projectGroups.set(key, []);
-        projectGroups.get(key).push(e);
-      }
-      for (const list of projectGroups.values()) {
-        const group = h('details', { class: 'daily-project', open: true });
-        group.append(h('summary', {}, list[0].projectName || '日常待办', h('span', { class: 'daily-count' }, `${list.length} 项`)));
-        for (const node of entryForest(list)) group.append(tree(node, mode));
-        section.append(group);
-      }
-      groups.append(section);
-    }
+    for (const node of entryForest(list)) groups.append(tree(node, mode));
     return groups;
   };
   active.append(h('section', { class: 'daily-planned' }, h('h2', {}, '当天安排'),
@@ -260,8 +236,8 @@ export function buildDailyBoard(entries, date, refresh, { onRemove } = {}) {
     const fold = h('details', { class: `daily-fold daily-${key}` });
     fold.append(h('summary', {}, label, h('span', { class: 'daily-count' }, `${sections[key].length} 项`)));
     if (key === 'candidates') {
-      const create = h('button', { class: 'btn btn-sm', style: 'margin:12px 0' }, '＋ 新建临时专题');
-      create.onclick = () => createProject({ category: 'temporary' }).catch(err => toast(err.message, 'error'));
+      const create = h('button', { class: 'btn btn-sm', style: 'margin:12px 0' }, '＋ 新建项目');
+      create.onclick = () => createProject().catch(err => toast(err.message, 'error'));
       fold.append(create);
     }
     fold.append(sections[key].length ? grouped(sections[key], key) : h('p', { class: 'muted' }, '暂无任务'));

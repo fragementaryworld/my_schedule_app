@@ -74,18 +74,18 @@ test('父子任务按路径折叠；单独安排子任务保留祖先路径和�
 });
 
 test('归属与路径搜索可组合，废弃的来源/项目/快速筛选不会隐藏任务', () => {
-  assert.deepEqual(filterDailyEntries(entries(), { category: 'work', search: '新方法' }).map(e => e.id), ['idea']);
-  assert.deepEqual(filterDailyEntries(entries(), { category: 'temporary', search: '目录' }).map(e => e.id), ['catalog']);
+  assert.deepEqual(filterDailyEntries(entries(), { owner: 'project:paper', search: '新方法' }).map(e => e.id), ['idea']);
+  assert.deepEqual(filterDailyEntries(entries(), { owner: 'project:files', search: '目录' }).map(e => e.id), ['catalog']);
   assert.deepEqual(filterDailyEntries(entries(), { projectId: 'missing', source: 'book', quick: true }), entries());
   assert.ok(filterDailyEntries(entries(), { search: '修改论文' }).some(e => e.id === 'child'));
 });
 
-test('完成和持续区块默认折叠，三类归属可见，来源不再显示', () => {
+test('完成和持续区块默认折叠，清单提示可见，旧分类和标签不再显示', () => {
   const root = buildDailyBoard(entries(), date, async () => {});
   assert.equal(findAllByClass(root, 'daily-done')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(root, 'daily-ongoing')[0].hasAttribute('open'), false);
   assert.equal(findAllByClass(root, 'daily-subtasks')[0].hasAttribute('open'), false);
-  for (const label of ['工作项目', '临时专题', '日常事务', '行政']) assert.ok(textOf(root).includes(label));
+  for (const label of ['论文项目', '历史资料整理', '工作事务']) assert.ok(textOf(root).includes(label));
   assert.ok(!textOf(root).includes('来源：'));
 });
 
@@ -136,7 +136,7 @@ test('周/月日历共用日期看板，搜索同步影响日历与看板', asyn
   button(root, '周视图').click(); await tick();
 });
 
-test('任务页切换归属不会覆写灵感来源；项目页可设为临时专题', async () => {
+test('任务页切换所属清单保留灵感来源，项目页不再提供重复分类', async () => {
   const calls = [];
   globalThis.fetch = async (url, options = {}) => {
     if (options.method === 'PUT') calls.push([url, JSON.parse(options.body)]);
@@ -144,17 +144,15 @@ test('任务页切换归属不会覆写灵感来源；项目页可设为临时�
   };
   const root = document.createElement('div');
   await plan.render(root, { id: 'idea' });
-  const owner = findAllByTag(root, 'select').find(e => e.getAttribute('aria-label') === '任务归属');
-  owner.value = 'files'; owner.fire('change'); await tick();
-  assert.deepEqual(calls.pop(), ['/api/tasks/idea', { projectId: 'files' }]);
+  const owner = findAllByTag(root, 'select').find(e => e.getAttribute('aria-label') === '所属清单');
+  owner.value = 'project:files'; owner.fire('change'); await tick();
+  assert.deepEqual(calls.pop(), ['/api/tasks/idea', { projectId: 'files', listId: null }]);
   assert.deepEqual(tasks[1].source, { type: 'idea', id: 'idea1' });
   const props = buildPageProperties(projects, projects[0]);
-  const category = findAllByTag(props, 'select').find(e => e.getAttribute('aria-label') === '项目归属');
-  category.value = 'temporary'; category.fire('change'); await tick();
-  assert.deepEqual(calls.pop(), ['/api/projects/paper', { category: 'temporary' }]);
+  assert.ok(!findAllByTag(props, 'select').some(e => e.getAttribute('aria-label') === '项目归属'));
 });
 
-test('灵感转换弹窗可选择任务归属，临时专题按钮发送分类', async () => {
+test('灵感转任务使用同一所属清单，重复的临时专题入口移除', async () => {
   document.body.innerHTML = '';
   const calls = [];
   globalThis.fetch = async (url, options = {}) => {
@@ -167,14 +165,12 @@ test('灵感转换弹窗可选择任务归属，临时专题按钮发送分类',
   await tick();
   const modal = findAllByClass(document.body, 'modal')[0];
   const owner = findAllByTag(modal, 'select')[0];
-  assert.ok(textOf(owner).includes('临时专题 · 历史资料整理'));
-  owner.value = 'files';
+  assert.ok(textOf(owner).includes('项目 · 历史资料整理'));
+  owner.value = 'project:files';
   findAllByTag(modal, 'form')[0].fire('submit');
   await tick();
-  assert.deepEqual(calls.pop(), ['/api/ideas/i1/to-task', { date, time: null, projectId: 'files' }]);
-  findAllByTag(root, 'button').find(b => b.getAttribute('title') === '转成临时专题').click();
-  await tick();
-  assert.deepEqual(calls.pop(), ['/api/ideas/i1/to-project', { category: 'temporary' }]);
+  assert.deepEqual(calls.pop(), ['/api/ideas/i1/to-task', { date, time: null, projectId: 'files', listId: null }]);
+  assert.ok(!findAllByTag(root, 'button').some(b => b.getAttribute('title') === '转成临时专题'));
 });
 
 test('完成任务保存失败后还原勾选状态并保持原任务', async () => {

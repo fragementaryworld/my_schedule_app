@@ -279,11 +279,6 @@ export function buildIconTitle(page) {
 export function buildPageProperties(projects, page) {
   const card = h('div', { class: 'page-props' });
   const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
-  const categorySel = h('select', { class: 'input inline-select', 'aria-label': '项目归属' });
-  categorySel.append(h('option', { value: 'work' }, '工作项目'), h('option', { value: 'temporary' }, '临时专题'));
-  categorySel.value = page.category || 'work';
-  categorySel.onchange = async () => { await api.put(`/api/projects/${page.id}`, { category: categorySel.value }); toast('归属已更新'); paint(); };
-
   const statusSel = h('select', { class: 'input inline-select' });
   for (const [k, v] of Object.entries(PROJECT_STATUS)) statusSel.append(h('option', { value: k }, v.label));
   statusSel.value = PROJECT_STATUS[page.status] ? page.status : 'active';
@@ -318,7 +313,6 @@ export function buildPageProperties(projects, page) {
   blockedSel.onchange = async () => { await api.put(`/api/projects/${page.id}`, { blockedBy: blockedSel.value }); toast('已保存'); paint(); };
 
   card.append(
-    row('归属', categorySel),
     row('状态', statusSel),
     row('优先级', prioSel),
     row('负责人', h('span', { class: 'row' }, ownerInput, dl)),

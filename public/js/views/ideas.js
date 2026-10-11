@@ -1,3 +1,4 @@
+import { ownerOptions, ownerPatch } from '../ownership.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, openModal, confirmDialog } from '../ui.js';
@@ -108,12 +109,6 @@ function buildCard(idea) {
   };
   const toTask = h('button', { class: 'icon-btn', title: '加入今日计划' }, '📋');
   toTask.onclick = () => ideaToTask(idea);
-  const toTopic = h('button', { class: 'icon-btn', title: '转成临时专题', 'aria-label': '转成临时专题' }, '🗂');
-  toTopic.onclick = async () => {
-    await api.post(`/api/ideas/${idea.id}/to-project`, { category: 'temporary' });
-    toast('已转为临时专题');
-    paint();
-  };
   const edit = h('button', { class: 'icon-btn', title: '编辑' }, '✏️');
   edit.onclick = () => ideaModal(idea);
   const del = h('button', { class: 'icon-btn danger', title: '删除' }, '🗑');
@@ -124,7 +119,7 @@ function buildCard(idea) {
       paint();
     }
   };
-  actions.append(toProject, toTopic, toTask, edit, del);
+  actions.append(toProject, toTask, edit, del);
   card.append(actions);
   return card;
 }
@@ -134,14 +129,12 @@ async function ideaToTask(idea) {
   openModal({
     title: '加入今日计划',
     fields: [
-      { name: 'projectId', label: '归属', type: 'select', value: '', options: [
-        { value: '', label: '日常事务' }, ...projects.map(p => ({ value: p.id, label: `${p.category === 'temporary' ? '临时专题' : '工作项目'} · ${p.name}` }))
-      ] },
+      { name: 'owner', label: '所属清单', type: 'select', value: 'list:inbox', options: ownerOptions(projects) },
       { name: 'date', label: '日期', type: 'date', value: todayStr() },
       { name: 'time', label: '时间（可留空）', type: 'time', value: '' }
     ],
     onSubmit: async (v) => {
-      await api.post(`/api/ideas/${idea.id}/to-task`, { date: v.date, time: v.time || null, projectId: v.projectId || null });
+      await api.post(`/api/ideas/${idea.id}/to-task`, { date: v.date, time: v.time || null, ...ownerPatch(v.owner) });
       toast('已加入今日计划');
       paint();
     }

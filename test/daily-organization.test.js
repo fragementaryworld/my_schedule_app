@@ -81,3 +81,33 @@ test('灵感可转换为临时专题并保留来源，旧项目按工作项目�
   assert.equal(converted.sourceIdeaId, idea.id);
   assert.equal((await call('POST', '/api/projects', { name: '默认项目' })).data.category, 'work');
 });
+
+test('所属清单可保存并重开，项目与清单切换只有一个归属', async () => {
+  const p = (await call('POST', '/api/projects', { name: '研究' })).data;
+  const t = (await call('POST', '/api/tasks', { title: '预约', date: todayStr(), listId: 'personal' })).data;
+  assert.equal(t.listId, 'personal');
+  const url = `/api/tasks/${t.id}`;
+  const project = (await call('PUT', url, { projectId: p.id })).data;
+  assert.equal(project.listId, null);
+  const work = (await call('PUT', url, { listId: 'work' })).data;
+  assert.equal(work.projectId, null);
+  assert.equal(work.listId, 'work');
+  const reopened = createApp({ dataFile: file });
+  assert.equal(reopened.store.get().tasks.find(x => x.id === t.id).listId, 'work');
+  for (const patch of [{ listId: 'bad' }, { projectId: p.id, listId: 'personal' }]) {
+    assert.equal((await call('PUT', url, { title: '不应修改', ...patch })).status, 400);
+    assert.equal((await call('GET', url)).data.title, '预约');
+  }
+});
+
+test('新任务默认收集箱，灵感和重复任务保留所属清单', async () => {
+  const t = (await call('POST', '/api/tasks', { title: '随手记录', date: todayStr() })).data;
+  assert.equal(t.listId, 'inbox');
+  const idea = (await call('POST', '/api/ideas', { title: '个人计划' })).data;
+  const converted = (await call('POST', `/api/ideas/${idea.id}/to-task`, { listId: 'personal' })).data;
+  assert.equal(converted.listId, 'personal');
+  assert.equal(converted.source.id, idea.id);
+  const recurring = (await call('POST', '/api/tasks', { title: '买菜', date: addDays(todayStr(), -1), repeat: 'daily', listId: 'personal' })).data;
+  const instance = (await call('GET', `/api/tasks?date=${todayStr()}`)).data.find(x => x.repeatOf === recurring.id);
+  assert.equal(instance.listId, 'personal');
+});

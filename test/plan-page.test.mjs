@@ -77,7 +77,7 @@ test('问题2：任务页面导出 render/add 并带完整属性', async () => {
   assert.equal(findAllByClass(el, 'date-field').length, 1, '有时间字段（日期选择器）');
   assert.equal(findAllByTag(el, 'input').filter((i) => i.getAttribute('type') === 'date').length, 0);
   const text = textOf(el);
-  for (const label of ['归属', '状态', '时间', '优先级', '重复']) assert.ok(text.includes(label), `缺少 ${label}`);
+  for (const label of ['所属清单', '状态', '时间', '优先级', '重复']) assert.ok(text.includes(label), `缺少 ${label}`);
   assert.ok(!text.includes('来源'));
   assert.ok(text.includes('🗑 删除任务'));
   assert.ok(findAllByClass(el, 'feed-goal-md').length >= 1, '备注区');
@@ -115,7 +115,7 @@ test('问题2：状态/优先级/重复 都能改，来源不再作为属性', a
     assert.ok(row, `应有「${label}」属性行`);
     return findAllByTag(row, 'select')[0];
   };
-  assert.equal(findAllByClass(el, 'inline-select').length, 5, '归属 / 事务标签 / 状态 / 优先级 / 重复');
+  assert.equal(findAllByClass(el, 'inline-select').length, 4, '所属清单 / 状态 / 优先级 / 重复');
 
   calls.length = 0;
   const doneSel = propSelect('状态');
