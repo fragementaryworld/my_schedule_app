@@ -30,20 +30,20 @@ test('任务分类只剩归属选择，改归属保存成功且不触碰历史�
   assert.equal(findAllByTag(root, 'select').find(s => s.getAttribute('aria-label') === '所属清单').value, 'project:topic');
 });
 
-test('仅一个归属筛选，切换和清除能返回正确结果，没有项目/来源/15分钟控件', () => {
+test('归属多选筛选和清除能返回正确结果，没有项目/来源/15分钟控件', () => {
   const filters = {};
   const entries = [{ title: '论文', ownerKey: 'project:paper' }, { title: '资料', ownerKey: 'project:files' }, { title: '发票', ownerKey: 'list:work' }];
   let shown = entries;
   const root = buildDailyFilters(filters, () => { shown = filterDailyEntries(entries, filters); });
-  const selects = findAllByTag(root, 'select');
-  assert.equal(selects.length, 1);
-  assert.equal(selects[0].getAttribute('aria-label'), '全部清单');
+  assert.equal(findAllByTag(root, 'select').length, 0);
+  assert.equal(findAllByClass(root, 'daily-owner-filter').length, 1);
+  const work = findAllByTag(root, 'input').find(c => c.value === 'list:work');
   assert.ok(!/全部项目|全部来源|15 分钟/.test(textOf(root)));
-  selects[0].value = 'list:work'; selects[0].fire('change');
+  work.checked = true; work.fire('change');
   assert.deepEqual(shown.map(e => e.title), ['发票']);
   findAllByTag(root, 'button').find(b => textOf(b) === '清除筛选').click();
   assert.deepEqual(shown, entries);
-  assert.equal(selects[0].value, '');
+  assert.equal(work.checked, false);
 });
 
 test('生活事务、收集箱和项目用同一选择器，旧任务兼容工作事务', async () => {

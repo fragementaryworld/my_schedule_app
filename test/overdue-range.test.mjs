@@ -115,7 +115,16 @@ globalThis.fetch = async (url) => {
 const tick = () => new Promise((r) => setTimeout(r, 10));
 const boardCard = (el, text) => findAllByClass(el, 'cal-board-card').find((c) => textOf(c).includes(text));
 const selectDay = async (el, date) => {
-  findAllByClass(el, 'cal-col').concat(findAllByClass(el, 'cal-cell')).find((c) => c.dataset.date === date).click();
+  const cells = () => findAllByClass(el, 'cal-col').concat(findAllByClass(el, 'cal-cell'));
+  // 周一运行时，昨天在上一周，先翻页再选择，避免测试依赖星期几。
+  if (!cells().some(c => c.dataset.date === date)) {
+    const direction = date < cells()[0].dataset.date ? 'cal-prev' : 'cal-next';
+    findAllByClass(el, direction)[0].click();
+    await tick();
+  }
+  const target = cells().find(c => c.dataset.date === date);
+  assert.ok(target, `日历应包含待选择日期 ${date}`);
+  target.click();
   await tick();
 };
 

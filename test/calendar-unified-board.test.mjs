@@ -99,8 +99,8 @@ test('选日后切换周/月仍显示同一日期，新增任务使用所选日�
 
 test('翻页与今天按钮同步看板，归属筛选同时作用于日历和看板', async () => {
   const root = await setup();
-  const filter = findAllByTag(root, 'select').find(s => s.getAttribute('aria-label') === '全部清单');
-  filter.value = 'project:topic'; filter.fire('change');
+  const filter = findAllByTag(root, 'input').find(s => s.value === 'project:topic');
+  filter.checked = true; filter.fire('change');
   assert.deepEqual(findAllByClass(board(root), 'cal-board-card').map(c => c.dataset.entry), ['/api/projects/topic/tasks/child']);
   assert.ok(!textOf(cell(root, date)).includes('报发票'));
   findAllByClass(root, 'cal-next')[0].click(); await tick();

@@ -48,9 +48,15 @@ export function dailyEntries(tasks, projects, includeInactive = false) {
   return entries;
 }
 
+function selectedOwners(filters) {
+  // 兼容旧的单选状态；新控件使用数组，空数组表示全部清单。
+  return new Set(Array.isArray(filters.owners) ? filters.owners : filters.owner ? [filters.owner] : []);
+}
+
 export function filterDailyEntries(entries, filters = {}) {
   const q = (filters.search || '').trim().toLocaleLowerCase();
-  return entries.filter(e => (!filters.owner || e.ownerKey === filters.owner)
+  const owners = selectedOwners(filters);
+  return entries.filter(e => (!owners.size || owners.has(e.ownerKey))
     && (!q || [e.title, e.projectName, ...(e.ancestors || []), e.note, e.desc].join(' ').toLocaleLowerCase().includes(q)));
 }
 
@@ -115,26 +121,60 @@ export function entryForest(entries) {
 
 export function buildDailyFilters(filters, onChange, projects = []) {
   const bar = h('div', { class: 'daily-filters' });
-  const selects = [];
   const search = h('input', { class: 'input daily-search', type: 'search', placeholder: '搜索任务或项目…', 'aria-label': '搜索任务或项目' });
   search.value = filters.search || '';
   search.oninput = () => { filters.search = search.value; onChange(); };
   bar.append(search);
-  const select = (label, key, choices) => {
-    const ctrl = h('select', { class: 'input', 'aria-label': label });
-    ctrl.append(h('option', { value: '' }, label));
-    for (const [value, text] of choices) ctrl.append(h('option', { value }, text));
-    ctrl.value = filters[key] || '';
-    ctrl.onchange = () => { filters[key] = ctrl.value; onChange(); };
-    bar.append(ctrl);
-    selects.push(ctrl);
+  const choices = ownerOptions(projects);
+  const menu = dismissOnOutsideClick(h('details', { class: 'daily-owner-filter' }));
+  const caption = h('span', { class: 'daily-owner-caption' });
+  const summary = h('summary', { class: 'input', 'aria-label': '筛选清单（可多选）' }, caption,
+    h('span', { class: 'small muted daily-owner-mode' }, '多选'),
+    h('span', { class: 'daily-owner-arrow', 'aria-hidden': 'true' }, '▾'));
+  const panel = h('div', { class: 'daily-owner-panel' });
+  const all = h('button', { type: 'button', class: 'btn btn-sm daily-owner-all' }, '全部清单');
+  const list = h('div', { class: 'daily-owner-options' });
+  const controls = choices.map(choice => {
+    const ctrl = h('input', { type: 'checkbox', 'aria-label': choice.label });
+    ctrl.value = choice.value;
+    ctrl.onchange = () => {
+      const owners = selectedOwners(filters);
+      if (ctrl.checked) owners.add(choice.value);
+      else owners.delete(choice.value);
+      filters.owners = [...owners];
+      delete filters.owner;
+      sync();
+      onChange();
+    };
+    list.append(h('label', { class: 'daily-owner-option' }, ctrl, h('span', {}, choice.label)));
+    return ctrl;
+  });
+  const sync = () => {
+    const owners = selectedOwners(filters);
+    for (const ctrl of controls) ctrl.checked = owners.has(ctrl.value);
+    const labels = choices.filter(c => owners.has(c.value)).map(c => c.label);
+    const text = !owners.size ? '全部清单' : owners.size <= 2 && labels.length === owners.size
+      ? labels.join('、') : `已选 ${owners.size} 个清单`;
+    caption.textContent = text;
+    summary.title = labels.join('、') || text;
+    menu.classList.toggle('has-selection', owners.size > 0);
   };
-  select('全部清单', 'owner', ownerOptions(projects).map(o => [o.value, o.label]));
+  all.onclick = () => {
+    delete filters.owners;
+    delete filters.owner;
+    sync();
+    onChange();
+  };
+  panel.append(all, list, h('div', { class: 'small muted daily-owner-hint' }, '可多选；未勾选时显示全部清单'));
+  menu.append(summary, panel);
+  bar.append(menu);
+  sync();
   const clear = h('button', { class: 'btn btn-sm' }, '清除筛选');
   clear.onclick = () => {
     for (const key of Object.keys(filters)) delete filters[key];
     search.value = '';
-    for (const ctrl of selects) ctrl.value = '';
+    sync();
+    menu.open = false;
     onChange();
   };
   bar.append(clear);
