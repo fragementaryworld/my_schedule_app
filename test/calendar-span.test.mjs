@@ -177,7 +177,8 @@ test('问题1：月视图里同样是一条连续 block', async () => {
   assert.equal(findAllByClass(cellOf(el, D0), 'cal-card-title').some((t) => textOf(t).includes('跨三天')), false);
 });
 
-test('问题1：勾选写回该任务自己那一层（从看板操作）', async () => {
+test('跨天任务明确安排到选中日后，勾选只写回该任务自己那一层', async () => {
+  PROJECTS[0].tasks[0].planDate = D1;
   const el = await renderToday();
   cellOf(el, D1).click();
   await tick();
@@ -187,5 +188,7 @@ test('问题1：勾选写回该任务自己那一层（从看板操作）', asyn
   await tick();
   const put = calls.find((c) => c.method === 'PUT');
   assert.ok(put, '应发出请求');
-  assert.ok(put.url === '/api/projects/p1/tasks/t1' || put.url === '/api/projects/p1/tasks/t4', `实际 ${put.url}`);
+  assert.equal(put.url, '/api/projects/p1/tasks/t1');
+  assert.deepEqual(put.body, { done: true });
+  delete PROJECTS[0].tasks[0].planDate;
 });

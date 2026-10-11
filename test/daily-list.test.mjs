@@ -83,8 +83,12 @@ test('归属与路径搜索可组合，废弃的来源/项目/快速筛选不会
 test('完成和持续区块默认折叠，清单提示可见，旧分类和标签不再显示', () => {
   const root = buildDailyBoard(entries(), date, async () => {});
   assert.equal(findAllByClass(root, 'daily-done')[0].hasAttribute('open'), false);
-  assert.equal(findAllByClass(root, 'daily-ongoing')[0].hasAttribute('open'), false);
-  assert.equal(findAllByClass(root, 'daily-subtasks')[0].hasAttribute('open'), false);
+  assert.equal(findAllByClass(root, 'daily-ongoing').length, 0);
+  assert.equal(findAllByClass(root, 'daily-subtasks').length, 0);
+  assert.equal(findAllByClass(root, 'daily-category').length, 0);
+  assert.ok(!textOf(root).includes('实验分析'));
+  assert.ok(!textOf(root).includes('行政'));
+  assert.ok(button(root, '安排任务'));
   for (const label of ['论文项目', '历史资料整理', '工作事务']) assert.ok(textOf(root).includes(label));
   assert.ok(!textOf(root).includes('来源：'));
 });

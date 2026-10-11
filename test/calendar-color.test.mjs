@@ -104,14 +104,12 @@ test('问题2：跨天 block 的背景也是整块同色', async () => {
   assert.equal(bgOf(span), timelineColor('p2'), 'block 用实色铺满');
 });
 
-test('问题2：看板卡片同样整块染色', async () => {
+test('日内列表使用中性任务行和所属清单提示，日历继续保留颜色区分', async () => {
   const el = await renderToday();
-  await tick();
   const boardCards = findAllByClass(el, 'cal-board-card');
   assert.ok(boardCards.length >= 2);
-  const colors = boardCards.map((c) => bgOf(c));
-  assert.ok(colors.every((c) => /^rgba\(/.test(String(c))), '每张看板卡片都有染色背景');
-  assert.ok(new Set(colors).size >= 2, '不同来源颜色不同');
+  assert.ok(boardCards.every(c => !c.getAttribute('style')), '平铺列表避免大面积彩色卡片');
+  assert.ok(boardCards.every(c => findAllByClass(c, 'daily-owner').length === 1), '每条任务显示所属清单');
 });
 
 test('问题2：图例仍是实色圆点，与卡片染色对应', async () => {

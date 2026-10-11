@@ -1,3 +1,4 @@
+import { PERIODS } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll } from '../ui.js';
@@ -43,7 +44,7 @@ async function paint() {
   const dates = visibleDates(anchor, view, weekStartPref);
   // 每日计划任务 + 工作项目里的所有任务（含各级子任务，跨多天的任务铺满整段）
   const [tasks, projects] = await Promise.all([
-    api.get(`/api/tasks?from=${from}&to=${to}`),
+    api.get(`/api/tasks?from=${from}&to=${to}&includePool=1`),
     api.get('/api/projects')
   ]);
   if (version !== paintVersion || container !== el) return;
@@ -68,7 +69,7 @@ async function paint() {
       const byDate = groupByDate(expandEntries(filtered, dates));
       const multiDay = spanningEntries(filtered, dates);
       content.append(view === 'month' ? buildMonth(byDate, dates, multiDay) : buildWeek(byDate, dates, multiDay));
-      content.append(buildLegend(byDate, dates), buildSelectedBoard(filterDailyEntries(allDaily, filters)));
+      content.append(buildLegend(byDate, dates), buildSelectedBoard(filterDailyEntries(allDaily, filters), allDaily));
     };
     container.append(buildDailyFilters(filters, update, projects), content);
     update();
@@ -395,7 +396,8 @@ function buildCard(e, compact, ctx) {
   body.append(titleRow);
 
   const meta = h('div', { class: 'cal-card-meta' });
-  if (e.planOnly) meta.append(h('span', { class: 'cal-chip' }, '当天安排'));
+  if (e.planOnly || e.planDate === e.date) meta.append(h('span', { class: 'cal-chip' }, e.planPeriod ? PERIODS.find(p => p.value === e.planPeriod)?.label || '当天安排' : '当天安排'));
+  if (!e.planOnly && e.planDate === e.date && e.planTime) meta.append(h('span', { class: 'cal-chip' }, `安排 ${timeRangeLabel(e.planTime, e.planEndTime)}`));
   if (e.time) meta.append(h('span', { class: 'cal-chip' }, `🕐 ${e.time}`));
   if (estimateText(e)) meta.append(h('span', { class: 'cal-chip estimate-chip' }, estimateText(e)));
   if (e.kind === 'project' && e.projectName) meta.append(h('span', { class: 'cal-chip' }, `📁 ${escapeHtml(e.projectName)}`));
@@ -440,16 +442,16 @@ function buildLegend(byDate, dates) {
 }
 
 // 周/月视图共用选中日期的分类看板，包含未设置截止日期的当天安排。
-function buildSelectedBoard(entries) {
+function buildSelectedBoard(entries, allEntries) {
   const sections = dailySections(entries, selectedDate);
-  const pending = sections.planned.length + sections.due.length + sections.ongoing.length;
+  const pending = sections.planned.length + sections.due.length;
   const total = pending + sections.done.length;
   const wrap = h('section', { class: 'cal-board card', 'aria-label': '所选日期任务看板' });
   const head = h('div', { class: 'row cal-board-head' });
   head.append(h('span', { class: 'cal-board-date' }, selectedLabel()));
   head.append(h('span', { class: 'spacer' }));
   head.append(h('span', { class: 'small muted' }, total ? `共 ${total} 项 · 待办 ${pending} · 已完成 ${sections.done.length}` : '这一天还没有任务'));
-  wrap.append(head, buildDailyBoard(entries, selectedDate, paint, { onRemove: removeEntry }));
+  wrap.append(head, buildDailyBoard(entries, selectedDate, paint, { onRemove: removeEntry, allEntries }));
   return wrap;
 }
 

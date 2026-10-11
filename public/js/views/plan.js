@@ -1,3 +1,4 @@
+import { buildPlanProperty } from '../planning.js';
 'use strict';
 import { registerEditor, serializeSave } from '../saving.js';
 import { api } from '../api.js';
@@ -171,6 +172,7 @@ function buildProperties(task, projects = []) {
     row('所属清单', ownerSel, `${base}:owner`),
     row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
+    row('当天安排', buildPlanProperty(task, base, async (_, patch) => { await api.put(base, patch); Object.assign(task, patch); await paint(); return true; })),
     row('预计用时', estimateSel),
     row('优先级', prioSel, `${base}:priority`),
     row('重复', repeatSel, `${base}:repeat`)

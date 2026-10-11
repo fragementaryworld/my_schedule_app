@@ -1,10 +1,11 @@
+import { PERIODS, planningFor, comparePlan, planSummary, editPlan, buildTimeAxis } from './planning.js';
 import { ownership, ownerOptions } from './ownership.js';
-// 归属决定分组；来源只记录任务从哪里来。每日安排不改项目的截止日期。
+// 清单决定存放位置，时段决定当天的执行顺序。安排不改项目的截止日期。
 import { h, toast, confirmDialog } from './ui.js';
 import { api } from './api.js';
 import { flattenProjectItems, itemSpan, spanDays, DAY_TASK_COLOR, truncate, tint } from './calendar.js';
-import { itemBase, itemHref, timelineColor, createProject } from './views/projects.js';
-import { estimateText, priorityLabel, priorityClass, isOverdue, todayStr } from './utils.js';
+import { itemBase, itemHref, timelineColor } from './views/projects.js';
+import { estimateText, priorityLabel, priorityClass, isOverdue, todayStr, addDays } from './utils.js';
 import { timeRangeLabel, dayTaskHref } from './daytask.js';
 
 export { ownerProjectId } from './ownership.js';
@@ -55,30 +56,38 @@ export function filterDailyEntries(entries, filters = {}) {
 
 // 原日历保留起止/截止日期；单独安排到其他日期的任务增加一个执行日标记。
 export function withPlannedCalendarEntries(calendarEntries, entries) {
-  const extra = [];
+  const result = [...calendarEntries];
   for (const e of entries) {
     if (!e.planDate) continue;
-    const original = calendarEntries.find(c => c.kind === e.kind && c.id === e.id && (e.kind !== 'project' || c.projectId === e.projectId));
-    if (original && original.spanFrom <= e.planDate && original.spanTo >= e.planDate) continue;
-    extra.push({ ...e, date: e.planDate, time: '', planOnly: true,
+    const index = result.findIndex(c => c.kind === e.kind && c.id === e.id && (e.kind !== 'project' || c.projectId === e.projectId));
+    const original = result[index];
+    const p = planningFor(e, e.planDate);
+    // 独立单日任务的 date 是原执行日期；改计划日期后只展示新安排，避免旧日期出现残影。
+    if (original && e.kind === 'day' && e.spanDays <= 1) result.splice(index, 1);
+    else if (original && original.spanFrom <= e.planDate && original.spanTo >= e.planDate) {
+      result[index] = { ...original, planDate: e.planDate, planPeriod: p.period, planTime: p.time, planEndTime: p.endTime };
+      continue;
+    }
+    result.push({ ...e, date: e.planDate, time: timeRangeLabel(p.time, p.endTime), planOnly: true,
+      planPeriod: p.period, planTime: p.time, planEndTime: p.endTime,
       spanFrom: e.planDate, spanTo: e.planDate, spanDays: 1, spanStart: true, spanEnd: true,
       detail: e.kind === 'project' ? e.desc || '' : e.note || '' });
   }
-  return [...calendarEntries, ...extra];
+  return result;
 }
 
 export function dailySections(entries, date) {
   const out = { planned: [], due: [], ongoing: [], done: [], candidates: [] };
   for (const e of entries) {
     const spansDate = e.spanFrom && e.spanFrom <= date && e.spanTo >= date;
-    const planned = e.planDate === date || (e.kind === 'day' && e.date === date && (!e.endDate || e.endDate === date));
+    const planned = e.planDate === date || (!e.planDate && e.kind === 'day' && e.date === date && (!e.endDate || e.endDate === date));
     const due = e.kind === 'project' ? e.dueDate === date : e.endDate === date;
     if (e.done) {
       if (planned || due || spansDate) out.done.push(e);
     } else if (planned) out.planned.push(e);
     else if (due) out.due.push(e);
     else if (spansDate) out.ongoing.push(e);
-    else if (e.kind === 'project') out.candidates.push(e);
+    else out.candidates.push(e);
   }
   const priority = { high: 0, medium: 1, low: 2 };
   for (const list of Object.values(out)) list.sort((a, b) =>
@@ -132,39 +141,51 @@ export function buildDailyFilters(filters, onChange, projects = []) {
   return bar;
 }
 
-export function buildDailyBoard(entries, date, refresh, { onRemove } = {}) {
+export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries = entries } = {}) {
   const sections = dailySections(entries, date);
-  const wrap = h('div', { class: 'daily-board kanban' });
+  const pending = [...sections.planned, ...sections.due].sort((a, b) => comparePlan(a, b, date));
+  const wrap = h('div', { class: 'daily-board' });
   const active = h('div', { class: 'kanban-col board-col-active' });
-  const pendingCount = sections.planned.length + sections.due.length + sections.ongoing.length;
-  active.append(h('div', { class: 'col-head' }, '待办', h('span', { class: 'daily-count' }, String(pendingCount))));
   const completed = h('details', { class: 'kanban-col board-col-done daily-done' });
   completed.append(h('summary', { class: 'col-head' }, '已完成', h('span', { class: 'daily-count' }, String(sections.done.length))));
-  wrap.append(active, completed);
-
   const save = async (e, patch) => {
-    try { await api.put(e.base, patch); Object.assign(e, patch); await refresh(); return true; }
+    try { await api.put(e.base, patch); Object.assign(e, patch); e.raw = { ...e.raw, ...patch }; await refresh(); return true; }
     catch (err) { toast(err.message, 'error'); return false; }
   };
-  const shown = [...sections.planned, ...sections.due, ...sections.ongoing, ...sections.done];
-  const dragEntries = new Map(shown.map(e => [e.base, e]));
+  const batch = async changes => {
+    try { await api.post('/api/planning/batch', { items: changes }); await refresh(); return true; }
+    catch (err) { toast(err.message, 'error'); return false; }
+  };
+  const dragEntries = new Map(entries.map(e => [e.base, e]));
+  const moveTo = (e, period) => save(e, { planDate: date, planPeriod: period || null, planTime: null, planEndTime: null, planOrder: null });
+  const orderBefore = async (entry, period, before) => {
+    const peers = pending.filter(e => !planningFor(e, date).time && planningFor(e, date).period === period && e.base !== entry.base);
+    const index = before ? peers.findIndex(e => e.base === before.base) : peers.length;
+    peers.splice(index < 0 ? peers.length : index, 0, entry);
+    return batch(peers.map((e, i) => ({ base: e.base, patch: { planDate: date, planPeriod: period || null, planTime: null, planEndTime: null, planOrder: i } })));
+  };
   for (const [col, done] of [[active, false], [completed, true]]) {
-    col.addEventListener('dragover', ev => {
-      ev.preventDefault(); col.classList.add('drop-hover');
-      if (done) col.open = true;
-    });
+    col.addEventListener('dragover', ev => { ev.preventDefault(); col.classList.add('drop-hover'); if (done) col.open = true; });
     col.addEventListener('dragleave', () => col.classList.remove('drop-hover'));
     col.addEventListener('drop', async ev => {
       ev.preventDefault(); col.classList.remove('drop-hover');
       const e = dragEntries.get(ev.dataTransfer?.getData('text/plain'));
-      if (!e || !!e.done === done) return;
-      await save(e, { done });
+      if (e && !!e.done !== done) await save(e, { done });
     });
   }
-  const row = (e, mode) => {
-    const r = h('div', { class: 'daily-task' + (mode !== 'candidates' ? ' cal-board-card' : '') + (e.done ? ' done' : ''), dataset: { entry: e.base }, draggable: mode !== 'candidates' ? 'true' : null,
-      style: `background:${tint(e.color || DAY_TASK_COLOR, 0.12)};border-left:3px solid ${e.color || DAY_TASK_COLOR}` });
-    r.addEventListener('dragstart', ev => { ev.dataTransfer?.setData('text/plain', e.base); });
+  const row = (e, candidate = false, onAdded) => {
+    const p = planningFor(e, date);
+    const r = h('div', { class: 'daily-task' + (candidate ? '' : ' cal-board-card') + (e.done ? ' done' : ''), dataset: { entry: e.base }, draggable: candidate ? null : 'true' });
+    r.addEventListener('dragstart', ev => { ev.stopPropagation(); ev.dataTransfer?.setData('text/plain', e.base); });
+    if (!candidate && !e.done && !p.time) {
+      r.addEventListener('dragover', ev => { ev.preventDefault(); ev.stopPropagation(); r.classList.add('drop-before'); });
+      r.addEventListener('dragleave', () => r.classList.remove('drop-before'));
+      r.addEventListener('drop', ev => {
+        ev.preventDefault(); ev.stopPropagation(); r.classList.remove('drop-before');
+        const dragged = dragEntries.get(ev.dataTransfer?.getData('text/plain'));
+        if (dragged && !dragged.done && dragged.base !== e.base) orderBefore(dragged, p.period, e);
+      });
+    }
     const cb = h('input', { type: 'checkbox', class: 'task-check cal-check', 'aria-label': `完成任务：${e.title}` });
     cb.checked = !!e.done;
     cb.onclick = async () => { cb.checked = !e.done; cb.disabled = true; if (!(await save(e, { done: cb.checked }))) cb.checked = !!e.done; cb.disabled = false; };
@@ -175,73 +196,128 @@ export function buildDailyBoard(entries, date, refresh, { onRemove } = {}) {
     const detail = (e.kind === 'project' ? e.desc || '' : e.note || '').trim();
     if (detail) body.append(h('div', { class: 'cal-board-detail' }, truncate(detail, 90)));
     const meta = h('div', { class: 'daily-task-meta' });
+    meta.append(h('span', { class: 'daily-owner' }, e.ownerLabel));
     if (e.ancestors?.length) meta.append(h('span', { class: 'daily-breadcrumb' }, e.ancestors.join(' / ')));
-    if (e.time) meta.append(h('span', {}, `${e.kind === 'project' ? '截止' : '安排'} ${e.time}`));
-    if (e.kind === 'project' && e.dueDate) meta.append(h('span', {}, `截止 ${e.dueDate}`));
+    if (p.time) meta.append(h('span', { class: 'daily-plan-time' }, timeRangeLabel(p.time, p.endTime)));
+    if (candidate && e.spanDays > 1) {
+      const originalTime = e.kind === 'project' ? timeRangeLabel(e.startTime, e.dueTime) : timeRangeLabel(e.raw.time, e.raw.endTime);
+      meta.append(h('span', {}, `原区间 ${e.spanFrom} → ${e.spanTo} · 跨 ${e.spanDays} 天${originalTime ? ` · ${originalTime}` : ''}`));
+    }
     if (estimateText(e)) meta.append(h('span', {}, estimateText(e)));
-    if (e.spanDays > 1) meta.append(h('span', {}, `跨 ${e.spanDays} 天`));
+    const dueDate = e.kind === 'project' ? e.dueDate : e.endDate;
+    if (dueDate) meta.append(h('span', { class: dueDate === date ? 'badge overdue' : '' }, `${dueDate === date ? '今日截止' : `截止 ${dueDate}`}${e.kind === 'project' && e.dueTime ? ` ${e.dueTime}` : ''}`));
     if (e.overdue && !e.done) meta.append(h('span', { class: 'badge overdue' }, '逾期'));
     if (e.subtaskCount) meta.append(h('span', {}, `子任务 ${e.subtaskDone}/${e.subtaskCount}`));
-    meta.append(h('span', { class: 'daily-owner' }, e.ownerLabel));
     if (e.priority === 'high') meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));
-    body.append(meta);
-    r.append(cb, body);
-    if (onRemove) {
-      const del = h('button', { type: 'button', class: 'icon-btn cal-board-del', title: `删除「${e.title}」`, 'aria-label': `删除「${e.title}」` }, '🗑');
-      del.onclick = async ev => {
-        ev.stopPropagation();
-        try { await onRemove(e); } catch (err) { toast(err.message, 'error'); }
-      };
-      r.append(del);
+    body.append(meta); if (!candidate) r.append(cb); r.append(body);
+    const actions = h('div', { class: 'daily-actions' });
+    const menu = h('details', { class: 'daily-task-menu' });
+    const menuItems = h('div', { class: 'daily-task-menu-items' });
+    menu.append(h('summary', { 'aria-label': `更多操作：${e.title}` }, '⋯'), menuItems);
+    if (!candidate && !e.done) {
+      const period = h('select', { class: 'input daily-period-select', 'aria-label': `安排时段：${e.title}` });
+      for (const o of PERIODS) period.append(h('option', { value: o.value }, o.label));
+      period.value = p.period;
+      period.onchange = async () => { period.disabled = true; if (!(await moveTo(e, period.value))) period.value = p.period; period.disabled = false; };
+      const edit = h('button', { class: 'icon-btn', title: '调整日期或具体时间', 'aria-label': `调整安排：${e.title}` }, '调整日期或时间');
+      edit.onclick = () => editPlan(e, date, save, allEntries);
+      const tomorrow = h('button', { class: 'icon-btn', 'aria-label': `改到明天：${e.title}` }, '改到明天');
+      tomorrow.onclick = () => save(e, { planDate: addDays(date, 1), planPeriod: p.period || null, planTime: p.time || null, planEndTime: p.endTime || null, planOrder: null });
+      actions.append(period); menuItems.append(edit, tomorrow);
+      if (!p.time) {
+        const peers = pending.filter(x => !planningFor(x, date).time && planningFor(x, date).period === p.period);
+        const i = peers.findIndex(x => x.base === e.base);
+        const up = h('button', { class: 'icon-btn', 'aria-label': `上移：${e.title}`, disabled: i < 1 ? 'true' : null }, '↑ 上移');
+        const down = h('button', { class: 'icon-btn', 'aria-label': `下移：${e.title}`, disabled: i >= peers.length - 1 ? 'true' : null }, '↓ 下移');
+        up.onclick = () => { if (i > 0) orderBefore(e, p.period, peers[i - 1]); };
+        down.onclick = () => { if (i < peers.length - 1) orderBefore(e, p.period, peers[i + 2]); };
+        menuItems.append(up, down);
+      }
+    }
+    if (candidate || (!e.done && !e.planDate && sections.due.includes(e))) {
+      const add = h('button', { class: 'btn btn-sm daily-plan-add', 'aria-label': `加入当天：${e.title}` }, '＋ 加入当天');
+      add.onclick = async () => { if (await save(e, { planDate: date })) onAdded?.(); }; actions.append(add);
+    } else if (!e.done && e.planDate === date) {
+      const remove = h('button', { class: 'icon-btn', title: '取消当天安排', 'aria-label': `移出当天：${e.title}` }, '撤销当天安排');
+      remove.onclick = () => save(e, { planDate: null }); menuItems.append(remove);
     }
     if (e.repeat || e.repeatOf) {
       const finish = h('button', { class: 'icon-btn', title: '完成整个系列' }, '✓✓');
-      finish.onclick = async () => {
-        if (await confirmDialog('完成整个系列？所有已生成与未来的实例都会标记完成。')) await save(e, { done: true, finishSeries: true });
-      };
-      r.append(finish);
+      finish.onclick = async () => { if (await confirmDialog('完成整个系列？所有已生成与未来的实例都会标记完成。')) await save(e, { done: true, finishSeries: true }); };
+      menuItems.append(finish);
     }
-    if (!e.done && (mode === 'due' || mode === 'ongoing' || mode === 'candidates')) {
-      const add = h('button', { class: 'btn btn-sm daily-plan-add', 'aria-label': `加入当天：${e.title}` }, '＋ 加入当天');
-      add.onclick = () => save(e, { planDate: date });
-      r.append(add);
-    } else if (!e.done && e.planDate === date) {
-      const remove = h('button', { class: 'icon-btn', title: '移出当天清单', 'aria-label': `移出当天：${e.title}` }, '−');
-      remove.onclick = () => save(e, { planDate: null });
-      r.append(remove);
+    if (onRemove) {
+      const del = h('button', { type: 'button', class: 'icon-btn cal-board-del', title: `删除「${e.title}」`, 'aria-label': `删除「${e.title}」` }, '🗑');
+      del.onclick = async ev => { ev.stopPropagation(); try { await onRemove(e); } catch (err) { toast(err.message, 'error'); } }; menuItems.append(del);
     }
-    return r;
+    if (menuItems.children.length) actions.append(menu);
+    r.append(actions); return r;
   };
-  const tree = (node, mode) => {
-    const block = h('div', { class: 'daily-tree' });
-    block.append(row(node.entry, mode));
-    if (node.children.length) {
-      const fold = h('details', { class: 'daily-subtasks' });
-      fold.append(h('summary', {}, `${node.children.length} 个子任务`));
-      for (const child of node.children) fold.append(tree(child, mode));
-      block.append(fold);
-    }
-    return block;
+  const tools = h('div', { class: 'row daily-board-tools' });
+  tools.append(h('span', { class: 'col-head' }, '待办', h('span', { class: 'daily-count' }, String(pending.length))), h('span', { class: 'spacer' }));
+  const pool = [...sections.ongoing, ...sections.candidates];
+  const arrange = h('button', { class: 'btn btn-sm', 'aria-label': '安排任务' }, '安排任务');
+  arrange.onclick = () => {
+    const backdrop = h('div', { class: 'modal-backdrop' });
+    const modal = h('div', { class: 'modal daily-arrange-modal' });
+    const close = h('button', { class: 'btn btn-sm' }, '关闭'); close.onclick = () => backdrop.remove();
+    const picked = new Set();
+    const search = h('input', { class: 'input', type: 'search', 'aria-label': '搜索待安排任务', placeholder: '搜索任务或清单…' });
+    const target = h('select', { class: 'input', 'aria-label': '批量安排时段' });
+    for (const o of PERIODS) target.append(h('option', { value: o.value }, o.label)); target.value = '';
+    const apply = h('button', { class: 'btn btn-primary', disabled: 'true' });
+    apply.textContent = '安排选中任务';
+    const list = h('div', { class: 'daily-pool-list' });
+    const poolEntries = [...pending, ...pool];
+    const update = () => {
+      list.innerHTML = '';
+      const q = search.value.trim().toLocaleLowerCase();
+      for (const e of poolEntries.filter(e => !q || `${e.title} ${e.ownerLabel} ${(e.ancestors || []).join(' ')}`.toLocaleLowerCase().includes(q))) {
+        const choice = h('input', { type: 'checkbox', 'aria-label': `选择安排：${e.title}` }); choice.checked = picked.has(e.base);
+        choice.onchange = () => { choice.checked ? picked.add(e.base) : picked.delete(e.base); apply.disabled = !picked.size; apply.textContent = picked.size ? `安排选中 ${picked.size} 项` : '安排选中任务'; };
+        list.append(h('div', { class: 'daily-pool-choice' }, choice, row(e, true, () => backdrop.remove())));
+      }
+      if (!list.children.length) list.append(h('p', { class: 'muted' }, '没有匹配的待办任务'));
+    };
+    search.oninput = update;
+    apply.onclick = async () => {
+      if (!picked.size) return;
+      apply.disabled = true;
+      if (await batch([...picked].map(base => ({ base, patch: { planDate: date, planPeriod: target.value || null, planTime: null, planEndTime: null, planOrder: null } })))) backdrop.remove();
+      else apply.disabled = false;
+    };
+    modal.append(h('div', { class: 'modal-title row' }, '安排任务', h('span', { class: 'spacer' }), close),
+      h('div', { class: 'modal-body' }, search, list), h('div', { class: 'modal-foot' }, target, apply));
+    backdrop.append(modal); document.body.append(backdrop); update(); search.focus();
   };
-  const grouped = (list, mode) => {
-    const groups = h('div', { class: 'daily-groups' });
-    for (const node of entryForest(list)) groups.append(tree(node, mode));
-    return groups;
-  };
-  active.append(h('section', { class: 'daily-planned' }, h('h2', {}, '当天安排'),
-    sections.planned.length ? grouped(sections.planned, 'planned') : h('div', { class: 'daily-empty muted' }, '还没有安排。从下方选择项目任务，或新增一条日常事务。')));
-  if (sections.due.length) active.append(h('section', { class: 'daily-due' }, h('h2', {}, '当天截止', h('span', { class: 'daily-count' }, String(sections.due.length))), grouped(sections.due, 'due')));
-  completed.append(sections.done.length ? grouped(sections.done, 'done') : h('p', { class: 'muted' }, '暂无任务'));
-  for (const [key, label] of [['ongoing', '持续进行中'], ['candidates', '从项目中选择任务']]) {
-    const fold = h('details', { class: `daily-fold daily-${key}` });
-    fold.append(h('summary', {}, label, h('span', { class: 'daily-count' }, `${sections[key].length} 项`)));
-    if (key === 'candidates') {
-      const create = h('button', { class: 'btn btn-sm', style: 'margin:12px 0' }, '＋ 新建项目');
-      create.onclick = () => createProject().catch(err => toast(err.message, 'error'));
-      fold.append(create);
-    }
-    fold.append(sections[key].length ? grouped(sections[key], key) : h('p', { class: 'muted' }, '暂无任务'));
-    active.append(fold);
+  const timeline = h('details', { class: 'daily-timeline-fold' });
+  timeline.append(h('summary', {}, '具体时间轴'));
+  timeline.addEventListener('toggle', () => {
+    if (!timeline.open) return;
+    if (timeline.children.length === 1) timeline.append(buildTimeAxis(pending, date, e => editPlan(e, date, save, allEntries)));
+  });
+  tools.append(arrange); active.append(tools, timeline);
+  const planned = h('div', { class: 'daily-planned' });
+  for (const period of PERIODS) {
+    const list = pending.filter(e => planningFor(e, date).period === period.value);
+    if (period.value === 'evening' && !list.length) continue;
+    const section = h('section', { class: `daily-period daily-period-${period.value || 'unassigned'}` + (date === todayStr() && period.value === (new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening') ? ' current-period' : ''), dataset: { period: period.value } });
+    section.append(h('div', { class: 'daily-period-head' }, h('h2', {}, period.label, h('span', { class: 'daily-count' }, String(list.length))), h('span', { class: 'small muted' }, list.length ? planSummary(list, date) : '')));
+    section.addEventListener('dragover', ev => { ev.preventDefault(); ev.stopPropagation(); section.classList.add('drop-hover'); });
+    section.addEventListener('dragleave', () => section.classList.remove('drop-hover'));
+    section.addEventListener('drop', ev => {
+      ev.preventDefault(); ev.stopPropagation(); section.classList.remove('drop-hover');
+      const e = dragEntries.get(ev.dataTransfer?.getData('text/plain'));
+      if (e && !e.done) orderBefore(e, period.value);
+    });
+    if (list.length) for (const e of list) section.append(row(e));
+    else section.append(h('p', { class: 'muted daily-period-empty' }, '拖入任务，或点击“安排任务”'));
+    planned.append(section);
   }
-  return wrap;
+  active.append(planned);
+  for (const e of sections.done) completed.append(row(e));
+  if (!sections.done.length) completed.append(h('p', { class: 'muted' }, '暂无任务'));
+  const overdue = pool.filter(e => e.overdue);
+  if (overdue.length) { const notice = h('button', { class: 'btn btn-sm daily-overdue-notice' }, `另有 ${overdue.length} 项逾期，待重新安排`); notice.onclick = arrange.onclick; active.append(notice); }
+  wrap.append(active, completed); return wrap;
 }

@@ -279,11 +279,15 @@ test('问题1：区间任务在今日计划里是连续 block，且带上起止�
     assert.equal(findAllByClass(cell, 'cal-card-title').some((t) => textOf(t).includes('区间每日任务')), false);
   }
 
-  // 看板（选中区间中的某一天）显示起止时间
+  // 持续区间保留在日历和安排面板，需要明确选择当天执行
   cells.find((c) => c.dataset.date === R0).click();
   await tick();
   const board = findAllByClass(el, 'cal-board')[0];
-  assert.ok(textOf(board).includes('09:00–18:00'), `看板应显示时间区间，实际「${textOf(board)}」`);
-  assert.ok(textOf(board).includes('跨 3 天'));
+  assert.ok(!textOf(board).includes('区间每日任务'));
+  findAllByTag(board, 'button').find(b => textOf(b) === '安排任务').click();
+  const pool = findAllByClass(document.body, 'daily-arrange-modal').at(-1);
+  assert.ok(textOf(pool).includes('09:00–18:00'));
+  assert.ok(textOf(pool).includes('跨 3 天'));
+  assert.ok(findAllByTag(pool, 'button').some(b => b.getAttribute('aria-label') === '加入当天：区间每日任务'));
   globalThis.fetch = backup;
 });

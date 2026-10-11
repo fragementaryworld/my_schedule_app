@@ -1,3 +1,4 @@
+import { buildPlanProperty } from '../planning.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
@@ -204,6 +205,7 @@ export function buildItemProperties(project, item, itemChain) {
   card.append(
     row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
+    row('当天安排', buildPlanProperty(item, base, async (_, patch) => { await api.put(base, patch); Object.assign(item, patch); await paint(); return true; })),
     row('预计用时', estimateSelect(item, base)),
     row('层级', h('span', { class: 'small muted' }, `${itemChain.length} / ${MAX_ITEM_DEPTH}`)),
     row('下级', h('span', { class: 'small muted' }, kids ? `${kids} 项` : '无'))

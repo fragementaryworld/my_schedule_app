@@ -130,11 +130,14 @@ async function renderToday() {
 
 test('问题2：看板里，区间还没结束的任务不显示逾期', async () => {
   const el = await renderToday();
-  const ongoing = boardCard(el, '区间中的每日任务');
-  assert.ok(ongoing, '跨天的任务也应出现在看板上');
+  assert.ok(!boardCard(el, '区间中的每日任务'), '持续任务不自动进入当天计划');
+  findAllByTag(el, 'button').find(b => textOf(b) === '安排任务').click();
+  const poolCard = title => findAllByClass(document.body, 'daily-task').find(c => textOf(c).includes(title));
+  const ongoing = poolCard('区间中的每日任务');
+  assert.ok(ongoing, '持续任务仍可从安排面板选择');
   assert.equal(textOf(ongoing).includes('逾期'), false, `区间未结束不应逾期：「${textOf(ongoing)}」`);
 
-  const project = boardCard(el, '区间中的项目任务');
+  const project = poolCard('区间中的项目任务');
   assert.ok(project);
   assert.equal(textOf(project).includes('逾期'), false);
 });

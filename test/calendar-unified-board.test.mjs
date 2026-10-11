@@ -62,14 +62,16 @@ test('周/月共用一处日期看板，平铺任务并显示所属清单', asyn
   assert.equal(findAllByClass(root, 'daily-list').length, 0);
   assert.equal(findAllByClass(root, 'cal-board').length, 1);
   assert.equal(findAllByClass(root, 'daily-board').length, 1);
-  for (const text of ['工作事务', '论文', '文件整理', '当天安排', '当天截止']) assert.ok(textOf(board(root)).includes(text));
+  for (const text of ['工作事务', '论文', '文件整理', '上午', '下午', '当天待安排', '今日截止']) assert.ok(textOf(board(root)).includes(text));
   assert.equal(findAllByClass(board(root), 'daily-done')[0].hasAttribute('open'), false);
-  assert.equal(findAllByClass(board(root), 'daily-ongoing')[0].hasAttribute('open'), false);
+  assert.equal(findAllByClass(board(root), 'daily-ongoing').length, 0);
+  assert.ok(!textOf(board(root)).includes('持续调研'));
 });
 
 test('加入选中日后，原任务进入分类看板和日历，截止日期不变，移出可还原', async () => {
   const root = await setup();
-  const add = buttons(root).find(b => b.getAttribute('aria-label') === '加入当天：未安排的资料核对');
+  button(root, '安排任务').click();
+  const add = buttons(document.body).find(b => b.getAttribute('aria-label') === '加入当天：未安排的资料核对');
   add.click(); await tick();
   assert.deepEqual(writes.pop(), { url: '/api/projects/work/tasks/pool', patch: { planDate: date } });
   assert.ok(findAllByClass(findAllByClass(board(root), 'daily-planned')[0], 'daily-task').some(c => c.dataset.entry === '/api/projects/work/tasks/pool'));

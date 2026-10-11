@@ -159,7 +159,7 @@ export function openModal({ title, fields = [], submitText = '保存', onSubmit 
         wrap.append(h('label', {}, f.label || ''));
         c = h('select', {});
         for (const o of f.options || []) c.append(h('option', { value: o.value }, o.label));
-        c.value = f.value || (f.options && f.options[0] && f.options[0].value);
+        c.value = f.value ?? (f.options && f.options[0] && f.options[0].value);
       } else if (f.type === 'datalist') {
         wrap.append(h('label', {}, f.label || ''));
         const listId = `dl-${f.name}-${Math.random().toString(36).slice(2, 8)}`;
@@ -180,6 +180,7 @@ export function openModal({ title, fields = [], submitText = '保存', onSubmit 
       if (f.type !== 'checkbox') wrap.append(c);
       if (f.help) wrap.append(h('div', { class: 'small muted' }, f.help));
       controls[f.name] = c;
+      if (f.onChange) c.addEventListener('change', () => f.onChange(c.value, controls));
       return wrap;
     };
 
