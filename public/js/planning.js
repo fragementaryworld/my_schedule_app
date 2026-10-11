@@ -16,10 +16,15 @@ export function periodForTime(time) {
   return hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
 }
 
+export function isPlannedOn(entry, date) {
+  const t = entry.raw || entry;
+  return !!(date && t.planDate && t.planDate <= date && (t.planEndDate || t.planDate) >= date);
+}
+
 export function planningFor(entry, date) {
   const t = entry.raw || entry;
   const plannedDate = t.planDate || (entry.kind === 'day' && (!t.endDate || t.endDate === t.date) ? t.date : null);
-  if (plannedDate !== date) return { period: '', time: '', endTime: '', order: null };
+  if (!isPlannedOn(entry, date) && plannedDate !== date) return { period: '', time: '', endTime: '', order: null };
   const legacy = !t.planDate && entry.kind === 'day';
   const time = t.planTime || (legacy ? t.time : '') || '';
   const endTime = t.planEndTime || (legacy ? t.endTime : '') || '';
@@ -46,10 +51,14 @@ export function planSummary(entries, date) {
   return `${minutes ? `已安排用时 ${time}` : '用时未估算'}${unknown ? ` · ${unknown} 项未估算` : ''}`;
 }
 
-export function timeConflicts(entries, date, base, start, end) {
+export function timeConflicts(entries, date, base, start, end, until = date) {
   if (!start || !end) return [];
   return entries.filter(e => {
-    const p = planningFor(e, date);
+    const t = e.raw || e;
+    const from = t.planDate || (e.kind === 'day' && (!t.endDate || t.endDate === t.date) ? t.date : null);
+    const to = t.planEndDate || from;
+    if (!from || from > until || to < date) return false;
+    const p = planningFor(e, from > date ? from : date);
     return !e.done && e.base !== base && p.time && p.endTime && p.time < end && p.endTime > start;
   });
 }
@@ -59,17 +68,20 @@ export function editPlan(entry, date, save, entries = []) {
   return openModal({
     title: `安排：${entry.title}`, submitText: '保存安排',
     fields: [
-      { name: 'date', label: '安排日期', type: 'date', value: date, required: true },
+      { name: 'date', label: '安排开始日期', type: 'date', value: entry.planEndDate ? entry.planDate : date, required: true },
+      { name: 'until', label: '安排结束日期（可留空）', type: 'date', value: entry.planEndDate || '', help: '留空表示单日安排；时段和具体时间适用于区间内每天。' },
       { name: 'period', label: '时段', type: 'select', value: p.period, options: PERIODS, onChange: (_, controls) => { controls.time.value = ''; controls.end.value = ''; } },
       { name: 'time', label: '开始时间（可留空）', type: 'time', value: p.time, help: '只选时段即可。填写具体时间后，按开始时间确定时段。', onChange: (time, controls) => { controls.period.value = periodForTime(time); if (!time) controls.end.value = ''; } },
       { name: 'end', label: '结束时间（可留空）', type: 'time', value: p.endTime },
       { name: 'allowOverlap', label: '允许与已有安排重叠', type: 'checkbox', value: false }
     ],
     onSubmit: async v => {
+      if (v.until && v.until < v.date) return { ok: false, error: '安排结束日期不能早于开始日期' };
       if (v.end && (!v.time || v.end <= v.time)) return { ok: false, error: '结束时间必须晚于开始时间，请安排在同一天内' };
-      const conflicts = timeConflicts(entries, v.date, entry.base, v.time, v.end);
+      const conflicts = timeConflicts(entries, v.date, entry.base, v.time, v.end, v.until || v.date);
       if (conflicts.length && !v.allowOverlap) return { ok: false, error: `与「${conflicts.map(e => e.title).join('、')}」时间重叠；请调整时间或勾选允许重叠` };
       const patch = { planDate: v.date, planPeriod: v.time ? periodForTime(v.time) : (v.period || null), planTime: v.time || null, planEndTime: v.end || null, planOrder: null };
+      if (v.until || entry.planEndDate) patch.planEndDate = v.until && v.until !== v.date ? v.until : null;
       if (!(await save(entry, patch))) return { ok: false, error: '安排未保存，请重试' };
     }
   });
@@ -79,7 +91,7 @@ export function buildPlanProperty(task, base, save) {
   const entry = { ...task, kind: base.startsWith('/api/tasks/') ? 'day' : 'project', base, raw: task };
   const date = task.planDate || (entry.kind === 'day' ? task.date : null);
   const p = planningFor(entry, date);
-  const text = date ? `${date} · ${p.time ? timeRangeLabel(p.time, p.endTime) : PERIODS.find(o => o.value === p.period).label}` : '未安排';
+  const text = date ? `${date}${task.planEndDate ? ` → ${task.planEndDate}` : ''} · ${p.time ? timeRangeLabel(p.time, p.endTime) : PERIODS.find(o => o.value === p.period).label}` : '未安排';
   const wrap = h('div', { class: 'row plan-property' });
   const edit = h('button', { class: 'btn btn-sm', type: 'button' }, date ? '调整安排' : '安排任务');
   edit.onclick = async () => {

@@ -369,24 +369,22 @@
 .cal-span-clip { opacity: .85; font-size: 9px; }
 
 /* 拖动：两端把手调整开始/结束，中间整体平移 */
-.cal-span-handle {
-  position: absolute; top: 0; bottom: 0; width: 10px; cursor: col-resize; touch-action:none;
-  opacity:0; background:var(--event-color); border-radius:3px;
+.cal-resize-handle {
+  position:absolute; top:0; bottom:0; width:10px; cursor:col-resize; touch-action:none;
+  opacity:0; border-radius:3px; z-index:1;
 }
-.cal-span-handle.left { left: 2px; }
-.cal-span-handle.right { right: 2px; }
-.cal-span:hover .cal-span-handle, .cal-span.dragging .cal-span-handle { opacity: .9; }
-.cal-span { cursor: grab; touch-action:none; }
+.cal-resize-handle::after { content:''; position:absolute; top:5px; bottom:5px; left:3px; width:3px; border-radius:3px; background:var(--event-color); }
+.cal-resize-handle.left { left:0; }
+.cal-resize-handle.right { right:0; }
+.cal-event:hover .cal-resize-handle, .cal-event:focus-within .cal-resize-handle, .cal-event.resizing .cal-resize-handle { opacity:.9; }
+.cal-span, .cal-card-move { cursor:grab; touch-action:none; }
+.cal-card-title.row-link { cursor:inherit; }
 .cal-row.dragging .cal-span, .cal-span:active { cursor: grabbing; }
 
 /* 单日卡片上的拖动把手 */
-.cal-grip { color: var(--muted); font-size: 14px; cursor: grab; opacity: .4; flex-shrink: 0; touch-action:none; }
-.cal-card:hover .cal-grip { opacity: .8; }
-.cal-grip.cal-card-stretch {
-  position: absolute; top: 0; bottom: 0; right: 0; width: 10px;
-  cursor: col-resize; font-size: 0;
-}
 .cal-card { position: relative; }
+.cal-event.resizing { opacity:.35; }
+.cal-range-preview { position:absolute; padding:3px 10px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; pointer-events:none; z-index:40; box-shadow:var(--shadow-lg); outline:1px solid var(--event-color); }
 .cal-card.dragging, .cal-span.dragging { opacity: .92; box-shadow:var(--shadow-lg); z-index: 5; will-change:transform; }
 .cal-row.dragging { z-index:30; }
 .calendar-drag-active { user-select:none; cursor:grabbing; }
@@ -394,7 +392,7 @@
 .calendar-drag-active .cal-card, .calendar-drag-active .cal-span { transition:none; }
 .cal-col.cal-drop-target, .cal-cell.cal-drop-target { background:var(--primary-soft); box-shadow:inset 0 0 0 2px var(--primary); }
 .cal-drag-hint { position:fixed; z-index:200; pointer-events:none; padding:8px 12px; max-width:calc(100vw - 16px); border:1px solid var(--primary); border-radius:var(--radius-sm); background:var(--panel); color:var(--text); box-shadow:var(--shadow-lg); font-size:12px; }
-@media (hover:none) { .cal-grip, .cal-span-handle { opacity:.8; } }
+@media (hover:none) { .cal-resize-handle { width:14px; opacity:.8; } }
 @media (prefers-reduced-motion:reduce) { .daily-task, .cal-card, .cal-span { transition:none; } }
 
 /* 图例 */

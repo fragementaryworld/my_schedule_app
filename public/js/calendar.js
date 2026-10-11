@@ -233,11 +233,11 @@ export function clampColDelta(mode, startCol, endCol, delta, cols) {
 // 单日条目平移：只动它已有的日期字段
 export function dragSinglePatch(entry, deltaDays) {
   if (!entry || !deltaDays) return null;
-  if (entry.planOnly) return { planDate: addDays(entry.planDate, deltaDays) };
+  if (entry.planOnly) return dragRangePatch(entry, deltaDays, 'move');
   if (entry.kind !== 'project') {
     const date = entry.date || entry.spanFrom;
     if (!date) return null;
-    return { date: addDays(date, deltaDays) };
+    return { date: addDays(date, deltaDays), ...(entry.endDate ? { endDate: addDays(entry.endDate, deltaDays) } : {}) };
   }
   const patch = {};
   if (entry.startDate) patch.startDate = addDays(entry.startDate, deltaDays);
@@ -266,10 +266,33 @@ export function dragRangePatch(entry, deltaDays, mode = 'move') {
   }
   if (nextFrom === from && nextTo === to) return null;
 
+  if (entry.planOnly) {
+    const patch = { planDate: nextFrom };
+    if (mode !== 'move' || entry.planEndDate || to !== from) patch.planEndDate = nextTo === nextFrom ? null : nextTo;
+    return patch;
+  }
+
   if (entry.kind !== 'project') {
     return { date: nextFrom, endDate: nextTo === nextFrom ? null : nextTo };
   }
   return { startDate: nextFrom, dueDate: nextTo };
+}
+
+// 预览和高亮始终基于被修改的日期端点，而不是不相关的项目截止日期。
+export function calendarRangeAfterPatch(entry, patch) {
+  const changed = patch || {};
+  const ranged = entry.spanFrom && entry.spanTo && entry.spanFrom !== entry.spanTo;
+  if (entry.planOnly) {
+    const from = changed.planDate || entry.spanFrom || entry.planDate;
+    const to = 'planEndDate' in changed ? changed.planEndDate || from : entry.planEndDate || (ranged ? entry.spanTo : from);
+    return { from, to };
+  }
+  const from = entry.kind === 'project'
+    ? changed.startDate || entry.startDate || changed.dueDate || entry.spanFrom
+    : changed.date || entry.spanFrom || entry.date;
+  const to = entry.kind === 'project' ? changed.dueDate || entry.dueDate || (ranged ? entry.spanTo : from)
+    : 'endDate' in changed ? changed.endDate || from : entry.endDate || (ranged ? entry.spanTo : from);
+  return { from, to };
 }
 
 // 图例：当前范围里出现的「颜色 → 来源」

@@ -1,4 +1,5 @@
 import { h } from './ui.js';
+import { calendarRangeAfterPatch } from './calendar.js';
 
 let cancelActive = null;
 const saving = new Set();
@@ -55,7 +56,7 @@ export function attachCalendarDrag(handle, opts) {
       let visual = opts.clamp(dx / colW);
       delta = opts.clamp(Math.round(dx / colW)); valid = true;
       let offsetY = 0;
-      // 月视图整体移动可以跨周行；缩放仍限制在当前行，避免改变另一端。
+      // 移动和拉伸都可跨周行，拉伸按真实端点计算，另一端保持不变。
       if (opts.crossRows && Number.isFinite(latest.clientY) && Number.isFinite(rect?.left)) {
         const target = rows.find(row => {
           const r = row.getBoundingClientRect?.();
@@ -70,17 +71,21 @@ export function attachCalendarDrag(handle, opts) {
           const grabOffset = x - rect.left - grabCol * colW;
           const col = Math.max(0, Math.min(opts.dates.length - 1,
             Math.round((latest.clientX - r.left - grabOffset) / targetColW)));
-          delta = dayDifference(opts.dates[Math.max(0, Math.min(opts.dates.length - 1, grabCol))], target.children[col].dataset.date);
+          if (opts.resize) {
+            const edgeDate = opts.resize === 'start' ? opts.entry.spanFrom : opts.entry.spanTo;
+            const targetCol = Math.max(0, Math.min(opts.dates.length - 1, Math.floor((latest.clientX - r.left) / targetColW)));
+            delta = opts.clamp(dayDifference(edgeDate, target.children[targetCol].dataset.date));
+          } else {
+            delta = dayDifference(opts.dates[Math.max(0, Math.min(opts.dates.length - 1, grabCol))], target.children[col].dataset.date);
+          }
           visual = dx / colW; offsetY = dy;
         }
       }
       opts.row.classList.add('dragging'); doc.body.classList.add('calendar-drag-active');
-      opts.onPreview?.(visual, colW, { dx: visual * colW, dy: offsetY, delta });
-      clearHighlight();
       const patch = opts.patchOf(delta);
-      const from = patch?.planDate || patch?.date || patch?.startDate || patch?.dueDate
-        || (opts.entry.planOnly ? opts.entry.planDate : opts.entry.spanFrom || opts.entry.date);
-      const to = patch?.dueDate || patch?.endDate || (patch ? from : opts.entry.spanTo || from);
+      const { from, to } = calendarRangeAfterPatch(opts.entry, patch);
+      opts.onPreview?.(visual, colW, { dx: visual * colW, dy: offsetY, delta, from, to, valid });
+      clearHighlight();
       if (valid) for (const cell of cells) {
         if (cell.dataset.date >= from && cell.dataset.date <= to) {
           cell.classList.add('cal-drop-target'); highlighted.add(cell);

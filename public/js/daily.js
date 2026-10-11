@@ -1,4 +1,4 @@
-import { PERIODS, planningFor, comparePlan, planSummary, editPlan, buildTimeAxis } from './planning.js';
+import { PERIODS, planningFor, isPlannedOn, comparePlan, planSummary, editPlan, buildTimeAxis } from './planning.js';
 import { ownership, ownerOptions } from './ownership.js';
 // 清单决定存放位置，时段决定当天的执行顺序。安排不改项目的截止日期。
 import { h, toast, confirmDialog, dismissOnOutsideClick } from './ui.js';
@@ -68,15 +68,17 @@ export function withPlannedCalendarEntries(calendarEntries, entries) {
     const index = result.findIndex(c => c.kind === e.kind && c.id === e.id && (e.kind !== 'project' || c.projectId === e.projectId));
     const original = result[index];
     const p = planningFor(e, e.planDate);
+    const until = e.planEndDate || e.planDate;
     // 独立单日任务的 date 是原执行日期；改计划日期后只展示新安排，避免旧日期出现残影。
     if (original && e.kind === 'day' && e.spanDays <= 1) result.splice(index, 1);
-    else if (original && original.spanFrom <= e.planDate && original.spanTo >= e.planDate) {
+    else if (original && original.spanFrom === e.planDate && original.spanTo === until) result.splice(index, 1);
+    else if (original && until === e.planDate && original.spanFrom <= e.planDate && original.spanTo >= e.planDate) {
       result[index] = { ...original, planDate: e.planDate, planPeriod: p.period, planTime: p.time, planEndTime: p.endTime };
       continue;
     }
     result.push({ ...e, date: e.planDate, time: timeRangeLabel(p.time, p.endTime), planOnly: true,
       planPeriod: p.period, planTime: p.time, planEndTime: p.endTime,
-      spanFrom: e.planDate, spanTo: e.planDate, spanDays: 1, spanStart: true, spanEnd: true,
+      spanFrom: e.planDate, spanTo: until, spanDays: spanDays({ from: e.planDate, to: until }), spanStart: true, spanEnd: true,
       detail: e.kind === 'project' ? e.desc || '' : e.note || '' });
   }
   return result;
@@ -86,7 +88,7 @@ export function dailySections(entries, date) {
   const out = { planned: [], due: [], ongoing: [], done: [], candidates: [] };
   for (const e of entries) {
     const spansDate = e.spanFrom && e.spanFrom <= date && e.spanTo >= date;
-    const planned = e.planDate === date || (!e.planDate && e.kind === 'day' && e.date === date && (!e.endDate || e.endDate === date));
+    const planned = isPlannedOn(e, date) || (!e.planDate && e.kind === 'day' && e.date === date && (!e.endDate || e.endDate === date));
     const due = e.kind === 'project' ? e.dueDate === date : e.endDate === date;
     if (e.done) {
       if (planned || due || spansDate) out.done.push(e);
@@ -197,12 +199,13 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     catch (err) { toast(err.message, 'error'); return false; }
   };
   const dragEntries = new Map(entries.map(e => [e.base, e]));
-  const moveTo = (e, period) => save(e, { planDate: date, planPeriod: period || null, planTime: null, planEndTime: null, planOrder: null });
+  const scheduleDate = e => isPlannedOn(e, date) ? e.planDate : date;
+  const moveTo = (e, period) => save(e, { planDate: scheduleDate(e), planPeriod: period || null, planTime: null, planEndTime: null, planOrder: null });
   const orderBefore = async (entry, period, before) => {
     const peers = pending.filter(e => !planningFor(e, date).time && planningFor(e, date).period === period && e.base !== entry.base);
     const index = before ? peers.findIndex(e => e.base === before.base) : peers.length;
     peers.splice(index < 0 ? peers.length : index, 0, entry);
-    return batch(peers.map((e, i) => ({ base: e.base, patch: { planDate: date, planPeriod: period || null, planTime: null, planEndTime: null, planOrder: i } })));
+    return batch(peers.map((e, i) => ({ base: e.base, patch: { planDate: scheduleDate(e), planPeriod: period || null, planTime: null, planEndTime: null, planOrder: i } })));
   };
   for (const [col, done] of [[active, false], [completed, true]]) {
     col.addEventListener('dragover', ev => { ev.preventDefault(); col.classList.add('drop-hover'); if (done) col.open = true; });
@@ -237,6 +240,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     if (detail) body.append(h('div', { class: 'cal-board-detail' }, truncate(detail, 90)));
     const meta = h('div', { class: 'daily-task-meta' });
     meta.append(h('span', { class: 'daily-owner' }, e.ownerLabel));
+    if (e.planEndDate) meta.append(h('span', { class: 'daily-plan-range' }, `安排 ${e.planDate} → ${e.planEndDate}`));
     if (e.ancestors?.length) meta.append(h('span', { class: 'daily-breadcrumb' }, e.ancestors.join(' / ')));
     if (p.time) meta.append(h('span', { class: 'daily-plan-time' }, timeRangeLabel(p.time, p.endTime)));
     if (candidate && e.spanDays > 1) {
@@ -277,8 +281,8 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     if (candidate || (!e.done && !e.planDate && sections.due.includes(e))) {
       const add = h('button', { class: 'btn btn-sm daily-plan-add', 'aria-label': `加入当天：${e.title}` }, '＋ 加入当天');
       add.onclick = async () => { if (await save(e, { planDate: date })) onAdded?.(); }; actions.append(add);
-    } else if (!e.done && e.planDate === date) {
-      const remove = h('button', { class: 'icon-btn', title: '取消当天安排', 'aria-label': `移出当天：${e.title}` }, '撤销当天安排');
+    } else if (!e.done && isPlannedOn(e, date)) {
+      const remove = h('button', { class: 'icon-btn', title: '取消安排', 'aria-label': `移出当天：${e.title}` }, e.planEndDate ? '撤销这段安排' : '撤销当天安排');
       remove.onclick = () => save(e, { planDate: null }); menuItems.append(remove);
     }
     if (e.repeat || e.repeatOf) {

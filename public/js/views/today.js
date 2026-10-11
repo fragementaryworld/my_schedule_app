@@ -254,37 +254,13 @@ function buildSpanLayer(layout, cols, row, dates) {
       patchOf: (delta) => dragRangePatch(e, delta, 'move')
     });
 
-    // 两端把手：单独调整开始 / 结束
-    const leftH = h('span', { class: 'cal-span-handle left', title: '拖动调整开始日期' });
-    const rightH = h('span', { class: 'cal-span-handle right', title: '拖动调整结束日期' });
-    attachDrag(leftH, {
-      entry: e,
-      row,
-      dates,
-      clamp: (delta) => clampColDelta('start', bar.startCol, bar.endCol, delta, cols),
-      onPreview: (delta) => {
-        el.style.left = pct(bar.startCol + delta);
-        el.style.width = pct(bar.endCol - (bar.startCol + delta) + 1);
-      },
-      onEnd: resetSpan,
-      patchOf: (delta) => dragRangePatch(e, delta, 'start')
-    });
-    attachDrag(rightH, {
-      entry: e,
-      row,
-      dates,
-      clamp: (delta) => clampColDelta('end', bar.startCol, bar.endCol, delta, cols),
-      onPreview: (delta) => { el.style.width = pct(bar.endCol + delta - bar.startCol + 1); },
-      onEnd: resetSpan,
-      patchOf: (delta) => dragRangePatch(e, delta, 'end')
-    });
-    el.append(leftH);
+    attachRangeHandles(el, e, { row, dates, clippedStart: bar.continuesLeft, clippedEnd: bar.continuesRight,
+      previewTop: SPAN_TOP + bar.lane * SPAN_LANE_H, onEnd: resetSpan });
 
     if (bar.continuesLeft) el.append(h('span', { class: 'cal-span-clip' }, '◀'));
     el.append(h('span', { class: 'cal-span-title' }, e.title));
     el.append(h('span', { class: 'cal-span-days' }, `${e.spanDays} 天`));
     if (bar.continuesRight) el.append(h('span', { class: 'cal-span-clip' }, '▶'));
-    el.append(rightH);
     layer.append(el);
   }
   return layer;
@@ -324,6 +300,46 @@ function eventProps(e) {
     onkeydown: ev => { if (ev.key === 'Enter' && !suppressClick) { ev.preventDefault(); openEntry(e); } } };
 }
 
+// 拉伸时按实际日期范围在各周行绘制预览，不把整段挤在起始周行里。
+function attachRangeHandles(element, entry, { row, dates, clippedStart = false, clippedEnd = false, previewTop = SPAN_TOP, onEnd } = {}) {
+  let calendar = row;
+  while (calendar && !calendar.classList.contains('cal')) calendar = calendar.parentNode;
+  // 构建阶段尚未挂到日历上，第一次预览时再寻找根节点。
+  const previews = new Map();
+  const preview = (_, __, range) => {
+    if (!calendar) { calendar = row; while (calendar && !calendar.classList.contains('cal')) calendar = calendar.parentNode; }
+    element.classList.add('resizing');
+    for (const targetRow of calendar?.querySelectorAll('.cal-row') || []) {
+      const cells = [...targetRow.children].filter(c => c.dataset.date);
+      const columns = cells.map((cell, i) => cell.dataset.date >= range.from && cell.dataset.date <= range.to ? i : -1).filter(i => i >= 0);
+      let ghost = previews.get(targetRow);
+      if (!range.valid || !columns.length) { ghost?.remove(); previews.delete(targetRow); continue; }
+      if (!ghost) {
+        ghost = h('div', { class: 'cal-event cal-range-preview', 'aria-hidden': 'true' }, entry.title);
+        targetRow.append(ghost); previews.set(targetRow, ghost);
+      }
+      ghost.setAttribute('style', `left:${columns[0] / cells.length * 100}%;width:${columns.length / cells.length * 100}%;top:${previewTop}px;${eventStyle(entry)}`);
+    }
+  };
+  const restore = () => {
+    for (const ghost of previews.values()) ghost.remove();
+    previews.clear(); element.classList.remove('resizing'); onEnd?.();
+  };
+  for (const mode of ['start', 'end']) {
+    if ((mode === 'start' && clippedStart) || (mode === 'end' && clippedEnd)) continue;
+    const side = mode === 'start' ? 'left' : 'right';
+    const single = element.classList.contains('cal-card');
+    const handle = h('span', {
+      class: `cal-resize-handle ${single ? `cal-grip ${mode === 'start' ? 'cal-card-start' : 'cal-card-stretch'}` : 'cal-span-handle'} ${side}`,
+      title: `拖动调整${mode === 'start' ? '开始' : '结束'}日期`
+    });
+    attachDrag(handle, { entry, row, dates, crossRows: true, resize: mode,
+      clamp: delta => mode === 'start' ? Math.min(entry.spanDays - 1, delta) : Math.max(1 - entry.spanDays, delta),
+      onPreview: preview, onEnd: restore, patchOf: delta => dragRangePatch(entry, delta, mode) });
+    element.append(handle);
+  }
+}
+
 function buildCard(e, ctx) {
   const card = h('div', {
     ...eventProps(e),
@@ -345,13 +361,12 @@ function buildCard(e, ctx) {
   const titleRow = h('div', { class: 'row cal-card-titlerow' });
   if (e.time) titleRow.append(h('span', { class: 'cal-event-time' }, e.time));
   const title = h('span', { class: 'cal-card-title row-link' }, e.title);
-  title.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); openEntry(e); };
   titleRow.append(title);
 
-  // 单日任务也能拖动：⠿ 改期，右边缘拉伸等于改结束日期（拉长后就是跨天 block）
+  // 整条任务都可改期；两端拉伸日期，明确安排只修改安排区间。
   if (ctx) {
-    const move = h('span', { class: 'cal-grip cal-card-move', title: '拖动改期' }, '⠿');
-    attachDrag(move, {
+    card.classList.add('cal-card-move');
+    attachDrag(card, {
       entry: e,
       row: ctx.row,
       dates: ctx.dates,
@@ -364,21 +379,7 @@ function buildCard(e, ctx) {
       onEnd: () => { card.style.transform = ''; card.classList.remove('dragging'); },
       patchOf: (delta) => dragSinglePatch(e, delta)
     });
-    titleRow.append(move);
-
-    if (!e.planOnly) {
-      const stretch = h('span', { class: 'cal-grip cal-card-stretch', title: '拖动调整结束日期' });
-      attachDrag(stretch, {
-        entry: e,
-        row: ctx.row,
-        dates: ctx.dates,
-        clamp: (delta) => clampColDelta('end', ctx.col, ctx.col, delta, ctx.dates.length),
-        onPreview: (delta, colW) => { card.classList.add('dragging'); card.style.width = `${colW * (1 + delta) - 12}px`; },
-        onEnd: () => { card.style.width = ''; card.classList.remove('dragging'); },
-        patchOf: (delta) => dragRangePatch(e, delta, 'end')
-      });
-      card.append(stretch);
-    }
+    attachRangeHandles(card, e, { row: ctx.row, dates: ctx.dates });
   }
 
   body.append(titleRow);
