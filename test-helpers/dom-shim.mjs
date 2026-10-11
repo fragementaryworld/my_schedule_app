@@ -125,6 +125,8 @@ export class Element {
       if (doc && node === doc.body) reachedBody = true;
       node = node.parentNode || null;
     }
+    if (reachedBody && doc) doc.dispatchEvent(type, e, true);
+    if (e._stopped) return;
     for (const n of path) {
       for (const fn of n._listeners[type] || []) fn(e);
       const prop = n['on' + type];
@@ -132,7 +134,7 @@ export class Element {
       if (e._stopped) return;
     }
     // 只有挂在文档上的元素，事件才会继续冒泡到 document
-    if (reachedBody && doc && typeof doc.dispatchEvent === 'function') doc.dispatchEvent(type, e);
+    if (reachedBody && doc && typeof doc.dispatchEvent === 'function') doc.dispatchEvent(type, e, false);
   }
   click() {
     this.fire('click');
@@ -170,6 +172,7 @@ export function matchesSelector(node, selector) {
 
 export function makeDocument() {
   const listeners = {};
+  const captureListeners = new Set();
   const document = {
     createElement: (t) => new Element(t),
     createTextNode: (t) => ({ nodeType: 3, text: String(t), children: [], parentNode: null }),
@@ -190,15 +193,19 @@ export function makeDocument() {
       walk(document.body);
       return out;
     },
-    addEventListener(type, fn) {
+    addEventListener(type, fn, capture = false) {
       (listeners[type] ||= []).push(fn);
+      if (capture === true || capture?.capture) captureListeners.add(fn);
     },
     removeEventListener(type, fn) {
       listeners[type] = (listeners[type] || []).filter((f) => f !== fn);
+      captureListeners.delete(fn);
     },
-    dispatchEvent(type, event = {}) {
+    dispatchEvent(type, event = {}, captureOnly) {
       const e = { type, preventDefault() {}, stopPropagation() {}, ...event };
-      for (const fn of [...(listeners[type] || [])]) fn(e);
+      for (const fn of [...(listeners[type] || [])]) {
+        if (captureOnly === undefined || captureListeners.has(fn) === captureOnly) fn(e);
+      }
     },
     listenerCount(type) {
       return (listeners[type] || []).length;

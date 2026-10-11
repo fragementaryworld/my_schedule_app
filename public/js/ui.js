@@ -18,6 +18,39 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
+const menuDocuments = new WeakSet();
+
+// 一个文档只保留一组监听器，重绘任务列表不会积累旧菜单的监听器。
+export function dismissOnOutsideClick(menu) {
+  const doc = document;
+  menu.classList.add('dismissible-menu');
+  const menus = () => doc.querySelectorAll('.dismissible-menu');
+  const contains = (parent, target) => {
+    for (let node = target; node; node = node.parentNode) if (node === parent) return true;
+    return false;
+  };
+  menu.addEventListener('toggle', () => {
+    if (menu.open) for (const other of menus()) if (other !== menu) other.open = false;
+  });
+  if (!menuDocuments.has(doc)) {
+    menuDocuments.add(doc);
+    // 捕获阶段执行，页面上的 stopPropagation 不会阻止外部点击收起菜单。
+    doc.addEventListener('click', event => {
+      for (const item of menus()) if (!contains(item, event.target)) item.open = false;
+    }, true);
+    doc.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      for (const item of menus()) {
+        if (!item.open) continue;
+        item.open = false;
+        Array.from(item.children).find(child => child.tagName === 'SUMMARY')?.focus();
+        event.preventDefault();
+      }
+    });
+  }
+  return menu;
+}
+
 // 重绘会先清空内容，浏览器会把滚动条弹回顶部；重绘前后保住滚动位置。
 // 注意：本应用真正滚动的是 #content（shell.css 里 overflow:auto），不是 window。
 export function scrollBox() {

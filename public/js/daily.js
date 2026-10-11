@@ -1,7 +1,7 @@
 import { PERIODS, planningFor, comparePlan, planSummary, editPlan, buildTimeAxis } from './planning.js';
 import { ownership, ownerOptions } from './ownership.js';
 // 清单决定存放位置，时段决定当天的执行顺序。安排不改项目的截止日期。
-import { h, toast, confirmDialog } from './ui.js';
+import { h, toast, confirmDialog, dismissOnOutsideClick } from './ui.js';
 import { api } from './api.js';
 import { flattenProjectItems, itemSpan, spanDays, DAY_TASK_COLOR, truncate, tint } from './calendar.js';
 import { itemBase, itemHref, timelineColor } from './views/projects.js';
@@ -211,7 +211,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     if (e.priority === 'high') meta.append(h('span', { class: `badge ${priorityClass(e.priority)}` }, priorityLabel(e.priority)));
     body.append(meta); if (!candidate) r.append(cb); r.append(body);
     const actions = h('div', { class: 'daily-actions' });
-    const menu = h('details', { class: 'daily-task-menu' });
+    const menu = dismissOnOutsideClick(h('details', { class: 'daily-task-menu' }));
     const menuItems = h('div', { class: 'daily-task-menu-items' });
     menu.append(h('summary', { 'aria-label': `更多操作：${e.title}` }, '⋯'), menuItems);
     if (!candidate && !e.done) {
