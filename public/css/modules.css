@@ -504,6 +504,7 @@
 .daily-arrange-modal .modal-foot { flex-wrap:wrap; }
 .daily-arrange-modal .modal-foot .daily-pool-selection { flex:1 1 100%; color:var(--muted); }
 .daily-arrange-modal .modal-foot select { width:auto; min-width:150px; }
+.daily-arrange-modal .daily-task-menu-items { position:static; margin-top:6px; min-width:150px; max-width:100%; }
 .daily-pool-list { display:flex; flex-direction:column; gap:18px; margin-top:16px; }
 .daily-pool-group { border:1px solid color-mix(in srgb,var(--group-color) 60%,var(--border)); border-left:4px solid var(--group-color); border-radius:var(--radius-sm); background:var(--panel); box-shadow:var(--shadow); }
 .daily-pool-group-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px 12px; padding:12px 14px; border-bottom:1px solid color-mix(in srgb,var(--group-color) 40%,var(--border)); border-radius:8px 8px 0 0; background:color-mix(in srgb,var(--group-color) 12%,var(--panel)); }

@@ -278,17 +278,27 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     const menu = dismissOnOutsideClick(h('details', { class: 'daily-task-menu' }));
     const menuItems = h('div', { class: 'daily-task-menu-items' });
     menu.append(h('summary', { 'aria-label': `更多操作：${e.title}` }, '⋯'), menuItems);
-    if (!candidate && !e.done) {
-      const period = h('select', { class: 'input daily-period-select', 'aria-label': `安排时段：${e.title}` });
-      for (const o of PERIODS) period.append(h('option', { value: o.value }, o.label));
-      period.value = p.period;
-      period.onchange = async () => { period.disabled = true; if (!(await moveTo(e, period.value))) period.value = p.period; period.disabled = false; };
+    if (!e.done) {
+      if (!candidate) {
+        const period = h('select', { class: 'input daily-period-select', 'aria-label': `安排时段：${e.title}` });
+        for (const o of PERIODS) period.append(h('option', { value: o.value }, o.label));
+        period.value = p.period;
+        period.onchange = async () => { period.disabled = true; if (!(await moveTo(e, period.value))) period.value = p.period; period.disabled = false; };
+        actions.append(period);
+      }
       const edit = h('button', { class: 'icon-btn', title: '调整日期或具体时间', 'aria-label': `调整安排：${e.title}` }, '调整日期或时间');
-      edit.onclick = () => editPlan(e, date, save, allEntries);
+      edit.onclick = async () => {
+        menu.open = false;
+        const result = await editPlan(e, date, save, allEntries);
+        if (result !== null) onAdded?.();
+      };
       const tomorrow = h('button', { class: 'icon-btn', 'aria-label': `改到明天：${e.title}` }, '改到明天');
-      tomorrow.onclick = () => save(e, { planDate: addDays(date, 1), planPeriod: p.period || null, planTime: p.time || null, planEndTime: p.endTime || null, planOrder: null });
-      actions.append(period); menuItems.append(edit, tomorrow);
-      if (!p.time) {
+      tomorrow.onclick = async () => {
+        menu.open = false;
+        if (await save(e, { planDate: addDays(date, 1), planPeriod: p.period || null, planTime: p.time || null, planEndTime: p.endTime || null, planOrder: null })) onAdded?.();
+      };
+      menuItems.append(edit, tomorrow);
+      if (!candidate && !p.time) {
         const peers = pending.filter(x => !planningFor(x, date).time && planningFor(x, date).period === p.period);
         const i = peers.findIndex(x => x.base === e.base);
         const up = h('button', { class: 'icon-btn', 'aria-label': `上移：${e.title}`, disabled: i < 1 ? 'true' : null }, '↑ 上移');
@@ -301,9 +311,13 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
     if ((candidate && !alreadyPending) || (!candidate && !e.done && !e.planDate && sections.due.includes(e))) {
       const add = h('button', { class: 'btn btn-sm daily-plan-add', 'aria-label': `加入当天：${e.title}` }, '＋ 加入当天');
       add.onclick = async () => { if (await save(e, { planDate: date })) onAdded?.(); }; actions.append(add);
-    } else if (!candidate && !e.done && isPlannedOn(e, date)) {
+    }
+    if (!e.done && isPlannedOn(e, date)) {
       const remove = h('button', { class: 'icon-btn', title: '取消安排', 'aria-label': `移出当天：${e.title}` }, e.planEndDate ? '撤销这段安排' : '撤销当天安排');
-      remove.onclick = () => save(e, { planDate: null }); menuItems.append(remove);
+      remove.onclick = async () => {
+        menu.open = false;
+        if (await save(e, { planDate: null })) onAdded?.();
+      }; menuItems.append(remove);
     }
     if (e.repeat || e.repeatOf) {
       const finish = h('button', { class: 'icon-btn', title: '完成整个系列' }, '✓✓');
@@ -311,7 +325,7 @@ export function buildDailyBoard(entries, date, refresh, { onRemove, allEntries =
       menuItems.append(finish);
     }
     if (onRemove) {
-      const del = h('button', { type: 'button', class: 'icon-btn cal-board-del', title: `删除「${e.title}」`, 'aria-label': `删除「${e.title}」` }, '🗑');
+      const del = h('button', { type: 'button', class: 'icon-btn cal-board-del', title: `删除「${e.title}」`, 'aria-label': `删除「${e.title}」` }, '删除任务');
       del.onclick = async ev => { ev.stopPropagation(); try { await onRemove(e); } catch (err) { toast(err.message, 'error'); } }; menuItems.append(del);
     }
     if (menuItems.children.length) actions.append(menu);
