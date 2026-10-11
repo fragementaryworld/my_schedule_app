@@ -288,7 +288,7 @@ function buildMonth(byDate, dates, multiDay) {
 
 function eventStyle(e) {
   const color = e.color || DAY_TASK_COLOR;
-  return `--event-color:${color};background:${tint(color, .14)};border-left:3px solid ${color}`;
+  return `--event-color:${color};background:${tint(color, .26)};border:1px solid ${tint(color, .6)};border-left:3px solid ${color}`;
 }
 
 function eventProps(e) {
