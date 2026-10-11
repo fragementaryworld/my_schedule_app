@@ -8,6 +8,7 @@ import { buildEstimateField } from '../estimate.js';
 import { DEFAULT_TASK_NAME, createChild, buildChildViews } from './projects.js';
 import { restoreBlockEditing, buildContentEditor, restoreContentEditing, clearContentEditors } from './page.js';
 import { buildDateField } from '../datepicker.js';
+import { flushContentEdits, contentCheckpoint } from '../saving.js';
 
 // 任务最多 5 层：任务 → 子任务 → 子子任务 → …
 export const MAX_ITEM_DEPTH = 5;
@@ -66,6 +67,10 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   const active = beginRender(container);
   if (!active()) return;
+  try { await flushContentEdits(container); }
+  catch (error) { toast('内容尚未保存，已保留编辑：' + error.message, 'error'); return; }
+  if (!active()) return;
+  const contentUnchanged = contentCheckpoint(container);
   const pos = scrollPos();
   const focus = focusSnapshot();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
@@ -73,6 +78,7 @@ async function paint() {
   const requestedChain = [...chain];
   const projects = await api.get('/api/projects');
   if (!active()) return;
+  if (!contentUnchanged()) return paint();
   const project = projects.find((x) => x.id === requestedProject);
   const nodes = chainNodes(project, requestedChain);
   const item = nodes.length ? nodes[nodes.length - 1] : null;

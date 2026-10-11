@@ -28,12 +28,27 @@ export function registerEditor(element, flush) {
   editors.set(element, flush);
 }
 
-export async function flushPendingEdits() {
-  if (typeof document === 'undefined') return;
-  const elements = [...document.querySelectorAll('[data-save-editor="true"]')];
+async function flushEditors(root, selector) {
+  if (!root) return;
+  const elements = [...root.querySelectorAll(selector)];
   const results = await Promise.allSettled(elements.map((element) => editors.get(element)?.()));
   const failed = results.find((result) => result.status === 'rejected');
   if (failed) throw failed.reason;
+}
+
+export function flushPendingEdits() {
+  return flushEditors(typeof document === 'undefined' ? null : document, '[data-save-editor="true"]');
+}
+
+// 整页重绘前先提交正文；普通属性输入仍沿用自己的编辑/焦点恢复规则。
+export function flushContentEdits(container) {
+  return flushEditors(container, '[data-content-editor="true"]');
+}
+
+export function contentCheckpoint(container) {
+  const snapshots = [...container.querySelectorAll('[data-content-editor="true"]')]
+    .map(element => [element, element.textContent]);
+  return () => snapshots.every(([element, text]) => element.textContent === text);
 }
 
 export function trackWrite(key, promise) {

@@ -113,6 +113,18 @@ export class Element {
     node.parentNode = parent;
     this.parentNode = null;
   }
+  querySelectorAll(selector) {
+    const result = [];
+    const visit = node => {
+      for (const child of node.children || []) {
+        if (matchesSelector(child, selector)) result.push(child);
+        visit(child);
+      }
+    };
+    visit(this);
+    return result;
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   focus() {}
   blur() {
     this.dispatchEvent('blur');

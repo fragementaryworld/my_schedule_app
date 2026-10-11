@@ -9,12 +9,14 @@ globalThis.location = { hash: '#/page/p1' };
 
 const calls = [];
 let project = null;
+let failContentSave = false;
 
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
   const method = opts.method || 'GET';
   const body = opts.body ? JSON.parse(opts.body) : null;
   calls.push({ url: u, method, body });
+  if (method === 'PUT' && body?.desc !== undefined && failContentSave) return { ok: false, status: 500, json: async () => ({ error: '保存失败' }) };
   // 模拟落库：重绘后要能读到刚保存的内容
   if (method === 'PUT' && body && u.endsWith('/api/projects/p1')) Object.assign(project, body);
   if (method === 'PUT' && body && u === `/api/projects/${project.id}/tasks/${project.tasks[0].id}`) Object.assign(project.tasks[0], body);
@@ -29,6 +31,7 @@ const tick = () => new Promise((r) => setTimeout(r, 10));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function reset() {
+  failContentSave = false;
   calls.length = 0;
   document.body.children = [];
   document.activeElement = null;
@@ -171,4 +174,66 @@ test('切换项目任务后，旧编辑框的延迟保存仍写入原任务', as
     { url: '/api/projects/p1/tasks/t1', body: { desc: '属于第一个任务的草稿' } }
   ]);
   assert.equal(project.tasks[0].desc, '第二个任务');
+});
+
+test('属性修改导致重绘时，未经过防抖的草稿立即保存并恢复编辑状态', async () => {
+  reset();
+  const el = await renderPage();
+  view(el).click();
+  const old = input(el);
+  old.textContent = '正在输入且尚未自动保存'; old.fire('input');
+  const status = findAllByClass(el, 'inline-select').find(select => findAllByTag(select, 'option').some(option => option.getAttribute('value') === 'paused'));
+  status.value = 'paused'; status.fire('change');
+  await wait(40);
+  assert.notEqual(input(el), old);
+  assert.equal(input(el).textContent, '正在输入且尚未自动保存');
+  assert.equal(input(el).style.display, '');
+  assert.equal(project.desc, '正在输入且尚未自动保存');
+  assert.equal(descWrites().length, 1);
+});
+
+test('重绘前草稿保存失败时保留原编辑器，重试成功后再替换', async () => {
+  reset();
+  const el = await renderPage();
+  view(el).click();
+  const old = input(el); old.textContent = '失败后保留'; old.fire('input');
+  failContentSave = true;
+  await pageMod.render(el, { id: 'p1' });
+  assert.equal(input(el), old);
+  assert.equal(old.textContent, '失败后保留');
+  assert.equal(project.desc, '原来的内容');
+  failContentSave = false;
+  await pageMod.render(el, { id: 'p1' });
+  assert.notEqual(input(el), old);
+  assert.equal(project.desc, '失败后保留');
+});
+
+test('加载新数据期间继续输入时，不使用过时响应覆盖最新草稿', async () => {
+  reset();
+  const el = await renderPage();
+  view(el).click();
+  const old = input(el);
+  old.textContent = '第一段'; old.fire('input');
+  const originalFetch = globalThis.fetch;
+  let release, entered;
+  const loading = new Promise(resolve => { entered = resolve; });
+  let first = true;
+  globalThis.fetch = async (url, options = {}) => {
+    const response = await originalFetch(url, options);
+    if (url === '/api/projects' && (!options.method || options.method === 'GET') && first) {
+      first = false;
+      const snapshot = await response.json();
+      entered(); await new Promise(resolve => { release = resolve; });
+      return { ...response, json: async () => snapshot };
+    }
+    return response;
+  };
+  try {
+    const repaint = pageMod.render(el, { id: 'p1' });
+    await loading;
+    old.textContent = '第一段加上请求等待期间的新文字'; old.fire('input');
+    release(); await repaint;
+    assert.equal(input(el).textContent, '第一段加上请求等待期间的新文字');
+    assert.equal(project.desc, input(el).textContent);
+  } finally { globalThis.fetch = originalFetch; }
 });

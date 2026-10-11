@@ -1,7 +1,7 @@
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
 'use strict';
-import { registerEditor, serializeSave } from '../saving.js';
+import { registerEditor, serializeSave, flushContentEdits, contentCheckpoint } from '../saving.js';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { todayStr } from '../utils.js';
@@ -30,11 +30,16 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   const active = beginRender(container);
   if (!active()) return;
+  try { await flushContentEdits(container); }
+  catch (error) { toast('备注尚未保存，已保留编辑：' + error.message, 'error'); return; }
+  if (!active()) return;
+  const contentUnchanged = contentCheckpoint(container);
   const pos = scrollPos();
   const focus = focusSnapshot();
   titleEl = null;
   const [task, projects] = await Promise.all([api.get(`/api/tasks/${encodeURIComponent(taskId)}`), api.get('/api/projects')]);
   if (!active()) return;
+  if (!contentUnchanged()) return paint();
   container.innerHTML = '';
   try {
     if (!task || !task.id) {
@@ -190,7 +195,7 @@ function buildNote(task) {
     html: renderMarkdown(task.note || ''),
     'data-placeholder': '点击这里写备注，支持 Markdown…'
   });
-  const edit = h('div', { class: 'feed-goal', contenteditable: 'true' });
+  const edit = h('div', { class: 'feed-goal', contenteditable: 'true', 'data-content-editor': 'true' });
   edit.textContent = task.note || '';
   edit.style.display = 'none';
   display.onclick = () => {

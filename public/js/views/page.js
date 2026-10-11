@@ -5,7 +5,7 @@ import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focus
 import { PROJECT_STATUS } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { buildDateField } from '../datepicker.js';
-import { registerEditor, serializeSave } from '../saving.js';
+import { registerEditor, serializeSave, flushContentEdits, contentCheckpoint } from '../saving.js';
 import { buildProjectTasksSection, collectOwners, blockedByOptions, DEFAULT_PAGE_NAME, createProject } from './projects.js';
 
 let el = null;
@@ -85,7 +85,8 @@ export function buildContentEditor({ value, onSave, key, placeholder = '写点�
     class: 'feed-goal md-content-input',
     contenteditable: 'true',
     spellcheck: 'false',
-    'data-focus-key': key
+    'data-focus-key': key,
+    'data-content-editor': 'true'
   });
   edit.textContent = current;
   edit.style.display = 'none';
@@ -156,12 +157,17 @@ async function paint() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   const active = beginRender(container);
   if (!active()) return;
+  try { await flushContentEdits(container); }
+  catch (error) { toast('内容尚未保存，已保留编辑：' + error.message, 'error'); return; }
+  if (!active()) return;
+  const contentUnchanged = contentCheckpoint(container);
   const pos = scrollPos();
   const focus = focusSnapshot();
   // 先取数据，再一次性重建，避免中途出现空页面把滚动条弹回顶部
   const requestedId = pageId;
   const projects = await api.get('/api/projects');
   if (!active()) return;
+  if (!contentUnchanged()) return paint();
   const page = projects.find((x) => x.id === requestedId);
   blockEls.clear();
   clearContentEditors();

@@ -2,7 +2,7 @@ import { itemBase, itemHref, TIMELINE_COLORS, timelineColorIndex, timelineColor 
 export { itemBase, itemHref, TIMELINE_COLORS, timelineColorIndex, timelineColor } from '../task-model.js';
 import { beginRender } from '../view-lifecycle.js';
 'use strict';
-import { registerEditor, serializeSave } from '../saving.js';
+import { registerEditor, serializeSave, flushContentEdits, contentCheckpoint } from '../saving.js';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
 import { PROJECT_STATUS, fmtDate, todayStr, priorityClass, priorityLabel, addDays, estimateText } from '../utils.js';
@@ -398,11 +398,16 @@ async function paintList() {
   const container = el; // 进入时就固定容器，避免旧的异步重绘写进新页面
   const active = beginRender(container);
   if (!active()) return;
+  try { await flushContentEdits(container); }
+  catch (error) { toast('内容尚未保存，已保留编辑：' + error.message, 'error'); return; }
+  if (!active()) return;
+  const contentUnchanged = contentCheckpoint(container);
   const pos = scrollPos();
   const focus = focusSnapshot();
   // 先取数据，再一次性重建：中间不出现空页面，滚动条就不会被弹回顶部
   const projects = await api.get('/api/projects');
   if (!active()) return;
+  if (!contentUnchanged()) return paintList();
   container.innerHTML = '';
   try {
     container.append(buildViewBar());
@@ -1381,7 +1386,8 @@ function buildItemPost(ctx, entry) {
   const descEdit = h('div', {
     class: 'feed-goal',
     contenteditable: 'true',
-    'data-focus-key': `${ctx.deepBase(entry.path)}:content`
+    'data-focus-key': `${ctx.deepBase(entry.path)}:content`,
+    'data-content-editor': 'true'
   });
   descEdit.textContent = t.desc || '';
   descEdit.style.display = 'none';
