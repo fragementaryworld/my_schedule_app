@@ -1,6 +1,6 @@
 import { h } from './ui.js';
 
-// Shared presentation for daily tasks and every level of project tasks.
+// Shared presentation for projects, daily tasks and every level of project tasks.
 // The views retain their existing controls, save handlers and navigation paths.
 const PROPERTY_ICONS = {
   '所属清单': '<path d="M3 6h6l2 2h10v12H3z"/>',
@@ -11,10 +11,12 @@ const PROPERTY_ICONS = {
   '优先级': '<path d="M5 21V4m0 0h14l-3 4 3 4H5"/>',
   '重复': '<path d="m17 3 4 4-4 4M3 11V7h18M7 21l-4-4 4-4m14 0v4H3"/>',
   '层级': '<path d="m12 3 9 5-9 5-9-5zm-9 9 9 5 9-5m-18 5 9 5 9-5"/>',
-  '下级': '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M6 10v7h8"/>'
+  '下级': '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M6 10v7h8"/>',
+  '负责人': '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+  '阻塞': '<circle cx="12" cy="12" r="8"/><path d="m6 6 12 12"/>'
 };
 
-export function taskBreadcrumb(items) {
+export function taskBreadcrumb(items, { label = '任务路径' } = {}) {
   const list = h('ol', { class: 'task-path-list' });
   items.forEach((item, index) => {
     const current = index === items.length - 1;
@@ -32,7 +34,7 @@ export function taskBreadcrumb(items) {
     if (index) segment.append(h('span', { class: 'crumb-sep task-path-separator', 'aria-hidden': 'true' }, '›'));
     segment.append(node); list.append(segment);
   });
-  return h('div', { class: 'breadcrumb task-path-bar' }, h('nav', { class: 'task-path-nav', 'aria-label': '任务路径' }, list));
+  return h('div', { class: 'breadcrumb task-path-bar' }, h('nav', { class: 'task-path-nav', 'aria-label': label }, list));
 }
 
 export function taskProperty(label, control, key) {
@@ -40,7 +42,7 @@ export function taskProperty(label, control, key) {
   if (['INPUT', 'SELECT', 'BUTTON'].includes(control.tagName) && !control.hasAttribute('aria-label')) control.setAttribute('aria-label', label);
   if (label === '状态') {
     control.classList.add('task-status-select');
-    control.dataset.state = control.value === 'yes' ? 'done' : 'pending';
+    control.dataset.state = control.value === 'yes' || control.value === 'done' ? 'done' : 'pending';
   }
   const icon = h('span', { class: 'task-property-icon', 'aria-hidden': 'true', html:
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${PROPERTY_ICONS[label] || ''}</svg>` });
@@ -64,12 +66,13 @@ export function taskSection(title, content, { count, children = false } = {}) {
   return h('section', { class: `task-page-section task-region ${children ? 'task-children-section' : 'task-content-section'}`, 'aria-label': title }, heading, content);
 }
 
-export function buildTaskDocument({ breadcrumb, heading, properties, sections, label, done }) {
+export function buildTaskDocument({ breadcrumb, heading, properties, sections, label, done,
+  stateLabel, propertiesLabel = '任务属性', documentLabel = '任务详情' }) {
   const state = h('span', { class: `task-page-status${done ? ' is-done' : ''}` },
-    h('span', { class: 'task-status-dot', 'aria-hidden': 'true' }), done ? '已完成' : '未完成');
+    h('span', { class: 'task-status-dot', 'aria-hidden': 'true' }), stateLabel ?? (done ? '已完成' : '未完成'));
   const hero = h('header', { class: 'task-page-hero' },
     h('div', { class: 'task-page-kicker' }, h('span', {}, label), state), heading);
-  return h('article', { class: 'task-document', 'aria-label': '任务详情' }, breadcrumb, hero,
-    h('section', { class: 'task-properties-section task-region', 'aria-label': '任务属性' },
-      h('h2', { class: 'task-section-title' }, '任务属性'), properties), ...sections);
+  return h('article', { class: 'task-document', 'aria-label': documentLabel }, breadcrumb, hero,
+    h('section', { class: 'task-properties-section task-region', 'aria-label': propertiesLabel },
+      h('h2', { class: 'task-section-title' }, propertiesLabel), properties), ...sections);
 }

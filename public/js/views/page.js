@@ -1,4 +1,5 @@
 import { beginRender } from '../view-lifecycle.js';
+import { buildTaskDocument, taskBreadcrumb, taskProperty, taskProperties, taskSection } from '../task-page.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
@@ -178,20 +179,23 @@ async function paint() {
       container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📄'), h('p', {}, '页面不存在或已删除。')));
       return;
     }
-    container.append(buildBreadcrumb(page));
-    container.append(buildIconTitle(page));
-    container.append(buildPageProperties(projects, page));
-    container.append(h('div', { class: 'page-section' }, '📝 内容'));
-    container.append(buildContentEditor({
+    const content = buildContentEditor({
       value: page.desc,
       key: `project:${page.id}:content`,
       onSave: async (text) => {
         await api.put(`/api/projects/${page.id}`, { desc: text });
         page.desc = text;
       }
-    }));
-    container.append(h('div', { class: 'page-section' }, '✅ 任务'));
-    container.append(buildProjectTasksSection(page, paint));
+    });
+    const status = PROJECT_STATUS[page.status] || PROJECT_STATUS.active;
+    const pageDocument = buildTaskDocument({ breadcrumb: buildBreadcrumb(page), heading: buildIconTitle(page),
+      properties: buildPageProperties(projects, page), label: '项目', done: page.status === 'done', stateLabel: status.label,
+      documentLabel: '项目详情', propertiesLabel: '项目属性',
+      sections: [taskSection('内容', content), taskSection('项目任务', buildProjectTasksSection(page, paint),
+        { children: true, count: (page.tasks || []).length })] });
+    pageDocument.classList.add('project-document');
+    pageDocument.querySelector('.task-page-status').dataset.status = page.status || 'active';
+    container.append(pageDocument);
 
     if (isFreshPage(page)) focusTitle();
   } finally {
@@ -219,11 +223,8 @@ function focusTitle() {
 }
 
 function buildBreadcrumb(page) {
-  const bar = h('div', { class: 'breadcrumb' });
-  bar.append(h('a', { href: '#/projects', class: 'crumb' }, '项目'));
-  bar.append(h('span', { class: 'crumb-sep' }, '/'));
-  bar.append(h('span', { class: 'crumb current' }, `${page.icon || '📁'} ${page.name}`));
-  bar.append(h('span', { class: 'spacer' }));
+  const bar = taskBreadcrumb([{ label: '项目', href: '#/projects' },
+    { label: page.name, icon: page.icon || '📁', kind: '项目' }], { label: '项目路径' });
 
   const del = h('button', { class: 'btn btn-sm btn-danger' }, '🗑 删除页面');
   del.onclick = async () => {
@@ -269,7 +270,8 @@ export function buildIconTitle(page) {
   };
   wrap.append(iconBtn);
 
-  const title = h('h1', { class: 'page-title', contenteditable: 'true', spellcheck: 'false', title: '点击直接编辑标题' });
+  const title = h('h1', { class: 'page-title', contenteditable: 'true', spellcheck: 'false', title: '点击直接编辑标题',
+    'aria-label': '项目标题', 'data-focus-key': `/api/projects/${page.id}:title` });
   title.textContent = page.name;
   title.addEventListener('blur', async () => {
     const next = title.textContent.trim();
@@ -287,8 +289,8 @@ export function buildIconTitle(page) {
 }
 
 export function buildPageProperties(projects, page) {
-  const card = h('div', { class: 'page-props' });
-  const row = (label, ctrl) => h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
+  const row = taskProperty;
+  const base = `/api/projects/${page.id}`;
   const statusSel = h('select', { class: 'input inline-select' });
   for (const [k, v] of Object.entries(PROJECT_STATUS)) statusSel.append(h('option', { value: k }, v.label));
   statusSel.value = PROJECT_STATUS[page.status] ? page.status : 'active';
@@ -300,7 +302,9 @@ export function buildPageProperties(projects, page) {
   prioSel.onchange = async () => { await api.put(`/api/projects/${page.id}`, { priority: prioSel.value }); toast('已保存'); paint(); };
 
   const listId = `owner-list-${page.id}`;
-  const ownerInput = h('input', { class: 'input inline-input', list: listId, value: page.owner || '', placeholder: '未指定' });
+  const ownerInput = h('input', { class: 'input inline-input', list: listId, placeholder: '未指定',
+    'aria-label': '负责人', 'data-focus-key': `${base}:owner` });
+  ownerInput.value = page.owner || '';
   const dl = h('datalist', { id: listId });
   for (const o of collectOwners(projects)) dl.append(h('option', { value: o }));
   ownerInput.addEventListener('blur', async () => {
@@ -310,6 +314,7 @@ export function buildPageProperties(projects, page) {
 
   const dateField = buildDateField({
     value: page,
+    key: `${base}:date`,
     onSave: async (patch) => {
       await api.put(`/api/projects/${page.id}`, patch);
       Object.assign(page, patch);
@@ -322,14 +327,13 @@ export function buildPageProperties(projects, page) {
   blockedSel.value = page.blockedBy || '';
   blockedSel.onchange = async () => { await api.put(`/api/projects/${page.id}`, { blockedBy: blockedSel.value }); toast('已保存'); paint(); };
 
-  card.append(
-    row('状态', statusSel),
-    row('优先级', prioSel),
+  return taskProperties([
+    row('状态', statusSel, `${base}:status`),
+    row('优先级', prioSel, `${base}:priority`),
     row('负责人', h('span', { class: 'row' }, ownerInput, dl)),
     row('时间', dateField),
-    row('阻塞', blockedSel)
-  );
-  return card;
+    row('阻塞', blockedSel, `${base}:blockedBy`)
+  ]);
 }
 
 // 内容块编辑器：就地编辑 / 回车新建 / 空块退格删除 / 失焦自动保存

@@ -410,13 +410,22 @@ async function paintList() {
   if (!contentUnchanged()) return paintList();
   container.innerHTML = '';
   try {
-    container.append(buildViewBar());
+    const workspace = h('article', { class: 'project-index', 'aria-label': '项目空间' });
+    const counts = groupProjectsByStatus(projects);
+    workspace.append(h('header', { class: 'project-index-head' },
+      h('div', { class: 'project-index-title' }, h('span', { class: 'project-index-icon', 'aria-hidden': 'true' }, '📁'), h('h1', {}, '项目空间')),
+      h('div', { class: 'project-index-summary' }, h('span', { class: 'project-summary-total' }, `共 ${projects.length} 个项目`),
+        ...counts.map(group => h('span', { class: `project-summary-count project-summary-${group.status}`, dataset: { status: group.status } }, `${group.label} ${group.items.length}`)))));
+    workspace.append(buildViewBar());
     const shown = currentFilter === 'all' ? projects : projects.filter((p) => p.status === currentFilter);
+    const content = h('section', { class: 'project-view-content', 'aria-label': `项目${LIST_VIEWS.find(v => v.value === listView).label}` });
+    workspace.append(content); container.append(workspace);
     if (!shown.length) {
-      container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, '还没有项目，点右上角「＋ 新增项目」。')));
+      content.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📁'), h('p', {}, projects.length
+        ? '没有符合条件的项目，可以切换状态筛选。' : '还没有项目，点右上角「＋ 新增项目」。')));
       return;
     }
-    container.append(renderProjectView(shown));
+    content.append(renderProjectView(shown));
   } finally {
     restoreScroll(pos);
     focusRestore(focus);
@@ -424,15 +433,15 @@ async function paintList() {
 }
 
 function buildViewBar() {
-  const bar = h('div', { class: 'toolbar' });
-  const tabs = h('div', { class: 'tabbar', style: 'margin:0;border:none;flex-wrap:wrap' });
+  const bar = h('div', { class: 'toolbar project-view-toolbar' });
+  const tabs = h('div', { class: 'tabbar', style: 'margin:0;border:none;flex-wrap:wrap', role: 'group', 'aria-label': '项目视图' });
   for (const v of LIST_VIEWS) {
-    const b = h('button', { class: 'tab' + (listView === v.value ? ' active' : '') }, v.label);
+    const b = h('button', { class: 'tab' + (listView === v.value ? ' active' : ''), type: 'button', 'aria-pressed': String(listView === v.value) }, v.label);
     b.onclick = () => { listView = v.value; paintList(); };
     tabs.append(b);
   }
   bar.append(tabs, h('span', { class: 'spacer' }));
-  const sel = h('select', { class: 'input', style: 'width:auto' });
+  const sel = h('select', { class: 'input', style: 'width:auto', 'aria-label': '筛选项目状态', 'data-focus-key': 'projects:filter' });
   for (const f of FILTERS) sel.append(h('option', { value: f.value }, f.label));
   sel.value = currentFilter;
   sel.onchange = () => { currentFilter = sel.value; paintList(); };
@@ -677,7 +686,7 @@ export { buildProjectFeed };
 
 function buildFeedPost(p) {
   const d = projectRowData(p);
-  const post = h('div', { class: 'feed-post card' });
+  const post = h('article', { class: 'feed-post card project-feed-post', 'aria-label': p.name, dataset: { projectId: p.id } });
 
   const head = h('div', { class: 'row', style: 'margin-bottom:8px' });
   head.append(h('span', { class: 'avatar' }, (d.owner || '我').slice(0, 1)));
@@ -694,7 +703,6 @@ function buildFeedPost(p) {
     paintList();
   };
   head.append(statusSel);
-  post.append(head);
 
   // 标题：直接就地编辑
   const title = h('h3', { class: 'feed-title', contenteditable: 'true', spellcheck: 'false', title: '点击直接编辑标题' });
@@ -709,9 +717,7 @@ function buildFeedPost(p) {
     }
   });
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); } });
-  post.append(title);
-
-  post.append(h('h4', { class: 'feed-sec' }, 'About this project'));
+  post.append(h('header', { class: 'project-feed-header' }, head, title));
   // 描述：渲染 Markdown 展示，点击就地编辑
   const goalDisplay = h('div', {
     class: 'feed-goal-md',
@@ -735,7 +741,7 @@ function buildFeedPost(p) {
       paintList();
     }
   });
-  post.append(goalDisplay, goalEdit);
+  post.append(h('section', { class: 'project-feed-summary', 'aria-label': '项目概述' }, h('h4', { class: 'feed-sec' }, '项目概述'), goalDisplay, goalEdit));
 
   const metaRow = h('div', { class: 'row', style: 'margin:10px 0;flex-wrap:wrap' });
   // 优先级：就地下拉
@@ -752,14 +758,10 @@ function buildFeedPost(p) {
   metaRow.append(prioSel);
   metaRow.append(h('span', { class: 'small muted' }, `📅 ${d.dates}`));
   if (d.blockedBy) metaRow.append(h('span', { class: 'badge blocked' }, `🚫 ${d.blockedBy}`));
-  post.append(metaRow);
-
-  post.append(h('div', { class: 'row' },
+  const progress = h('div', { class: 'row' },
     h('div', { class: 'progress', style: 'flex:1' }, h('i', { style: `width:${d.completion}%` })),
-    h('span', { class: 'small muted' }, `${d.completion}%`)));
-
-  post.append(h('h4', { class: 'feed-sec' }, 'Project tasks'));
-  post.append(buildFeedTasks(p));
+    h('span', { class: 'small muted' }, `${d.completion}%`));
+  post.append(h('div', { class: 'project-feed-meta' }, metaRow, progress));
 
   const addRow = h('div', { class: 'row', style: 'margin-top:8px' });
   const addInput = h('input', { class: 'input', placeholder: '添加任务，回车确认' });
@@ -772,7 +774,8 @@ function buildFeedPost(p) {
     }
   });
   addRow.append(addInput, dueInput);
-  post.append(addRow);
+  post.append(h('section', { class: 'project-feed-tasks', 'aria-label': '项目任务' },
+    h('h4', { class: 'feed-sec' }, '项目任务'), buildFeedTasks(p), addRow));
   return post;
 }
 

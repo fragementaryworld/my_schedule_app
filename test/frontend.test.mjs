@@ -26,7 +26,7 @@ after(async () => {
 
 const NAV_LABELS = ['首页', '今日计划', '工作项目', '阅读计划', '健身计划', '灵感', '数据与设置'];
 const ASSETS = [
-  '/css/base.css', '/css/shell.css', '/css/modules.css', '/css/task-page.css',
+  '/css/base.css', '/css/shell.css', '/css/modules.css', '/css/task-page.css', '/css/project-page.css',
   '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js',
   '/js/views/home.js', '/js/views/today.js', '/js/views/projects.js',
   '/js/views/reading.js', '/js/views/fitness.js', '/js/views/ideas.js',
