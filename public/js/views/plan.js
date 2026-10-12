@@ -80,15 +80,6 @@ function buildBreadcrumb(task) {
 function buildHead(task) {
   const wrap = h('div', { class: 'page-head' });
 
-  const cb = h('input', { type: 'checkbox', class: 'task-check', style: 'width:22px;height:22px', 'aria-label': '完成任务' });
-  cb.checked = !!task.done;
-  cb.onclick = async () => {
-    await api.put(`/api/tasks/${task.id}`, { done: !task.done });
-    task.done = !task.done;
-    await paint();
-  };
-  wrap.append(cb);
-
   const title = h('h1', {
     class: 'page-title' + (task.done ? ' done-title' : ''),
     contenteditable: 'true',

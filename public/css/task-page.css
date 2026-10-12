@@ -12,7 +12,6 @@
 .task-page-status.is-done { background:color-mix(in srgb,var(--success) 12%,var(--panel)); }
 .task-page-status.is-done .task-status-dot { background:var(--success); }
 .task-document .page-head { align-items:flex-start; flex-wrap:nowrap; gap:14px; margin-bottom:0; }
-.task-document .page-head > .task-check { flex-shrink:0; margin-top:12px; accent-color:var(--primary); cursor:pointer; }
 .task-document .page-title { padding:0 4px; border-radius:4px; font-size:clamp(28px,3.2vw,42px); font-weight:750; line-height:1.25; letter-spacing:-.025em; overflow-wrap:anywhere; }
 .task-document .page-title:focus { background:var(--panel-2); outline:2px solid var(--focus-ring); outline-offset:3px; box-shadow:none; }
 .task-properties-section { padding:0 0 22px; border-bottom:1px solid var(--border); }
@@ -50,7 +49,6 @@
   .task-document { padding:16px 18px 32px; border-radius:9px; min-height:420px; }
   .task-page-hero { padding:24px 0 20px; }
   .task-document .page-head { gap:10px; }
-  .task-document .page-head > .task-check { margin-top:7px; }
   .task-document .prop-row { grid-template-columns:104px minmax(0,1fr); gap:8px; }
   .task-document .prop-label { gap:6px; font-size:12px; }
   .task-document .prop-row > .inline-select { min-width:0; width:100%; }

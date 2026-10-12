@@ -152,15 +152,6 @@ function buildHead(project, item, itemChain) {
   const wrap = h('div', { class: 'page-head' });
   const base = itemBase(project.id, itemChain);
 
-  const cb = h('input', { type: 'checkbox', class: 'task-check', style: 'width:22px;height:22px', 'aria-label': '完成任务' });
-  cb.checked = !!item.done;
-  cb.onclick = async () => {
-    await api.put(base, { done: !item.done });
-    item.done = !item.done;
-    await paint();
-  };
-  wrap.append(cb);
-
   const title = h('h1', {
     class: 'page-title' + (item.done ? ' done-title' : ''),
     contenteditable: 'true',
