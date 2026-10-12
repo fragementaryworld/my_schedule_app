@@ -1,6 +1,6 @@
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
-import { buildTaskDocument, taskProperty, taskSection, taskBreadcrumb } from '../task-page.js';
+import { buildTaskDocument, taskProperty, taskProperties, taskSection, taskBreadcrumb } from '../task-page.js';
 'use strict';
 import { registerEditor, serializeSave, flushContentEdits, contentCheckpoint } from '../saving.js';
 import { api } from '../api.js';
@@ -102,7 +102,6 @@ function buildHead(task) {
 }
 
 function buildProperties(task, projects = []) {
-  const card = h('div', { class: 'page-props' });
   const base = `/api/tasks/${task.id}`;
   const ownerSel = h('select', { class: 'input inline-select', 'aria-label': '所属清单' });
   for (const o of ownerOptions(projects)) ownerSel.append(h('option', { value: o.value }, o.label));
@@ -161,7 +160,7 @@ function buildProperties(task, projects = []) {
     }
   });
 
-  card.append(
+  return taskProperties([
     row('所属清单', ownerSel, `${base}:owner`),
     row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
@@ -169,8 +168,7 @@ function buildProperties(task, projects = []) {
     row('预计用时', estimateSel),
     row('优先级', prioSel, `${base}:priority`),
     row('重复', repeatSel, `${base}:repeat`)
-  );
-  return card;
+  ]);
 }
 
 function buildNote(task) {

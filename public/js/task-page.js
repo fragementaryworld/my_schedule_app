@@ -44,8 +44,18 @@ export function taskProperty(label, control, key) {
   }
   const icon = h('span', { class: 'task-property-icon', 'aria-hidden': 'true', html:
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${PROPERTY_ICONS[label] || ''}</svg>` });
-  return h('div', { class: 'prop-row', role: 'group', 'aria-label': label },
+  const wide = label === '时间' || label === '当天安排';
+  return h('div', { class: `prop-row${wide ? ' task-property-wide' : ''}`, role: 'group', 'aria-label': label },
     h('span', { class: 'prop-label' }, icon, label), control);
+}
+
+export function taskProperties(rows) {
+  const wrap = h('div', { class: 'page-props' });
+  for (const [wide, label, className] of [[false, '基本属性', 'task-property-basics'], [true, '时间安排', 'task-property-schedule']]) {
+    const matches = rows.filter(row => row.classList.contains('task-property-wide') === wide);
+    if (matches.length) wrap.append(h('div', { class: `task-property-grid ${className}`, role: 'group', 'aria-label': label }, ...matches));
+  }
+  return wrap;
 }
 
 export function taskSection(title, content, { count, children = false } = {}) {

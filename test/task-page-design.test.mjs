@@ -46,7 +46,7 @@ test('普通事务页面保留所有属性和编辑键，新增文档分区不�
   };
   await plan.render(root, { id: task.id });
   assert.equal(findAllByClass(root, 'task-document').length, 1);
-  assert.deepEqual(findAllByClass(root, 'prop-label').map(textOf), ['所属清单', '状态', '时间', '当天安排', '预计用时', '优先级', '重复']);
+  assert.deepEqual(findAllByClass(root, 'prop-label').map(textOf), ['所属清单', '状态', '预计用时', '优先级', '重复', '时间', '当天安排']);
   assert.equal(findAllByClass(root, 'task-page-section')[0].getAttribute('aria-label'), '备注');
   assert.equal(findAllByClass(root, 'page-title')[0].getAttribute('data-focus-key'), '/api/tasks/day:title');
   assert.equal(findAllByTag(property(root, '状态'), 'select')[0].getAttribute('aria-label'), '状态');
@@ -63,7 +63,7 @@ test('项目子任务使用同一文档结构、完整祖先路径和下级计�
   await item.render(root, { id: 'p', chain: ['parent', 'child'] });
   assert.equal(findAllByClass(root, 'task-document').length, 1);
   assert.equal(textOf(findAllByClass(root, 'task-page-status')[0]), '已完成');
-  assert.deepEqual(findAllByClass(root, 'prop-label').map(textOf), ['状态', '时间', '当天安排', '预计用时', '层级', '下级']);
+  assert.deepEqual(findAllByClass(root, 'prop-label').map(textOf), ['状态', '预计用时', '层级', '下级', '时间', '当天安排']);
   assert.deepEqual(findAllByTag(root, 'h2').map(textOf), ['任务属性', '内容', '子子任务1']);
   assert.equal(textOf(findAllByClass(root, 'task-section-count')[0]), '1');
   assert.equal(findAllByClass(root, 'page-title')[0].getAttribute('data-focus-key'), '/api/projects/p/tasks/parent/subtasks/child:title');
@@ -121,7 +121,7 @@ test('新布局样式隔离在任务页面内，窄屏属性单列且子任务�
   const css = readFileSync(new URL('../public/css/task-page.css', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   assert.ok(html.indexOf('/css/task-page.css') > html.indexOf('/css/modules.css'));
-  assert.match(css, /\.task-document \.page-props\s*\{[^}]*flex-direction:column/);
+  assert.match(css, /\.task-document \.task-property-basics\s*\{[^}]*grid-template-columns:repeat\(auto-fit/);
   assert.match(css, /@media \(max-width:480px\)[\s\S]*grid-template-columns:minmax\(0,1fr\)/);
   assert.match(css, /\.task-children-section > \.card\s*\{[^}]*overflow-x:auto/);
   assert.match(css, /\.task-document \.page-title\s*\{[^}]*overflow-wrap:anywhere/);

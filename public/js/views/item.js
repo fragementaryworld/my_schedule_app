@@ -1,7 +1,7 @@
 import { itemBase, itemHref } from '../task-model.js';
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
-import { buildTaskDocument, taskProperty, taskSection, taskBreadcrumb } from '../task-page.js';
+import { buildTaskDocument, taskProperty, taskProperties, taskSection, taskBreadcrumb } from '../task-page.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
@@ -168,7 +168,6 @@ function buildHead(project, item, itemChain) {
 }
 
 export function buildItemProperties(project, item, itemChain) {
-  const card = h('div', { class: 'page-props' });
   const base = itemBase(project.id, itemChain);
   // 第三参是"重绘后要恢复焦点"的稳定键
   const row = taskProperty;
@@ -194,15 +193,14 @@ export function buildItemProperties(project, item, itemChain) {
   });
 
   const kids = (item.subtasks || []).length;
-  card.append(
+  return taskProperties([
     row('状态', doneSel, `${base}:done`),
     row('时间', dateField),
     row('当天安排', buildPlanProperty(item, base, async (_, patch) => { await api.put(base, patch); Object.assign(item, patch); await paint(); return true; })),
     row('预计用时', estimateSelect(item, base)),
     row('层级', h('span', { class: 'small muted' }, `${itemChain.length} / ${MAX_ITEM_DEPTH}`)),
     row('下级', h('span', { class: 'small muted' }, kids ? `${kids} 项` : '无'))
-  );
-  return card;
+  ]);
 }
 
 // 预计用时（手填小时），所有任务/子任务通用
