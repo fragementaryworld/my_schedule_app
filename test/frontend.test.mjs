@@ -26,12 +26,12 @@ after(async () => {
 
 const NAV_LABELS = ['首页', '今日计划', '工作项目', '阅读计划', '健身计划', '灵感', '数据与设置'];
 const ASSETS = [
-  '/css/base.css', '/css/shell.css', '/css/modules.css',
+  '/css/base.css', '/css/shell.css', '/css/modules.css', '/css/task-page.css',
   '/js/utils.js', '/js/api.js', '/js/ui.js', '/js/app.js',
   '/js/views/home.js', '/js/views/today.js', '/js/views/projects.js',
   '/js/views/reading.js', '/js/views/fitness.js', '/js/views/ideas.js',
   '/js/views/settings.js', '/js/views/page.js', '/js/views/item.js', '/js/views/plan.js',
-  '/js/markdown.js', '/js/datepicker.js', '/js/calendar.js', '/js/daytask.js', '/js/estimate.js', '/js/saving.js'
+  '/js/markdown.js', '/js/datepicker.js', '/js/calendar.js', '/js/daytask.js', '/js/estimate.js', '/js/saving.js', '/js/task-page.js'
 ];
 
 test('首页 HTML 包含 7 个模块导航、路由与容器', async () => {

@@ -1,5 +1,6 @@
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
+import { buildTaskDocument, taskProperty, taskSection } from '../task-page.js';
 'use strict';
 import { registerEditor, serializeSave, flushContentEdits, contentCheckpoint } from '../saving.js';
 import { api } from '../api.js';
@@ -46,11 +47,10 @@ async function paint() {
       container.append(h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, '📋'), h('p', {}, '任务不存在或已删除。')));
       return;
     }
-    container.append(buildBreadcrumb(task));
-    container.append(buildHead(task));
-    container.append(buildProperties(task, projects));
-    container.append(h('div', { class: 'page-section' }, '📝 备注'));
-    container.append(buildNote(task));
+    container.append(buildTaskDocument({
+      breadcrumb: buildBreadcrumb(task), heading: buildHead(task), properties: buildProperties(task, projects),
+      label: '普通事务', done: task.done, sections: [taskSection('备注', buildNote(task))]
+    }));
     if (isFreshDayTask(task)) focusTitle();
   } finally {
     restoreScroll(pos);
@@ -80,7 +80,7 @@ function buildBreadcrumb(task) {
 function buildHead(task) {
   const wrap = h('div', { class: 'page-head' });
 
-  const cb = h('input', { type: 'checkbox', class: 'task-check', style: 'width:22px;height:22px' });
+  const cb = h('input', { type: 'checkbox', class: 'task-check', style: 'width:22px;height:22px', 'aria-label': '完成任务' });
   cb.checked = !!task.done;
   cb.onclick = async () => {
     await api.put(`/api/tasks/${task.id}`, { done: !task.done });
@@ -94,6 +94,7 @@ function buildHead(task) {
     contenteditable: 'true',
     spellcheck: 'false',
     title: '点击直接编辑',
+    'aria-label': '任务标题',
     'data-focus-key': `/api/tasks/${task.id}:title`
   });
   title.textContent = task.title;
@@ -121,10 +122,7 @@ function buildProperties(task, projects = []) {
   ownerSel.value = ownership(task, projects).ownerKey;
   ownerSel.onchange = async () => { await api.put(base, ownerPatch(ownerSel.value)); toast('所属清单已更新'); await paint(); };
   // 第三参是"重绘后要恢复焦点"的稳定键
-  const row = (label, ctrl, key) => {
-    if (key && ctrl && ctrl.setAttribute) ctrl.setAttribute('data-focus-key', key);
-    return h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
-  };
+  const row = taskProperty;
 
   const doneSel = h('select', { class: 'input inline-select' });
   doneSel.append(h('option', { value: 'no' }, '未完成'));
@@ -189,13 +187,14 @@ function buildProperties(task, projects = []) {
 }
 
 function buildNote(task) {
-  const wrap = h('div', { class: 'card', style: 'padding:12px 16px' });
+  const wrap = h('div', { class: 'card task-note' });
   const display = h('div', {
     class: 'feed-goal-md',
     html: renderMarkdown(task.note || ''),
-    'data-placeholder': '点击这里写备注，支持 Markdown…'
+    'data-placeholder': '写下任务说明、待办步骤或相关链接…',
+    tabindex: '0', role: 'button', 'aria-label': '编辑任务备注'
   });
-  const edit = h('div', { class: 'feed-goal', contenteditable: 'true', 'data-content-editor': 'true' });
+  const edit = h('div', { class: 'feed-goal', contenteditable: 'true', 'data-content-editor': 'true', 'aria-label': '任务备注' });
   edit.textContent = task.note || '';
   edit.style.display = 'none';
   display.onclick = () => {
@@ -204,6 +203,9 @@ function buildNote(task) {
     edit.textContent = task.note || '';
     if (edit.focus) edit.focus();
   };
+  display.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); display.onclick(); }
+  });
   const saveNote = serializeSave(async () => {
     const next = edit.textContent.trim();
     if (next !== (task.note || '')) {

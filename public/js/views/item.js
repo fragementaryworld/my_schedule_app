@@ -1,6 +1,7 @@
 import { itemBase, itemHref } from '../task-model.js';
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
+import { buildTaskDocument, taskProperty, taskSection } from '../task-page.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
@@ -91,21 +92,21 @@ async function paint() {
       return;
     }
     const depth = requestedChain.length;
-    container.append(buildBreadcrumb(project, nodes));
-    container.append(buildHead(project, item, requestedChain));
-    container.append(buildItemProperties(project, item, requestedChain));
-    container.append(h('div', { class: 'page-section' }, '📝 内容'));
     const contentBase = itemBase(project.id, nodes.map(node => node.id));
-    container.append(buildContentEditor({
+    const content = buildContentEditor({
       value: item.desc,
       key: `${contentBase}:content`,
       onSave: async (text) => {
         await api.put(contentBase, { desc: text });
         item.desc = text;
       }
+    });
+    container.append(buildTaskDocument({
+      breadcrumb: buildBreadcrumb(project, nodes), heading: buildHead(project, item, requestedChain),
+      properties: buildItemProperties(project, item, requestedChain), label: `项目${levelName(depth)}`, done: item.done,
+      sections: [taskSection('内容', content), taskSection(childLevelName(depth), buildChildren(project, item, requestedChain, depth),
+        { count: (item.subtasks || []).length, children: true })]
     }));
-    container.append(h('div', { class: 'page-section' }, `📄 ${childLevelName(depth)}`));
-    container.append(buildChildren(project, item, requestedChain, depth));
     if (isFreshItem(item)) focusTitle();
   } finally {
     restoreScroll(pos);
@@ -151,7 +152,7 @@ function buildHead(project, item, itemChain) {
   const wrap = h('div', { class: 'page-head' });
   const base = itemBase(project.id, itemChain);
 
-  const cb = h('input', { type: 'checkbox', class: 'task-check', style: 'width:22px;height:22px' });
+  const cb = h('input', { type: 'checkbox', class: 'task-check', style: 'width:22px;height:22px', 'aria-label': '完成任务' });
   cb.checked = !!item.done;
   cb.onclick = async () => {
     await api.put(base, { done: !item.done });
@@ -165,6 +166,7 @@ function buildHead(project, item, itemChain) {
     contenteditable: 'true',
     spellcheck: 'false',
     title: '点击直接编辑',
+    'aria-label': '任务标题',
     'data-focus-key': `${base}:title`
   });
   title.textContent = item.title;
@@ -188,10 +190,7 @@ export function buildItemProperties(project, item, itemChain) {
   const card = h('div', { class: 'page-props' });
   const base = itemBase(project.id, itemChain);
   // 第三参是"重绘后要恢复焦点"的稳定键
-  const row = (label, ctrl, key) => {
-    if (key && ctrl && ctrl.setAttribute) ctrl.setAttribute('data-focus-key', key);
-    return h('div', { class: 'prop-row' }, h('span', { class: 'prop-label' }, label), ctrl);
-  };
+  const row = taskProperty;
 
   const doneSel = h('select', { class: 'input inline-select' });
   doneSel.append(h('option', { value: 'no' }, '未完成'));
