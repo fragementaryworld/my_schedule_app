@@ -1,7 +1,7 @@
 import { itemBase, itemHref } from '../task-model.js';
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
-import { buildTaskDocument, taskProperty, taskSection } from '../task-page.js';
+import { buildTaskDocument, taskProperty, taskSection, taskBreadcrumb } from '../task-page.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog, scrollPos, restoreScroll, focusSnapshot, focusRestore } from '../ui.js';
@@ -118,21 +118,11 @@ async function paint() {
 
 export function buildBreadcrumb(project, nodes) {
   const ids = nodes.map((n) => n.id);
-  const bar = h('div', { class: 'breadcrumb' });
-  bar.append(h('a', { href: '#/projects', class: 'crumb' }, '项目'));
-  bar.append(h('span', { class: 'crumb-sep' }, '/'));
-  bar.append(h('a', { href: `#/page/${project.id}`, class: 'crumb' }, `${project.icon || '📁'} ${project.name}`));
-
-  nodes.forEach((node, i) => {
-    bar.append(h('span', { class: 'crumb-sep' }, '/'));
-    if (i === nodes.length - 1) {
-      bar.append(h('span', { class: 'crumb current' }, `${levelName(i + 1)}：${node.title}`));
-    } else {
-      bar.append(h('a', { href: itemHref(project.id, ids.slice(0, i + 1)), class: 'crumb' }, node.title));
-    }
-  });
-
-  bar.append(h('span', { class: 'spacer' }));
+  const bar = taskBreadcrumb([
+    { label: '项目', href: '#/projects' },
+    { label: project.name, href: `#/page/${project.id}`, icon: project.icon || '📁' },
+    ...nodes.map((node, i) => ({ label: node.title, href: itemHref(project.id, ids.slice(0, i + 1)), kind: levelName(i + 1) }))
+  ]);
   const current = nodes[nodes.length - 1];
   const del = h('button', { class: 'btn btn-sm btn-danger' }, `🗑 删除${levelName(nodes.length)}`);
   del.onclick = async () => {

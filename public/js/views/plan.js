@@ -1,6 +1,6 @@
 import { beginRender } from '../view-lifecycle.js';
 import { buildPlanProperty } from '../planning.js';
-import { buildTaskDocument, taskProperty, taskSection } from '../task-page.js';
+import { buildTaskDocument, taskProperty, taskSection, taskBreadcrumb } from '../task-page.js';
 'use strict';
 import { registerEditor, serializeSave, flushContentEdits, contentCheckpoint } from '../saving.js';
 import { api } from '../api.js';
@@ -59,11 +59,7 @@ async function paint() {
 }
 
 function buildBreadcrumb(task) {
-  const bar = h('div', { class: 'breadcrumb' });
-  bar.append(h('a', { href: '#/today', class: 'crumb' }, '今日计划'));
-  bar.append(h('span', { class: 'crumb-sep' }, '/'));
-  bar.append(h('span', { class: 'crumb current' }, `任务：${task.title}`));
-  bar.append(h('span', { class: 'spacer' }));
+  const bar = taskBreadcrumb([{ label: '今日计划', href: '#/today' }, { label: task.title, kind: '任务' }]);
 
   const del = h('button', { class: 'btn btn-sm btn-danger' }, '🗑 删除任务');
   del.onclick = async () => {

@@ -14,6 +14,27 @@ const PROPERTY_ICONS = {
   '下级': '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M6 10v7h8"/>'
 };
 
+export function taskBreadcrumb(items) {
+  const list = h('ol', { class: 'task-path-list' });
+  items.forEach((item, index) => {
+    const current = index === items.length - 1;
+    const icon = item.icon ? h('span', { class: 'task-path-icon', 'aria-hidden': 'true' }, item.icon)
+      : h('span', { class: 'task-path-icon', 'aria-hidden': 'true', html:
+        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${current
+          ? '<path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8m-8 4h6"/>'
+          : '<path d="M3 6h6l2 2h10v12H3z"/>'}</svg>` });
+    const node = h(current ? 'span' : 'a', {
+      class: `crumb task-path-node${current ? ' current' : ' task-path-folder'}`,
+      href: current ? null : item.href, title: item.label, 'aria-current': current ? 'page' : null
+    }, icon, current && item.kind ? h('span', { class: 'task-path-kind' }, `${item.kind}：`) : null,
+      h('span', { class: 'task-path-name' }, item.label));
+    const segment = h('li', { class: 'task-path-segment' });
+    if (index) segment.append(h('span', { class: 'crumb-sep task-path-separator', 'aria-hidden': 'true' }, '›'));
+    segment.append(node); list.append(segment);
+  });
+  return h('div', { class: 'breadcrumb task-path-bar' }, h('nav', { class: 'task-path-nav', 'aria-label': '任务路径' }, list));
+}
+
 export function taskProperty(label, control, key) {
   if (key) control.setAttribute('data-focus-key', key);
   if (['INPUT', 'SELECT', 'BUTTON'].includes(control.tagName) && !control.hasAttribute('aria-label')) control.setAttribute('aria-label', label);
