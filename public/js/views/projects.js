@@ -1338,7 +1338,7 @@ export function buildTaskFeed(p) {
 function buildItemPost(ctx, entry) {
   const t = entry.node;
   const today = todayStr();
-  const post = h('div', { class: 'feed-post card' });
+  const post = h('article', { class: 'feed-post card task-feed-post', 'aria-label': t.title, dataset: { entry: ctx.deepBase(entry.path) } });
   if (entry.depth > 1) post.style.marginLeft = `${(entry.depth - 1) * 16}px`;
 
   const head = h('div', { class: 'row', style: 'margin-bottom:6px' });
@@ -1365,7 +1365,6 @@ function buildItemPost(ctx, entry) {
   });
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); title.blur(); } });
   head.append(title, taskStatusBadge(t, today));
-  post.append(head);
 
   const meta = h('div', { class: 'row', style: 'margin:6px 0;flex-wrap:wrap' });
   if (entry.depth > 1) meta.append(h('span', { class: 'small muted' }, `第 ${entry.depth} 层`));
@@ -1374,10 +1373,9 @@ function buildItemPost(ctx, entry) {
   const subs = t.subtasks || [];
   meta.append(h('span', { class: 'small muted' }, `子任务 ${subs.filter((s) => s.done).length}/${subs.length}`));
   if (t.createdAt) meta.append(h('span', { class: 'small muted' }, `创建于 ${String(t.createdAt).slice(0, 10)}`));
-  post.append(meta);
+  post.append(h('header', { class: 'task-feed-header' }, head, meta));
 
   // 内容：整篇 Markdown 展示，点击就地编辑；边打字边自动保存
-  post.append(h('h4', { class: 'feed-sec' }, '内容'));
   const descDisplay = h('div', {
     class: 'feed-goal-md',
     html: renderMarkdown(t.desc || ''),
@@ -1427,10 +1425,10 @@ function buildItemPost(ctx, entry) {
     catch (err) { toast(err.message, 'error'); return; }
     ctx.refresh();
   });
-  post.append(descDisplay, descEdit);
-
-  post.append(h('h4', { class: 'feed-sec' }, '子任务'));
-  post.append(buildItemSubBoard(ctx, entry));
+  post.append(h('section', { class: 'task-feed-section task-feed-content', 'aria-label': '任务内容' },
+    h('h4', { class: 'feed-sec' }, '内容'), descDisplay, descEdit));
+  post.append(h('section', { class: 'task-feed-section task-feed-children', 'aria-label': '下级任务' },
+    h('h4', { class: 'feed-sec' }, '子任务'), buildItemSubBoard(ctx, entry)));
   return post;
 }
 

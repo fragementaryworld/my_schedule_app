@@ -1,5 +1,6 @@
 /* Task detail pages: document hierarchy, quiet properties and an open writing area. */
 .task-document { width:100%; max-width:1040px; margin:0 auto; padding:20px clamp(20px,4vw,56px) 56px; background:var(--panel); border:1px solid var(--border); border-radius:12px; min-height:540px; }
+.task-document { --task-properties-accent:#5b78b2; --task-content-accent:#b97c24; --task-children-accent:#8060b8; }
 .task-document .breadcrumb { padding-bottom:16px; margin-bottom:0; border-bottom:1px solid var(--border); gap:6px 8px; }
 .task-document .crumb { overflow-wrap:anywhere; }
 .task-document .crumb.current { max-width:40ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:400; }
@@ -14,11 +15,14 @@
 .task-document .page-head { align-items:flex-start; flex-wrap:nowrap; gap:14px; margin-bottom:0; }
 .task-document .page-title { padding:0 4px; border-radius:4px; font-size:clamp(28px,3.2vw,42px); font-weight:750; line-height:1.25; letter-spacing:-.025em; overflow-wrap:anywhere; }
 .task-document .page-title:focus { background:var(--panel-2); outline:2px solid var(--focus-ring); outline-offset:3px; box-shadow:none; }
-.task-properties-section { padding:0 0 22px; border-bottom:1px solid var(--border); }
+.task-properties-section { --region-accent:var(--task-properties-accent); }
+.task-content-section { --region-accent:var(--task-content-accent); }
+.task-children-section { --region-accent:var(--task-children-accent); }
+.task-document .task-region { padding:18px 20px; border:1px solid color-mix(in srgb,var(--region-accent) 50%,var(--border)); border-left:4px solid var(--region-accent); border-radius:10px; background:color-mix(in srgb,var(--region-accent) 14%,var(--panel)); }
 .task-document .page-props { display:flex; flex-direction:column; gap:3px; padding:0; background:transparent; border:0; border-radius:0; box-shadow:none; }
 .task-document .prop-row { display:grid; grid-template-columns:132px minmax(0,1fr); gap:12px; align-items:center; padding:5px 4px; min-height:36px; border-radius:5px; }
 .task-document .prop-row:hover { background:var(--panel-2); }
-.task-document .prop-label { display:flex; align-items:center; gap:10px; width:auto; font-size:13px; }
+.task-document .prop-label { display:flex; align-items:center; gap:10px; width:auto; color:var(--text); font-size:13px; }
 .task-property-icon { display:inline-flex; width:16px; height:16px; flex-shrink:0; }
 .task-property-icon svg { width:100%; height:100%; }
 .task-document .prop-row > .input, .task-document .date-trigger, .task-document .estimate-hours { max-width:100%; border-color:transparent; background:transparent; box-shadow:none; font-size:13px; border-radius:4px; }
@@ -32,14 +36,22 @@
 .task-document .plan-property > .btn { background:transparent; border-color:transparent; color:var(--primary); }
 .task-document .plan-property > .btn:hover { background:var(--panel); border-color:var(--border); }
 .task-page-section { margin-top:28px; min-width:0; }
-.task-document .task-section-title { display:flex; align-items:center; gap:10px; margin:0 0 14px; color:var(--text); font-size:17px; font-weight:650; }
+.task-document .task-section-title { display:flex; align-items:center; gap:10px; margin:0 0 16px; padding-bottom:12px; border-bottom:1px solid color-mix(in srgb,var(--region-accent) 30%,var(--border)); color:var(--text); font-size:17px; font-weight:650; }
 .task-section-count { color:var(--muted); background:var(--panel-2); padding:1px 7px; border-radius:5px; font-size:12px; font-weight:400; }
-.task-document .md-content, .task-document .task-note { padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.task-document .md-content, .task-document .task-note { padding:12px 14px; border:1px solid color-mix(in srgb,var(--region-accent) 25%,var(--border)); border-radius:7px; background:var(--panel); box-shadow:none; }
 .task-document .feed-goal-md, .task-document .feed-goal { font-size:15px; line-height:1.8; padding:10px 4px; border:1px solid transparent; min-height:150px; }
 .task-document .feed-goal-md:hover { border-color:transparent; background:var(--panel-2); }
 .task-document .feed-goal:focus { outline:2px solid var(--focus-ring); outline-offset:2px; }
-.task-children-section { padding-top:24px; border-top:1px solid var(--border); }
 .task-children-section > .card { padding:0 !important; border:0; border-radius:0; background:transparent; box-shadow:none; overflow-x:auto; }
+.task-children-section .feed { display:flex; flex-direction:column; gap:20px; padding:2px; }
+.task-children-section .task-feed-post { padding:0; border:1px solid color-mix(in srgb,var(--region-accent) 50%,var(--border)); border-left:3px solid var(--region-accent); border-radius:9px; background:var(--panel); box-shadow:0 2px 6px rgba(16,24,40,.08); }
+.task-children-section .task-feed-header { padding:16px 18px; border-bottom:1px solid color-mix(in srgb,var(--region-accent) 35%,var(--border)); border-radius:7px 7px 0 0; background:color-mix(in srgb,var(--region-accent) 8%,var(--panel)); }
+.task-children-section .task-feed-header .feed-title { font-size:17px; line-height:1.5; overflow-wrap:anywhere; }
+.task-children-section .task-feed-header .muted { color:var(--text); }
+.task-children-section .task-feed-section { padding:14px 18px; }
+.task-children-section .task-feed-children { border-top:1px solid var(--border); border-radius:0 0 7px 7px; background:var(--panel-2); }
+.task-children-section .task-feed-section .feed-sec { margin:0 0 10px; padding:0; border:0; color:var(--text); font-size:13px; font-weight:650; }
+.task-children-section .task-feed-section .feed-goal-md, .task-children-section .task-feed-section .feed-goal { min-height:48px; padding:8px 10px; }
 .task-children-section .task-table { min-width:560px; }
 .task-children-section .task-table th { background:var(--panel-2); padding:10px 8px; }
 .task-children-section .task-table td { padding:10px 8px; }
@@ -53,6 +65,8 @@
   .task-document .prop-label { gap:6px; font-size:12px; }
   .task-document .prop-row > .inline-select { min-width:0; width:100%; }
   .task-document .plan-property { align-items:flex-start; }
+  .task-document .task-region { padding:14px 12px; }
+  .task-children-section .task-feed-header, .task-children-section .task-feed-section { padding:12px; }
 }
 @media (max-width:480px) {
   .task-document { padding:14px 12px 28px; }

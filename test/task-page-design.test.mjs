@@ -31,7 +31,7 @@ test('共享任务页面提供标题、属性和语义正文分区，标签安�
   const doc = buildTaskDocument({ breadcrumb: h('nav'), heading: title, properties: row,
     label: '<img src=x>', done: true, sections: [taskSection('子任务', h('div'), { count: 3, children: true })] });
   assert.equal(doc.tagName, 'ARTICLE'); assert.equal(findAllByTag(doc, 'header').length, 1);
-  assert.equal(findAllByTag(doc, 'h1').length, 1); assert.equal(findAllByTag(doc, 'h2').length, 1);
+  assert.equal(findAllByTag(doc, 'h1').length, 1); assert.equal(findAllByTag(doc, 'h2').length, 2);
   assert.ok(textOf(doc).includes('<script>标题</script>')); assert.equal(findAllByTag(doc, 'script').length, 0);
   assert.ok(textOf(doc).includes('<img src=x>')); assert.equal(findAllByTag(doc, 'img').length, 0);
   assert.equal(textOf(findAllByClass(doc, 'task-page-status')[0]), '已完成');
@@ -64,7 +64,7 @@ test('项目子任务使用同一文档结构、完整祖先路径和下级计�
   assert.equal(findAllByClass(root, 'task-document').length, 1);
   assert.equal(textOf(findAllByClass(root, 'task-page-status')[0]), '已完成');
   assert.deepEqual(findAllByClass(root, 'prop-label').map(textOf), ['状态', '时间', '当天安排', '预计用时', '层级', '下级']);
-  assert.deepEqual(findAllByTag(root, 'h2').map(e => e.className), ['page-section task-section-title', 'page-section task-section-title']);
+  assert.deepEqual(findAllByTag(root, 'h2').map(textOf), ['任务属性', '内容', '子子任务1']);
   assert.equal(textOf(findAllByClass(root, 'task-section-count')[0]), '1');
   assert.equal(findAllByClass(root, 'page-title')[0].getAttribute('data-focus-key'), '/api/projects/p/tasks/parent/subtasks/child:title');
   assert.ok(findAllByTag(root, 'a').some(e => e.getAttribute('href') === '#/task/p/parent'));

@@ -30,7 +30,7 @@ export function taskProperty(label, control, key) {
 export function taskSection(title, content, { count, children = false } = {}) {
   const heading = h('h2', { class: 'page-section task-section-title' }, title);
   if (count !== undefined) heading.append(h('span', { class: 'task-section-count' }, String(count)));
-  return h('section', { class: `task-page-section${children ? ' task-children-section' : ''}`, 'aria-label': title }, heading, content);
+  return h('section', { class: `task-page-section task-region ${children ? 'task-children-section' : 'task-content-section'}`, 'aria-label': title }, heading, content);
 }
 
 export function buildTaskDocument({ breadcrumb, heading, properties, sections, label, done }) {
@@ -39,5 +39,6 @@ export function buildTaskDocument({ breadcrumb, heading, properties, sections, l
   const hero = h('header', { class: 'task-page-hero' },
     h('div', { class: 'task-page-kicker' }, h('span', {}, label), state), heading);
   return h('article', { class: 'task-document', 'aria-label': '任务详情' }, breadcrumb, hero,
-    h('section', { class: 'task-properties-section', 'aria-label': '任务属性' }, properties), ...sections);
+    h('section', { class: 'task-properties-section task-region', 'aria-label': '任务属性' },
+      h('h2', { class: 'task-section-title' }, '任务属性'), properties), ...sections);
 }
