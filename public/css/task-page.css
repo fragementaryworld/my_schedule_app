@@ -1,5 +1,7 @@
 /* Task detail pages: document hierarchy, quiet properties and an open writing area. */
-.task-document { width:100%; max-width:1040px; margin:0 auto; padding:20px clamp(20px,4vw,56px) 56px; background:var(--panel); border:1px solid var(--border); border-radius:12px; min-height:540px; }
+/* Only task details occupy the content canvas; other routes keep their shell spacing. */
+#content:has(> .task-document) { padding:0; background:var(--panel); }
+.task-document { width:100%; max-width:none; margin:0; padding:24px clamp(20px,3vw,48px) 96px; background:var(--panel); border:0; border-radius:0; min-height:100%; }
 .task-document { --task-properties-accent:#5b78b2; --task-content-accent:#b97c24; --task-children-accent:#8060b8; }
 .task-document .breadcrumb { padding-bottom:16px; margin-bottom:0; border-bottom:1px solid var(--border); gap:6px 8px; }
 .task-document .crumb { overflow-wrap:anywhere; }
@@ -58,7 +60,7 @@
 .task-children-section .tabbar .tab { border-radius:4px; padding:6px 10px; font-size:12px; }
 .task-children-section .tabbar .tab.active { background:var(--panel-2); color:var(--text); border-color:transparent; }
 @media (max-width:760px) {
-  .task-document { padding:16px 18px 32px; border-radius:9px; min-height:420px; }
+  .task-document { padding:20px 18px 96px; }
   .task-page-hero { padding:24px 0 20px; }
   .task-document .page-head { gap:10px; }
   .task-document .prop-row { grid-template-columns:104px minmax(0,1fr); gap:8px; }
@@ -69,7 +71,7 @@
   .task-children-section .task-feed-header, .task-children-section .task-feed-section { padding:12px; }
 }
 @media (max-width:480px) {
-  .task-document { padding:14px 12px 28px; }
+  .task-document { padding:16px 12px 96px; }
   .task-document .prop-row { grid-template-columns:minmax(0,1fr); gap:4px; padding:8px 4px; }
   .task-document .prop-row > .inline-select { justify-self:start; width:auto; }
 }
