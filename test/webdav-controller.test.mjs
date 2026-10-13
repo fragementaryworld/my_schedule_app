@@ -32,6 +32,22 @@ test('自动同步关闭不发请求、不启动定时器，但允许手动同�
   assert.equal((await f.controller.sync()).status, 'unchanged'); assert.equal(f.timers.size, 0);
 });
 
+test('总开关关闭则取消计时且手动同步不可用，重新开启恢复原有自动设置', async () => {
+  const f = fixture(); await f.controller.start(); assert.equal(f.timers.size, 1);
+  const previousCalls = f.events.filter(Array.isArray).length;
+  f.config.syncEnabled = false; await f.controller.start();
+  assert.equal(f.controller.state.phase, 'disabled'); assert.equal(f.timers.size, 0);
+  assert.equal((await f.controller.sync()).status, 'disabled'); assert.equal(f.events.filter(Array.isArray).length, previousCalls);
+  f.config.syncEnabled = true; await f.controller.start();
+  assert.equal(f.events.filter(Array.isArray).length, previousCalls + 1); assert.equal(f.timers.size, 1);
+});
+
+test('重新开启总开关时不会擅自开启已关闭的自动同步', async () => {
+  const f = fixture(); f.config.enabled = false; f.config.syncEnabled = false; await f.controller.start();
+  f.config.syncEnabled = true; await f.controller.start(); assert.equal(f.events.length, 0); assert.equal(f.timers.size, 0);
+  assert.equal((await f.controller.sync()).status, 'unchanged');
+});
+
 test('无连接配置时不触发同步，配置损坏显示错误', async () => {
   const f = fixture(); f.config.configured = false; await f.controller.start();
   assert.equal((await f.controller.sync()).status, 'disabled'); assert.equal(f.events.length, 0);

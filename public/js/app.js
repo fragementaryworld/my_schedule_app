@@ -167,7 +167,7 @@ function init() {
     webdav.subscribe(state => {
       cloudStatus.hidden = !state.config?.configured && state.phase !== 'error';
       cloudStatus.dataset.phase = state.phase;
-      cloudStatus.textContent = `☁ ${({ syncing: '正在同步', conflict: '同步有冲突', error: '同步失败', waiting: '等待编辑完成', ready: '云同步', disabled: '未配置' })[state.phase] || '云同步'}`;
+      cloudStatus.textContent = `☁ ${({ syncing: '正在同步', conflict: '同步有冲突', error: '同步失败', waiting: '等待编辑完成', ready: '云同步', disabled: state.config?.configured ? '同步已关闭' : '未配置' })[state.phase] || '云同步'}`;
       cloudStatus.title = state.message || '打开同步设置';
     });
   }

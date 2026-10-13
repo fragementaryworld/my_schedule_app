@@ -23,13 +23,13 @@ export function createWebdavController({ getConfig = () => api.get('/api/webdav/
   const cancel = () => { if (timer !== null) clearTimer(timer); timer = null; };
   const schedule = delay => {
     cancel();
-    if (stopped || !config?.configured || !config.enabled || result?.status === 'conflict') return;
+    if (stopped || !config?.configured || config.syncEnabled === false || !config.enabled || result?.status === 'conflict') return;
     timer = setTimer(() => { timer = null; sync('auto', null, true); }, delay ?? config.intervalMinutes * 60000);
     timer?.unref?.();
   };
   async function sync(direction = 'auto', token = null, automatic = false) {
     if (running) return { status: 'busy' };
-    if (!config?.configured) return { status: 'disabled' };
+    if (!config?.configured || config.syncEnabled === false) return { status: 'disabled' };
     if (automatic && isEditing()) { emit('waiting', '正在编辑，稍后自动同步'); schedule(60000); return { status: 'waiting' }; }
     cancel(); const version = generation; running = true;
     const unlock = lock(); emit('syncing', '正在同步，请稍候…');
@@ -66,6 +66,7 @@ export function createWebdavController({ getConfig = () => api.get('/api/webdav/
         const latest = await getConfig(); if (version !== generation) return;
         config = latest; result = null;
         if (!config?.configured) { emit(config?.configurationError ? 'error' : 'disabled', config?.configurationError || '未配置 WebDAV'); return; }
+        if (config.syncEnabled === false) { emit('disabled', 'WebDAV 同步已关闭，连接设置已保留'); return; }
         emit('ready', config.enabled ? '已开启自动同步' : '自动同步已关闭，可手动同步');
         if (config.enabled) {
           if (running) schedule(); else await sync('auto', null, true);

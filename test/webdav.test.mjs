@@ -155,3 +155,29 @@ test('语义指纹不受对象属性顺序影响且保留数组顺序', () => {
   assert.equal(fingerprint({ b: 2, a: 1 }), fingerprint({ a: 1, b: 2 }));
   assert.notEqual(fingerprint([1, 2]), fingerprint([2, 1]));
 });
+
+test('总开关关闭时阻止所有远端访问，保留连接、同步基线和备份，重启后仍关闭', async t => {
+  const f = await fixture(t); await f.seed(data('本机')); await f.sync();
+  f.dav.set(data('远端编辑')); await f.sync();
+  const previous = (await f.request('GET', '/api/webdav/config')).body;
+  const off = (await f.request('PUT', '/api/webdav/config', { syncEnabled: false })).body;
+  assert.equal(off.syncEnabled, false); assert.equal(off.hasPassword, true); assert.equal(off.url, previous.url);
+  assert.equal(off.baselineHash, previous.baselineHash); assert.deepEqual(off.backups, previous.backups);
+  const calls = f.dav.state.calls.length;
+  assert.equal((await f.sync()).status, 409); assert.equal((await f.request('POST', '/api/webdav/test', {})).status, 409);
+  assert.equal(f.dav.state.calls.length, calls);
+  const service = new WebdavService({ store: f.server.store, run: fn => fn(), dataFile: f.file });
+  assert.equal(service.publicConfig().syncEnabled, false);
+  assert.equal((await f.request('PUT', '/api/webdav/config', { syncEnabled: true })).status, 200);
+  assert.equal((await f.sync()).body.status, 'unchanged');
+});
+
+test('总开关严格校验，历史配置缺失总开关时兼容原有同步行为', async t => {
+  const f = await fixture(t);
+  assert.equal((await f.request('PUT', '/api/webdav/config', { syncEnabled: 'false' })).status, 400);
+  const document = JSON.parse(fs.readFileSync(f.file + '.webdav.json', 'utf8')); delete document.config.syncEnabled;
+  fs.writeFileSync(f.file + '.webdav.json', JSON.stringify(document));
+  const service = new WebdavService({ store: f.server.store, run: fn => fn(), dataFile: f.file });
+  assert.equal(service.publicConfig().syncEnabled, true);
+  assert.equal(service.publicConfig().enabled, true); assert.equal((await service.test()).ok, true);
+});

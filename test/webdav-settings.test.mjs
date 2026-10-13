@@ -53,3 +53,22 @@ test('恢复备份提供导出入口，远端不存在时只提供本机上传',
   f.emit({ result: { status: 'conflict', token: 'token-2', local: { tasks: 1 }, remote: null } });
   assert.ok(f.button('保留本机并上传')); assert.equal(f.button('使用远端替换本机'), undefined);
 });
+
+test('总开关立即保存且仅提交开关字段，不提交未保存的连接草稿', async t => {
+  const f = fixture(t); let starts = 0;
+  f.controller.start = async () => { starts++; };
+  globalThis.fetch = async (url, options) => { f.requests.push({ url, ...options }); Object.assign(f.config, JSON.parse(options.body)); return { ok: true, json: async () => f.config }; };
+  f.field('url').value = 'https://unsaved.example/'; f.field('url').fire('input');
+  f.field('syncEnabled').checked = false; f.field('syncEnabled').fire('change'); await tick();
+  assert.deepEqual(JSON.parse(f.requests[0].body), { syncEnabled: false }); assert.equal(f.requests[0].method, 'PUT'); assert.equal(starts, 1);
+  assert.equal(f.field('url').value, 'https://unsaved.example/'); assert.equal(f.field('syncEnabled').checked, false);
+  assert.equal(f.field('syncEnabled').getAttribute('aria-checked'), 'false'); assert.equal(f.button('立即同步').disabled, true); assert.equal(f.button('测试连接').disabled, true);
+  assert.equal(f.field('enabled').checked, true); assert.equal(f.button('保存同步设置').disabled, false);
+});
+
+test('总开关保存失败恢复原状态并显示原因，同步进行中不允许切换', async t => {
+  const f = fixture(t); globalThis.fetch = async () => ({ ok: false, status: 409, json: async () => ({ error: '正在同步' }) });
+  f.field('syncEnabled').checked = false; f.field('syncEnabled').fire('change'); await tick();
+  assert.equal(f.field('syncEnabled').checked, true); assert.match(textOf(findAllByClass(f.view.element, 'webdav-message')[0]), /正在同步/);
+  f.emit({ running: true }); assert.equal(f.field('syncEnabled').disabled, true); await waitForPendingWrites();
+});

@@ -10,6 +10,11 @@ export function buildWebdavSettings(initial, controller = webdav) {
   let config = initial, dirty = false, working = false;
   const group = h('section', { class: 'settings-group webdav-settings', 'aria-label': 'WebDAV 数据同步' });
   group.append(h('h3', {}, '☁ WebDAV 数据同步'));
+  const master = h('input', { type: 'checkbox', id: 'webdav-syncEnabled', role: 'switch', 'aria-label': '启用 WebDAV 同步' });
+  const masterLabel = h('span', { class: 'webdav-switch-state' });
+  group.append(h('label', { class: 'webdav-switch', for: 'webdav-syncEnabled' }, master,
+    h('span', { class: 'webdav-switch-track', 'aria-hidden': 'true' }), h('span', {}, '启用 WebDAV 同步'), masterLabel),
+    h('p', { class: 'small muted' }, '开关立即生效。关闭后停止自动及手动同步，保留连接设置和恢复备份。'));
   const card = h('div', { class: 'card webdav-card' }), form = h('form', { class: 'webdav-fields' });
   const controls = {};
   const field = (name, label, type, value, help = '') => {
@@ -41,9 +46,12 @@ export function buildWebdavSettings(initial, controller = webdav) {
     latestState = state;
     if (state.config) config = state.config;
     const busy = working || state.running;
-    save.disabled = busy; test.disabled = sync.disabled = busy || dirty || !config.configured; clear.disabled = busy || !config.configured;
+    const off = config.syncEnabled === false;
+    master.checked = !off; master.disabled = busy; master.setAttribute('aria-checked', String(!off));
+    masterLabel.textContent = off ? '已关闭' : '已开启';
+    save.disabled = busy; test.disabled = sync.disabled = busy || dirty || off || !config.configured; clear.disabled = busy || !config.configured;
     for (const input of Object.values(controls)) input.disabled = busy;
-    status.textContent = dirty ? '连接设置已修改，请先保存再同步。' : (state.message || config.configurationError || config.lastMessage || '填写连接设置后开始同步。');
+    status.textContent = off ? 'WebDAV 同步已关闭，连接设置已保留。' : dirty ? '连接设置已修改，请先保存再同步。' : (state.message || config.configurationError || config.lastMessage || '填写连接设置后开始同步。');
     last.textContent = `上次成功同步：${formatTime(config.lastSuccessAt)}${config.lastStatus ? ` · ${STATUS_LABELS[config.lastStatus] || ''}` : ''}`;
     backups.innerHTML = '';
     if (config.backups?.length) {
@@ -54,7 +62,7 @@ export function buildWebdavSettings(initial, controller = webdav) {
       backups.append(list);
     }
     conflict.innerHTML = '';
-    if (state.result?.status === 'conflict') {
+    if (!off && state.result?.status === 'conflict') {
       const result = state.result;
       conflict.append(h('h4', {}, '自动同步已暂停：请确认保留哪一端'),
         h('p', {}, `本机：${summaryText(result.local)}`), h('p', {}, `远端：${summaryText(result.remote)}`));
@@ -69,6 +77,16 @@ export function buildWebdavSettings(initial, controller = webdav) {
       }
     }
   };
+  master.addEventListener('change', async () => {
+    if (working || controller.state.running) { update(); return; }
+    const syncEnabled = master.checked;
+    working = true; update(); let failure;
+    try {
+      config = await api.action('/api/webdav/config', { syncEnabled }, 'PUT');
+      await controller.start();
+    } catch (error) { failure = error.message; }
+    finally { working = false; update({ ...controller.state, config }); if (failure) status.textContent = failure; }
+  });
   for (const input of Object.values(controls)) {
     const changed = () => { dirty = true; update(); };
     input.addEventListener('input', changed); input.addEventListener('change', changed);

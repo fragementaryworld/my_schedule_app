@@ -85,6 +85,15 @@
 .settings-group h3 { margin-bottom: 10px; font-size: 15px; }
 .settings-group .small { overflow-wrap: anywhere; }
 .webdav-card { padding:16px; }
+.webdav-switch { position:relative; display:flex; align-items:center; gap:10px; width:fit-content; margin:12px 0 6px; cursor:pointer; font-size:14px; font-weight:600; }
+.webdav-switch input { position:absolute; opacity:0; width:42px; height:24px; margin:0; }
+.webdav-switch-track { width:42px; height:24px; border:1px solid var(--border); border-radius:20px; background:var(--panel-2); transition:background .15s; }
+.webdav-switch-track::before { content:''; display:block; width:18px; height:18px; margin:2px; border-radius:50%; background:var(--muted); transition:transform .15s,background .15s; }
+.webdav-switch input:checked + .webdav-switch-track { background:var(--primary); border-color:var(--primary); }
+.webdav-switch input:checked + .webdav-switch-track::before { transform:translateX(18px); background:white; }
+.webdav-switch input:focus-visible + .webdav-switch-track { outline:2px solid var(--primary); outline-offset:3px; }
+.webdav-switch:has(input:disabled) { opacity:.6; cursor:wait; }
+.webdav-switch-state { font-size:12px; font-weight:400; color:var(--muted); }
 .webdav-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:14px 18px; margin:16px 0; }
 .webdav-field-wide { grid-column:1/-1; }
 .webdav-field { min-width:0; }
