@@ -1,4 +1,5 @@
 @echo off
-rem 工作生活专属 App 启动脚本
-cd /d "%~dp0"
-node server.js
+chcp 65001 >nul
+rem Forward to the hidden launcher; do not keep a console hosting the service.
+wscript.exe //B "%~dp0启动.vbs"
+exit /b

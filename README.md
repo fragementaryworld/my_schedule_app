@@ -4,7 +4,9 @@
 
 ## 启动
 
-已在 Node.js 24 环境验证。在项目目录执行 `npm start`，或双击 `启动.bat`，然后打开 <http://localhost:4321/>。
+已在 Node.js 24 环境验证。Windows 推荐双击 `启动.vbs`：服务在后台运行并打开浏览器，不保留 CMD 窗口。旧入口 `启动.bat` 会转交无窗口启动后退出；如要避免批处理刚启动时的一闪，请使用 `启动.vbs`。也可在项目目录执行 `npm start` 查看前台运行日志，然后打开 <http://localhost:4321/>。
+
+后台启动日志保存在 `data/startup.log` 和 `data/startup-error.log`（自定义 DATA_FILE 时位于该数据文件的目录）。若浏览器未打开，可查看日志，或运行 `npm start` 排查。结束后台服务请点击页面右上角「保存并结束服务」。无需安装启动依赖或修改系统配置；若系统禁用了 Windows Script Host，可继续使用 `npm start`。
 
 数据保存在 `data/data.json`，自动备份为 `data/data.json.bak`。请勿同时用多个服务写同一份数据；如检测到外部修改，保存会报错并保留磁盘数据，请重启后继续。
 

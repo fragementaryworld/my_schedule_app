@@ -72,7 +72,7 @@ export async function endService() {
       h('span', { class: 'service-ended-icon', 'aria-hidden': 'true' }, '✓'),
       h('h2', {}, '已保存，服务已结束'),
       h('p', { class: 'muted' }, '数据已保存在本机，可以关闭此页面。'),
-      h('p', { class: 'small muted' }, '下次使用请双击「启动.bat」或运行 npm start，然后刷新页面。')));
+      h('p', { class: 'small muted' }, '下次使用请双击「启动.vbs」或运行 npm start，然后刷新页面。')));
     shell.inert = false;
     shell.querySelector?.('aside')?.setAttribute('inert', '');
     document.getElementById('saveBtn').disabled = true;
