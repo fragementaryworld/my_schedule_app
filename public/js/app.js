@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { toast, h, confirmDialog } from './ui.js';
 import { flushPendingEdits, waitForPendingWrites } from './saving.js';
 import { retireView } from './view-lifecycle.js';
+import { webdav } from './webdav.js';
 import { cancelCalendarDrag } from './calendar-drag.js';
 import * as home from './views/home.js';
 import * as today from './views/today.js';
@@ -59,6 +60,7 @@ export async function endService() {
   const fab = document.getElementById('fab');
   try {
     if (!await confirmDialog('将保存当前编辑并结束本地服务。下次使用请重新运行启动脚本。', { confirmText: '保存并结束' })) return;
+    webdav.stop();
     button.disabled = true;
     button.textContent = '正在保存…';
     shell.inert = true;
@@ -83,6 +85,7 @@ export async function endService() {
     button.textContent = '保存并结束服务';
     fab.disabled = false;
     toast('未结束服务：' + error.message, 'error');
+    webdav.start();
   } finally {
     ending = false;
   }
@@ -149,7 +152,26 @@ export async function navigate() {
   window.scrollTo(0, 0);
 }
 
+export async function refreshAfterWebdav() {
+  if (ending) return;
+  try {
+    const prefs = await api.get('/api/preferences');
+    document.documentElement.dataset.theme = prefs.theme || 'light';
+  } finally { await navigate(); }
+}
+
 function init() {
+  const cloudStatus = document.getElementById('webdavStatus');
+  if (cloudStatus) {
+    cloudStatus.onclick = () => { location.hash = '#/settings'; };
+    webdav.subscribe(state => {
+      cloudStatus.hidden = !state.config?.configured && state.phase !== 'error';
+      cloudStatus.dataset.phase = state.phase;
+      cloudStatus.textContent = `☁ ${({ syncing: '正在同步', conflict: '同步有冲突', error: '同步失败', waiting: '等待编辑完成', ready: '云同步', disabled: '未配置' })[state.phase] || '云同步'}`;
+      cloudStatus.title = state.message || '打开同步设置';
+    });
+  }
+  webdav.start();
   window.addEventListener('hashchange', navigate);
   document.getElementById('fab').addEventListener('click', () => {
     if (currentView && typeof currentView.add === 'function') currentView.add(currentParams);

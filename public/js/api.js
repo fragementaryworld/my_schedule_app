@@ -29,6 +29,8 @@ function write(method, path, body) {
 export const api = {
   get: (p) => trackRequest(request('GET', p)),
   post: (p, b) => write('POST', p, b),
+  // Transfer failures must not be mistaken for unsaved local editor failures.
+  action: (p, b, method = 'POST') => trackRequest(request(method, p, b)),
   put: (p, b) => write('PUT', p, b),
   del: (p) => write('DELETE', p)
 };

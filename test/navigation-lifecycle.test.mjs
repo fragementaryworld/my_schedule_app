@@ -38,7 +38,7 @@ test('首页迟到的数据不能追加到已经打开的设置页', async () =>
   const current = document.getElementById('content');
   release(); await home;
   assert.equal(document.getElementById('content'), current);
-  assert.equal(findAllByClass(current, 'settings-group').length, 3);
+  assert.equal(findAllByClass(current, 'settings-group').length, 4);
   assert.equal(findAllByClass(current, 'home-grid').length, 0);
   assert.equal(document.getElementById('pageTitle').textContent, '数据与设置');
 });

@@ -2,7 +2,7 @@
   "name": "my-schedule-app",
   "version": "1.0.0",
   "private": true,
-  "description": "个人工作生活管理 App（本地运行，无登录无联网）",
+  "description": "个人工作生活管理 App（本地运行，可选 WebDAV 数据同步）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

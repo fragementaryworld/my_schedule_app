@@ -4,10 +4,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { createApp } = require('../lib/api');
 
-async function apiFixture(t) {
+async function apiFixture(t, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'schedule-api-'));
   const file = path.join(directory, 'data.json');
-  const server = createApp({ dataFile: file });
+  const server = createApp({ ...options, dataFile: file });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => {

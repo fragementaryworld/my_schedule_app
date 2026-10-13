@@ -2,8 +2,10 @@ import { beginRender } from '../view-lifecycle.js';
 'use strict';
 import { api } from '../api.js';
 import { h, toast, confirmDialog } from '../ui.js';
+import { buildWebdavSettings } from '../webdav-settings.js';
 
 let el = null;
+let syncUnsubscribe = null;
 
 const HOME_OPTIONS = [
   ['home', '首页'],
@@ -18,10 +20,12 @@ export async function render(container) {
   el = container;
   const active = beginRender(container);
   if (!active()) return;
-  const [prefs, meta] = await Promise.all([api.get('/api/preferences'), api.get('/api/meta')]);
+  const [prefs, meta, syncConfig] = await Promise.all([api.get('/api/preferences'), api.get('/api/meta'), api.get('/api/webdav/config')]);
   if (!active()) return;
   container.innerHTML = '';
+  syncUnsubscribe?.();
   container.append(buildDataGroup(meta));
+  const sync = buildWebdavSettings(syncConfig || {}); container.append(sync.element); syncUnsubscribe = sync.connect(active);
   container.append(buildPrefsGroup(prefs));
   container.append(buildAbout());
 }
@@ -112,7 +116,7 @@ function buildAbout() {
   const group = h('div', { class: 'settings-group' });
   group.append(h('h3', {}, 'ℹ️ 关于'));
   group.append(h('div', { class: 'card', style: 'padding:16px' },
-    h('p', { class: 'muted', style: 'margin:0' }, '工作生活专属 App · v1.0.0 · 纯本地运行，无登录无联网')));
+    h('p', { class: 'muted', style: 'margin:0' }, '工作生活专属 App · v1.0.0 · 数据保存在本机，可选 WebDAV 云同步')));
   return group;
 }
 
